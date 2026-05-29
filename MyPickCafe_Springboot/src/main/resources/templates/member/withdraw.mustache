@@ -1,0 +1,49 @@
+{{>layout/header}}
+
+<main class="cg-container">
+  <div class="cg-mypage-grid">
+
+    <aside>
+      <nav class="cg-sidenav">
+        <a href="/member/me">내 정보</a>
+        <a href="/member/edit">정보 수정</a>
+        <a href="/member/reviews">내가 쓴 리뷰</a>
+        <a href="/favorites">즐겨찾기</a>
+        <div class="cg-sidenav__divider"></div>
+        <a href="/member/withdraw" class="is-danger is-active">회원 탈퇴</a>
+      </nav>
+    </aside>
+
+    <section>
+      <div class="cg-panel">
+        <div class="cg-panel__head">
+          <div>
+            <p class="cg-eyebrow" style="color:var(--danger)">위험 구역</p>
+            <h2 class="cg-panel__title">회원 탈퇴</h2>
+          </div>
+        </div>
+        <div class="cg-panel__body">
+          <div class="cg-danger-zone">
+            <h3>정말 탈퇴하시겠습니까?</h3>
+            <p>
+              계정 <strong>{{email}}</strong>에 연결된 모든 데이터가 삭제됩니다.<br>
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <form method="post" action="/member/withdraw">
+              <div class="cg-actions">
+                <button type="submit" class="cg-btn cg-btn--danger"
+                        onclick="return confirm('정말 탈퇴하시겠습니까? 되돌릴 수 없습니다.')">
+                  탈퇴하기
+                </button>
+                <a href="/member/me" class="cg-btn-outline">취소</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+{{>layout/footer}}

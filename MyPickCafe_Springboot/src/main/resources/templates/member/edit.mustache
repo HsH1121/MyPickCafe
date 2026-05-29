@@ -1,0 +1,135 @@
+{{>layout/header}}
+
+<main class="cg-container">
+  <div class="cg-mypage-grid">
+
+    <aside>
+      <nav class="cg-sidenav">
+        <a href="/member/me">내 정보</a>
+        <a href="/member/edit" class="is-active">정보 수정</a>
+        <a href="/member/reviews">내가 쓴 리뷰</a>
+        <a href="/favorites">즐겨찾기</a>
+        <div class="cg-sidenav__divider"></div>
+        <a href="/member/withdraw" class="is-danger">회원 탈퇴</a>
+      </nav>
+    </aside>
+
+    <section style="display:flex;flex-direction:column;gap:20px">
+
+      {{#member}}
+        <form id="editForm" method="post" action="/member/edit" autocomplete="off">
+
+          <!-- 기본 정보 -->
+          <div class="cg-panel" style="margin-bottom:20px">
+            <div class="cg-panel__head">
+              <div>
+                <p class="cg-eyebrow">프로필</p>
+                <h2 class="cg-panel__title">기본 정보</h2>
+              </div>
+            </div>
+            <div class="cg-panel__body">
+              <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+                <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:14px">
+                  <div class="cg-field">
+                    <label class="cg-label" for="member_nickname">닉네임</label>
+                    <input class="cg-input" id="member_nickname" name="member_nickname"
+                           value="{{nickname}}" maxlength="8" required/>
+                  </div>
+                  <div class="cg-grid2" style="gap:12px">
+                    <div class="cg-field">
+                      <label class="cg-label" for="member_age">나이</label>
+                      <input class="cg-input" id="member_age" name="member_age"
+                             type="number" value="{{age}}" min="1" max="120"/>
+                    </div>
+                    <div class="cg-field">
+                      <label class="cg-label" for="member_gender">성별</label>
+                      <input class="cg-input" id="member_gender" name="member_gender"
+                             maxlength="1" value="{{gender}}" placeholder="M / F"/>
+                    </div>
+                  </div>
+                  <div class="cg-field">
+                    <label class="cg-label" for="member_photo">프로필 사진 파일명</label>
+                    <input class="cg-input" id="member_photo" name="member_photo"
+                           value="{{photoName}}" placeholder="예: avatar01.png"/>
+                  </div>
+                </div>
+                <div style="text-align:center;flex-shrink:0">
+                  {{#hasPhoto}}
+                    <img src="{{photoUrl}}" alt="현재 프로필" class="cg-avatar-lg" style="width:90px;height:90px"/>
+                    <p class="cg-muted" style="margin-top:8px;font-size:12px">{{photoName}}</p>
+                  {{/hasPhoto}}
+                  {{^hasPhoto}}
+                    <div class="cg-avatar-lg" style="width:90px;height:90px;
+                         background:var(--bg-alt);display:flex;align-items:center;
+                         justify-content:center;margin:0 auto">
+                      <span style="font-size:11px;color:var(--text-muted)">NO IMG</span>
+                    </div>
+                    <p class="cg-muted" style="margin-top:8px;font-size:12px">없음</p>
+                  {{/hasPhoto}}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 비밀번호 변경 -->
+          <div class="cg-panel" style="margin-bottom:20px">
+            <div class="cg-panel__head">
+              <div>
+                <p class="cg-eyebrow">보안</p>
+                <h2 class="cg-panel__title">비밀번호 변경 <span style="font-size:13px;font-weight:400;color:var(--text-muted)">(선택)</span></h2>
+              </div>
+            </div>
+            <div class="cg-panel__body" style="display:flex;flex-direction:column;gap:14px">
+              <div class="cg-field">
+                <label class="cg-label" for="current_password">현재 비밀번호</label>
+                <input class="cg-input" id="current_password" name="current_password"
+                       type="password" autocomplete="current-password" placeholder="변경 시에만 입력"/>
+              </div>
+              <div class="cg-field">
+                <label class="cg-label" for="new_password">새 비밀번호</label>
+                <input class="cg-input" id="new_password" name="new_password"
+                       type="password" autocomplete="new-password" placeholder="변경 시에만 입력"/>
+                <p class="cg-hint">현재/새 비밀번호를 모두 입력한 경우에만 변경됩니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="cg-actions">
+            <button type="submit" class="cg-btn">저장하기</button>
+            <a href="/member/me" class="cg-btn-outline">취소</a>
+          </div>
+        </form>
+      {{/member}}
+
+      {{^member}}
+        <div class="cg-panel">
+          <div class="cg-panel__body cg-empty">사용자 정보를 불러오지 못했습니다.</div>
+        </div>
+      {{/member}}
+
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+  const form = document.getElementById('editForm');
+  if (!form) return;
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form).entries());
+      const res = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) { window.location.href = '/member/me'; }
+      else { alert('저장 실패\n' + await res.text()); }
+    });
+  }
+})();
+</script>
+
+{{>layout/footer}}

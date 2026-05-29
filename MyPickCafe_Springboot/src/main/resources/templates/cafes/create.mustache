@@ -1,0 +1,137 @@
+{{>layout/header}}
+
+<div class="cg-topbar">
+  <div class="cg-container cg-topbar__inner">
+    <span class="cg-logo">MyPickCafe</span>
+    <nav class="cg-breadcrumb">
+      <a href="/">홈</a>
+      <span>›</span>
+      <span class="em">카페 등록</span>
+    </nav>
+  </div>
+</div>
+
+<main class="cg-container" style="padding:32px 0 64px">
+  <div style="max-width:760px;margin:0 auto">
+
+    <div style="margin-bottom:28px">
+      <p class="cg-eyebrow">카페 등록</p>
+      <h1 style="font-size:26px;font-weight:900;letter-spacing:-.5px">새 카페 등록하기</h1>
+      <p style="font-size:14px;color:var(--text-sub);margin-top:6px">
+        등록 후 관리자 승인을 거쳐 사이트에 노출됩니다.
+      </p>
+    </div>
+
+    <form id="cafeCreateForm" method="post" action="/cafes/create"
+          enctype="multipart/form-data" class="space-y">
+
+      <!-- 기본 정보 -->
+      <div class="cg-panel">
+        <div class="cg-panel__head">
+          <div>
+            <p class="cg-eyebrow">Step 1</p>
+            <h2 class="cg-panel__title">기본 정보</h2>
+          </div>
+        </div>
+        <div class="cg-panel__body">
+          <div class="cg-grid2">
+            <div class="field">
+              <div class="field__label">카페명 <span class="req">*</span></div>
+              <input class="cg-input" name="name" maxlength="10" placeholder="최대 10자" required/>
+            </div>
+            <div class="field">
+              <div class="field__label">카테고리 코드 <span class="req">*</span></div>
+              <input class="cg-input" name="code" maxlength="10" placeholder="예: CAFE, DESSERT" required/>
+            </div>
+            <div class="field">
+              <div class="field__label">연락처 <span class="req">*</span></div>
+              <input class="cg-input" name="number" maxlength="13" placeholder="010-1234-5678"/>
+              <p class="hint">하이픈 포함 12~13자</p>
+            </div>
+            <div class="field">
+              <div class="field__label">영업 개시일</div>
+              <input class="cg-input" type="date" name="date"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 주소 / 위치 -->
+      <div class="cg-panel">
+        <div class="cg-panel__head">
+          <div>
+            <p class="cg-eyebrow">Step 2</p>
+            <h2 class="cg-panel__title">주소 · 위치</h2>
+          </div>
+        </div>
+        <div class="cg-panel__body space-y">
+          <div class="grid-addr">
+            <div class="addr-left">
+              <div class="field">
+                <div class="field__label">주소 <span class="req">*</span></div>
+                <input class="cg-input" name="address" maxlength="60"
+                       placeholder="도로명 주소" required/>
+              </div>
+            </div>
+            <div class="addr-right">
+              <button type="button" id="btnFindAddr" class="cg-btn w100">주소 찾기</button>
+            </div>
+          </div>
+          <div class="cg-grid2">
+            <div class="field">
+              <div class="field__label">위도 (lat) <span class="req">*</span></div>
+              <input class="cg-input" name="lat" required/>
+            </div>
+            <div class="field">
+              <div class="field__label">경도 (lon) <span class="req">*</span></div>
+              <input class="cg-input" name="lon" required/>
+            </div>
+          </div>
+          <div class="mapbox">지도 미리보기</div>
+        </div>
+      </div>
+
+      <!-- 사진 / 증빙 -->
+      <div class="cg-panel">
+        <div class="cg-panel__head">
+          <div>
+            <p class="cg-eyebrow">Step 3</p>
+            <h2 class="cg-panel__title">사진 · 증빙</h2>
+          </div>
+        </div>
+        <div class="cg-panel__body">
+          <div class="cg-grid2">
+            <div class="field">
+              <div class="field__label">대표 사진</div>
+              <div class="uploader">
+                <div class="thumb"></div>
+                <span>클릭하거나 드래그하여 업로드</span>
+                <input type="file" name="cafePhotoFile" class="file" accept="image/*"/>
+                <input type="hidden" name="cafePhoto" value=""/>
+              </div>
+              <p class="hint">파일명 30자 이내</p>
+            </div>
+            <div class="field">
+              <div class="field__label">사업자 증빙</div>
+              <div class="uploader">
+                <div class="thumb"></div>
+                <span>사업자등록증 등 서류 첨부</span>
+                <input type="file" name="bizDocFile" class="file" accept=".pdf,image/*"/>
+                <input type="hidden" name="bizDoc" value=""/>
+              </div>
+              <p class="hint">PDF / JPG 허용</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cg-actions end">
+        <a href="/" class="cg-btn-outline">취소</a>
+        <button type="submit" class="cg-btn">등록 신청</button>
+      </div>
+    </form>
+
+  </div>
+</main>
+
+{{>layout/footer}}

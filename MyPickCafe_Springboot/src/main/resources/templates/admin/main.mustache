@@ -1,0 +1,112 @@
+{{> layout/header}}
+
+<main class="cg-container" style="padding:32px 0 64px">
+  <div class="cg-mypage-grid">
+
+    <aside>
+      <nav class="cg-sidenav">
+        <a href="/admin" class="is-active">대시보드</a>
+        <a href="#section-cafes">카페 관리</a>
+      </nav>
+    </aside>
+
+    <section style="display:flex;flex-direction:column;gap:24px">
+
+      <!-- 페이지 헤더 -->
+      <div>
+        <p class="cg-eyebrow">관리자</p>
+        <h1 style="font-size:24px;font-weight:900;letter-spacing:-.5px">관리자 대시보드</h1>
+      </div>
+
+      <!-- 카페 관리 -->
+      <article id="section-cafes" class="cg-panel">
+        <div class="cg-panel__head">
+          <div>
+            <p class="cg-eyebrow">카페 관리</p>
+            <h2 class="cg-panel__title">승인 대기 목록</h2>
+          </div>
+          {{#pendingCafes}}
+          <span class="cg-badge cg-badge--accent">{{#pendingCafes.length}}{{pendingCafes.length}}{{/pendingCafes.length}}건 대기</span>
+          {{/pendingCafes}}
+        </div>
+
+        <div class="cg-panel__body" style="padding:0;overflow:hidden">
+          <table class="cg-table" style="width:100%">
+            <thead>
+              <tr>
+                <th style="width:72px;padding-left:20px">ID</th>
+                <th>카페명</th>
+                <th>주소</th>
+                <th style="width:220px;padding-right:20px">액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#pendingCafes}}
+                <tr>
+                  <td style="padding-left:20px;color:var(--text-muted);font-size:13px">{{id}}</td>
+                  <td>
+                    <a href="/cafes/{{id}}" target="_blank" rel="noopener"
+                       style="font-weight:600;color:var(--accent);text-decoration:none">
+                      {{name}}
+                    </a>
+                  </td>
+                  <td style="color:var(--text-sub);font-size:13px">{{address}}</td>
+                  <td style="padding-right:20px">
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <a href="/admin/cafes/{{id}}/bizdoc"
+                         class="cg-btn cg-btn--sm cg-btn--outline"
+                         target="_blank"
+                         {{^bizDoc}}style="display:none" aria-disabled="true"{{/bizDoc}}>
+                        증빙서
+                      </a>
+                      <button class="cg-btn cg-btn--sm" data-post="/admin/cafes/{{id}}/approve">승인</button>
+                      <button class="cg-btn cg-btn--sm cg-btn--danger-outline" data-post="/admin/cafes/{{id}}/reject">거절</button>
+                    </div>
+                  </td>
+                </tr>
+              {{/pendingCafes}}
+              {{^pendingCafes}}
+                <tr>
+                  <td colspan="4" style="text-align:center;padding:48px 20px">
+                    <div class="cg-empty">
+                      <p style="margin:0">승인 대기 중인 카페가 없습니다.</p>
+                    </div>
+                  </td>
+                </tr>
+              {{/pendingCafes}}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+    </section>
+  </div>
+</main>
+
+{{> layout/footer}}
+
+<script>
+  async function postWithJwt(url) {
+    const headers = {};
+    const token = localStorage.getItem('accessToken');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, { method: 'POST', headers });
+    if (!res.ok) throw new Error(res.status + ' ' + (await res.text()).slice(0, 200));
+    return res;
+  }
+
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-post]');
+    if (!btn) return;
+    e.preventDefault();
+    btn.disabled = true;
+    try {
+      await postWithJwt(btn.dataset.post);
+      location.reload();
+    } catch (err) {
+      alert('요청 실패: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>

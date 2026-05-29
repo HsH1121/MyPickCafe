@@ -1,0 +1,91 @@
+{{>layout/header}}
+
+<main class="cg-container">
+  <div class="cg-mypage-grid">
+
+    <!-- ── 사이드 네비 ── -->
+    <aside>
+      <nav class="cg-sidenav">
+        <a href="/member/me"       class="{{#nav_me}}is-active{{/nav_me}}">내 정보</a>
+        <a href="/member/edit"     class="{{#nav_edit}}is-active{{/nav_edit}}">정보 수정</a>
+        <a href="/member/reviews"  class="{{#nav_reviews}}is-active{{/nav_reviews}}">내가 쓴 리뷰</a>
+        <a href="/favorites"       class="{{#nav_favorites}}is-active{{/nav_favorites}}">즐겨찾기</a>
+        <div class="cg-sidenav__divider"></div>
+        <a href="/member/withdraw" class="is-danger {{#nav_withdraw}}is-active{{/nav_withdraw}}">회원 탈퇴</a>
+      </nav>
+    </aside>
+
+    <!-- ── 내 정보 ── -->
+    <section style="display:flex;flex-direction:column;gap:20px">
+
+      {{#member}}
+        <div class="cg-panel">
+          <div class="cg-panel__head">
+            <div>
+              <p class="cg-eyebrow">내 계정</p>
+              <h2 class="cg-panel__title">내 정보</h2>
+            </div>
+            <a href="/member/edit" class="cg-btn-outline cg-btn--sm">정보 수정</a>
+          </div>
+          <div class="cg-panel__body">
+
+            <div style="display:flex;gap:20px;align-items:center;margin-bottom:20px;flex-wrap:wrap">
+              {{#hasPhoto}}
+                <img src="{{photo}}" alt="프로필" class="cg-avatar-lg cg-avatar-ring"/>
+              {{/hasPhoto}}
+              {{^hasPhoto}}
+                <div class="cg-avatar-lg" style="background:var(--bg-alt);
+                     display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                  <span style="font-size:11px;color:var(--text-muted)">NO IMG</span>
+                </div>
+              {{/hasPhoto}}
+              <div>
+                <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px">
+                  {{nickname}}
+                </div>
+                <div class="cg-badges">
+                  <span class="cg-badge">{{roleKind}}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="cg-divider"></div>
+
+            <dl class="cg-kv">
+              <dt>이메일</dt><dd>{{email}}</dd>
+              <dt>성별</dt><dd>{{gender}}</dd>
+              <dt>나이</dt><dd>{{age}}</dd>
+              <dt>가입일</dt><dd>{{createdAt}}</dd>
+            </dl>
+          </div>
+        </div>
+      {{/member}}
+
+      {{^member}}
+        <div class="cg-panel">
+          <div class="cg-panel__body cg-empty">사용자 정보를 불러오지 못했습니다.</div>
+        </div>
+      {{/member}}
+
+      <!-- 바로가기 카드 -->
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+        <a href="/member/reviews" class="cg-card" style="padding:20px;display:block;transition:box-shadow var(--t);"
+           onmouseover="this.style.boxShadow='var(--sh)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:24px;margin-bottom:8px">📝</div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:3px">내가 쓴 리뷰</div>
+          <div class="cg-muted">작성한 리뷰를 확인하세요</div>
+        </a>
+        <a href="/favorites" class="cg-card" style="padding:20px;display:block;transition:box-shadow var(--t);"
+           onmouseover="this.style.boxShadow='var(--sh)'" onmouseout="this.style.boxShadow=''">
+          <div style="font-size:24px;margin-bottom:8px">⭐</div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:3px">즐겨찾기</div>
+          <div class="cg-muted">저장한 카페를 확인하세요</div>
+        </a>
+      </div>
+
+    </section>
+
+  </div>
+</main>
+
+{{>layout/footer}}

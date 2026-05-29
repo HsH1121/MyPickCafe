@@ -1,0 +1,37 @@
+{{>layout/header}}
+
+<main class="cg-auth-page">
+  <section class="cg-auth-card">
+
+    <div style="margin-bottom:28px">
+      <p class="cg-eyebrow">Welcome Back</p>
+      <h1 class="cg-auth-title">로그인</h1>
+      <p class="cg-auth-sub">이메일과 비밀번호를 입력하세요.</p>
+    </div>
+
+    <form id="loginPageForm" class="cg-authform" method="post" action="/login">
+      <div class="cg-field">
+        <label class="cg-label" for="memberEmail">이메일</label>
+        <input class="cg-input" id="memberEmail" name="memberEmail"
+               type="email" placeholder="you@example.com" required autocomplete="email"/>
+      </div>
+      <div class="cg-field">
+        <label class="cg-label" for="memberPassword">비밀번호</label>
+        <input class="cg-input" id="memberPassword" name="memberPassword"
+               type="password" placeholder="••••••••" required autocomplete="current-password"/>
+      </div>
+      <button class="cg-btn cg-auth-submit" type="submit">로그인</button>
+    </form>
+
+    {{#error}}
+      <p class="cg-auth-tip" style="color:var(--danger)">{{error}}</p>
+    {{/error}}
+
+    <p class="cg-auth-tip">
+      계정이 없으신가요? <a class="cg-link" href="/signup">회원가입</a>
+    </p>
+
+  </section>
+</main>
+
+{{>layout/footer}}

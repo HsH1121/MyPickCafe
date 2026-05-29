@@ -1,0 +1,70 @@
+{{>layout/header}}
+
+<main class="cg-auth-page">
+  <section class="cg-auth-card">
+
+    <div style="margin-bottom:28px">
+      <p class="cg-eyebrow">Join MyPickCafe</p>
+      <h1 class="cg-auth-title">회원가입</h1>
+      <p class="cg-auth-sub">필수 정보를 입력해 계정을 만드세요.</p>
+    </div>
+
+    <form id="signupPageForm" class="cg-authform" method="post" action="/signup">
+      <div class="cg-field">
+        <label class="cg-label" for="email">이메일</label>
+        <input class="cg-input" id="email" name="email"
+               type="email" placeholder="you@example.com" required autocomplete="email"/>
+      </div>
+
+      <div class="cg-field">
+        <label class="cg-label" for="nickname">닉네임 <span class="cg-req">*</span></label>
+        <input class="cg-input" id="nickname" name="nickname"
+               type="text" maxlength="8" placeholder="최대 8자" required/>
+      </div>
+
+      <div class="cg-grid2" style="gap:12px">
+        <div class="cg-field">
+          <label class="cg-label" for="age">나이</label>
+          <input class="cg-input" id="age" name="age"
+                 type="number" min="1" max="120" placeholder="예: 26" required/>
+        </div>
+        <div class="cg-field">
+          <label class="cg-label">성별</label>
+          <div style="display:flex;gap:16px;padding-top:8px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+              <input type="radio" name="gender" value="M" required/> 남자
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+              <input type="radio" name="gender" value="F" required/> 여자
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="cg-field">
+        <label class="cg-label" for="password">비밀번호 <span class="cg-req">*</span></label>
+        <input class="cg-input" id="password" name="password"
+               type="password" placeholder="8자 이상" minlength="8" required autocomplete="new-password"/>
+      </div>
+
+      <div class="cg-field">
+        <label class="cg-label" for="passwordConfirm">비밀번호 확인</label>
+        <input class="cg-input" id="passwordConfirm" name="passwordConfirm"
+               type="password" minlength="8" required autocomplete="new-password"/>
+      </div>
+
+      <button class="cg-btn cg-auth-submit" type="submit">회원가입</button>
+    </form>
+
+    {{#error}}
+      <p class="cg-auth-tip" style="color:var(--danger)">{{error}}</p>
+    {{/error}}
+
+    <p class="cg-auth-tip">
+      이미 계정이 있으신가요? <a class="cg-link" href="/login">로그인</a>
+    </p>
+
+  </section>
+</main>
+
+{{>layout/footer}}

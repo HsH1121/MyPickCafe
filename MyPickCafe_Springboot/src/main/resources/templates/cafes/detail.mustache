@@ -1,0 +1,421 @@
+{{>layout/header}}
+
+<main class="cg-container" {{#cafe}}data-cafe-id="{{id}}"{{/cafe}}>
+
+  {{#cafe}}
+    {{#isPending}}
+      <div class="cg-notice-panel" style="margin-top:24px">
+        <strong>⏳ 승인 대기 중인 카페입니다.</strong>
+        관리자 승인 후 사이트에 정식으로 노출됩니다. 승인까지는 1~2 영업일이 소요될 수 있습니다.
+      </div>
+    {{/isPending}}
+    {{#isRejected}}
+      <div class="cg-notice-panel is-danger" style="margin-top:24px">
+        <strong>🚫 반려된 카페 등록 요청입니다.</strong>
+        이 페이지는 외부에 노출되지 않습니다. 등록 정보를 수정하시거나 관리자에게 문의해주세요.
+      </div>
+    {{/isRejected}}
+  {{/cafe}}
+
+  <!-- ── Hero ── -->
+  <section class="cg-hero">
+    {{#cafe}}
+      <div class="cg-hero__inner">
+        <div class="cg-hero__imgwrap">
+          {{#mainPhoto}}
+            <img src="{{url}}" alt="{{cafe.name}}"
+                 onerror="this.style.display='none';this.parentElement.classList.add('cg-noimg')"/>
+          {{/mainPhoto}}
+          {{^mainPhoto}}
+            <img src="/images/placeholder-cafe.jpg" alt="이미지 없음"
+                 onerror="this.style.display='none';this.parentElement.classList.add('cg-noimg')"/>
+          {{/mainPhoto}}
+        </div>
+
+        <div class="cg-hero__right">
+          <h1 class="cg-title">{{name}}</h1>
+          <div class="cg-hero__meta">
+            <span>조회 {{views}}</span>
+            <span class="cg-dot">·</span>
+            {{#dateFmt}}<span>{{dateFmt}}</span>{{/dateFmt}}{{^dateFmt}}<span>{{date}}</span>{{/dateFmt}}
+            <span class="cg-dot">·</span>
+            <span>👍 {{cafeGood}} 👎 {{cafeBad}}</span>
+          </div>
+
+          <div class="cg-info-plain" style="margin-bottom:14px">
+            <dl class="cg-dl">
+              <div class="cg-dl__row"><dt>주소</dt><dd>{{address}}</dd></div>
+              <div class="cg-dl__row"><dt>전화</dt><dd>{{number}}</dd></div>
+            </dl>
+          </div>
+
+          <div class="cg-chips" style="margin-bottom:16px">
+            {{#cafeTags}}
+              <button class="cg-chip" data-category="{{cafe.code}}" data-tag="{{code}}">
+                {{code}}{{#count}}<span class="cg-badge cg-badge--accent" style="margin-left:4px">{{count}}</span>{{/count}}
+              </button>
+            {{/cafeTags}}
+            {{^cafeTags}}<span class="cg-muted">등록된 태그 없음</span>{{/cafeTags}}
+          </div>
+
+          <div class="cg-actions">
+            <a class="cg-btn-outline" href="tel:{{number}}">전화하기</a>
+            <a class="cg-btn-outline" target="_blank"
+               href="https://map.kakao.com/link/to/{{name}},{{lat}},{{lon}}">길찾기</a>
+            <a class="cg-btn" href="#" data-review-modal data-cafe-id="{{id}}">리뷰 작성</a>
+            <button type="button" id="favBtn"
+                    class="cg-btn-outline"
+                    data-cafe-id="{{id}}"
+                    data-favorited="{{isFavorited}}">
+              {{#isFavorited}}즐겨찾기 해제{{/isFavorited}}{{^isFavorited}}즐겨찾기{{/isFavorited}}
+            </button>
+            <span id="favCount" class="cg-muted" style="line-height:36px">
+              {{#favoriteCount}}{{favoriteCount}}명{{/favoriteCount}}{{^favoriteCount}}0명{{/favoriteCount}}
+            </span>
+            {{#isOwner}}
+              <button class="cg-btn-outline" type="button" id="ownerEditToggle">점주 편집</button>
+              <a class="cg-btn-outline" href="/cafes/{{id}}/edit">정보 수정</a>
+              <form method="post" action="/cafes/{{id}}/delete" style="display:inline">
+                {{#_csrf}}<input type="hidden" name="{{parameterName}}" value="{{token}}">{{/_csrf}}
+                <button class="cg-btn-outline cg-btn--danger" type="submit"
+                        onclick="return confirm('정말 삭제하시겠어요?')">삭제</button>
+              </form>
+            {{/isOwner}}
+          </div>
+        </div>
+      </div>
+    {{/cafe}}
+  </section>
+
+  <!-- ── 영업 정보 ── -->
+  <section class="cg-section">
+    <div class="cg-section__head">
+      <h3 class="cg-section__title">영업 정보</h3>
+    </div>
+    <div class="cg-grid2">
+      <div class="cg-panel">
+        <div class="cg-panel__head"><h3 class="cg-panel__title">운영 시간</h3></div>
+        <div class="cg-panel__body">
+          {{#info}}
+            <dl class="cg-dl">
+              <div class="cg-dl__row"><dt>오픈</dt><dd>{{cafeOpenTime}}</dd></div>
+              <div class="cg-dl__row"><dt>마감</dt><dd>{{cafeCloseTime}}</dd></div>
+              <div class="cg-dl__row"><dt>휴무일</dt><dd>{{cafeHoliday}}</dd></div>
+            </dl>
+          {{/info}}
+          {{^info}}<p class="cg-muted">영업 정보가 아직 없어요.</p>{{/info}}
+        </div>
+      </div>
+      <div class="cg-panel">
+        <div class="cg-panel__head"><h3 class="cg-panel__title">소개 · 공지</h3></div>
+        <div class="cg-panel__body">
+          {{#info}}
+            {{#cafeNotice}}<p class="cg-note" style="margin-bottom:10px"><strong>공지</strong> {{cafeNotice}}</p>{{/cafeNotice}}
+            {{#cafeInfo}}<p class="cg-desc">{{cafeInfo}}</p>{{/cafeInfo}}
+            {{^cafeNotice}}{{^cafeInfo}}<p class="cg-muted">소개/공지 정보가 아직 없어요.</p>{{/cafeInfo}}{{/cafeNotice}}
+          {{/info}}
+          {{^info}}<p class="cg-muted">소개/공지 정보가 아직 없어요.</p>{{/info}}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 위치 ── -->
+  <section class="cg-section">
+    <div class="cg-section__head">
+      <h3 class="cg-section__title">위치</h3>
+    </div>
+    <div class="cg-panel">
+      <div class="cg-panel__body" style="padding:0">
+        {{#cafe}}
+          <div id="map" class="cg-map" style="min-height:320px;border-radius:var(--r)"
+               data-lat="{{lat}}" data-lon="{{lon}}" data-name="{{name}}">
+            <p class="cg-muted">지도가 여기에 표시됩니다.</p>
+          </div>
+        {{/cafe}}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 메뉴 ── -->
+  <section class="cg-section">
+    <div class="cg-section__head">
+      <h3 class="cg-section__title">메뉴</h3>
+      {{#cafe}}<a class="cg-link" href="/cafes/{{id}}/menu">전체 메뉴 →</a>{{/cafe}}
+    </div>
+    <ul class="cg-menu-list">
+      {{#menus}}
+        <li class="cg-menu-item">
+          <div>
+            <div class="cg-menu-name">{{menuName}}</div>
+            <div class="cg-menu-price">{{menuPrice}}</div>
+          </div>
+          <div class="cg-menu-thumb">
+            <img src="{{menuPhoto}}" alt="{{menuName}}"
+                 onerror="this.onerror=null;this.src='/images/placeholder-cafe.jpg'"/>
+          </div>
+        </li>
+      {{/menus}}
+      {{^menus}}<li class="cg-empty" style="grid-column:1/-1">등록된 메뉴가 없어요.</li>{{/menus}}
+    </ul>
+  </section>
+
+  <!-- ── 방문자 리뷰 ── -->
+  <section class="cg-section">
+    <div class="cg-section__head">
+      <h3 class="cg-section__title">방문자 리뷰</h3>
+    </div>
+    <ul class="cg-feed">
+      {{#reviews}}
+        <li class="cg-feed__item">
+          <p class="cg-feed__text">{{content}}</p>
+          <div class="cg-feed__photos" data-review-photos>
+            {{#photos}}<img class="cg-feed__photo" src="{{photoUrl}}" alt="리뷰 사진" loading="lazy"
+                             onerror="this.style.display='none'"/>{{/photos}}
+          </div>
+          <div class="cg-feed__meta">
+            <span>{{createdAtFmt}}</span>
+            <span>👍 {{good}} &nbsp; 👎 {{bad}}</span>
+            {{#memberNickname}}<span class="cg-dot">·</span><span>{{memberNickname}}</span>{{/memberNickname}}
+          </div>
+        </li>
+      {{/reviews}}
+      {{^reviews}}<li class="cg-feed__item cg-empty">아직 리뷰가 없어요. 첫 리뷰를 남겨보세요!</li>{{/reviews}}
+    </ul>
+  </section>
+
+  <!-- ── 사진 갤러리 ── -->
+  <section class="cg-section">
+    <div class="cg-section__head">
+      <h3 class="cg-section__title">사진</h3>
+    </div>
+    <ul class="cg-card-grid">
+      {{#cafePhotos}}
+        <li class="cg-card">
+          <div class="cg-card__imgwrap">
+            <img class="cg-card__img" src="{{cafePhotoUrl}}" alt="카페 사진"
+                 onerror="this.style.display='none';this.parentElement.classList.add('cg-noimg')"/>
+          </div>
+        </li>
+      {{/cafePhotos}}
+      {{^cafePhotos}}<li class="cg-empty">등록된 사진이 없어요.</li>{{/cafePhotos}}
+    </ul>
+  </section>
+
+</main>
+
+<!-- ── 리뷰 작성 모달 ── -->
+<div id="reviewModal" class="cg-modal" aria-hidden="true" role="dialog" aria-labelledby="reviewModalTitle">
+  <div class="cg-modal__backdrop" data-close-modal></div>
+  <div class="cg-modal__dialog">
+    <form id="reviewForm" class="cg-modal__sheet" method="post" action="/reviews/new"
+          enctype="multipart/form-data" novalidate>
+      {{#_csrf}}<input type="hidden" name="{{parameterName}}" value="{{token}}">{{/_csrf}}
+      <input type="hidden" name="cafeId" id="modalCafeId"/>
+      <div class="cg-modal__header">
+        <h3 id="reviewModalTitle" class="cg-modal__title">리뷰 작성</h3>
+        <button type="button" class="cg-modal__close" aria-label="닫기" data-close-modal>&times;</button>
+      </div>
+      <div class="cg-modal__content" style="display:flex;flex-direction:column;gap:16px">
+        <div class="cg-field">
+          <label class="cg-label">내용</label>
+          <textarea name="reviewContent" class="cg-input" rows="7"
+                    placeholder="방문 후기를 솔직하게 남겨주세요." required maxlength="1000" autofocus></textarea>
+        </div>
+        <div class="cg-field">
+          <label class="cg-label">전반적 만족도</label>
+          <div class="cg-toggle2" role="group">
+            <label class="cg-toggle2__btn">
+              <input type="radio" name="sentiment" value="GOOD" checked/>
+              <span>👍 좋아요</span>
+            </label>
+            <label class="cg-toggle2__btn">
+              <input type="radio" name="sentiment" value="BAD"/>
+              <span>👎 아쉬워요</span>
+            </label>
+          </div>
+        </div>
+        <div class="cg-field">
+          <label class="cg-label">이런 점이 좋았어요 (복수 선택)</label>
+          <div class="cg-chips">
+            <label class="cg-chip"><input type="checkbox" name="likedTagCodes" value="맛있어요"/> 음식이 맛있어요</label>
+            <label class="cg-chip"><input type="checkbox" name="likedTagCodes" value="친절해요"/> 친절해요</label>
+            <label class="cg-chip"><input type="checkbox" name="likedTagCodes" value="인테리어"/> 인테리어가 멋져요</label>
+            <label class="cg-chip"><input type="checkbox" name="likedTagCodes" value="신선한재료"/> 재료가 신선해요</label>
+            <label class="cg-chip"><input type="checkbox" name="likedTagCodes" value="특별한메뉴"/> 특별한 메뉴가 있어요</label>
+            <label class="cg-chip"><input type="checkbox" name="likedTagCodes" value="음악"/> 음악이 좋아요</label>
+            <label class="cg-chip"><input type="checkbox" name="likedTagCodes" value="가성비"/> 가성비가 좋아요</label>
+          </div>
+        </div>
+        <div class="cg-field">
+          <label class="cg-label">사진 (선택)</label>
+          <div>
+            <input id="photoInput" class="cg-sr-only" type="file" name="photos" accept="image/*" multiple/>
+            <label for="photoInput" class="cg-btn-outline cg-btn--sm">파일 선택</label>
+            <span class="cg-help">최대 5장, 이미지당 10MB 이하</span>
+          </div>
+        </div>
+      </div>
+      <div class="cg-modal__footer">
+        <button type="button" class="cg-btn-outline" data-close-modal>취소</button>
+        <button type="submit" class="cg-btn">등록</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── 점주 편집 모달 ── -->
+<div id="ownerModal" class="cg-modal" aria-hidden="true" role="dialog" aria-labelledby="ownerModalTitle">
+  <div class="cg-modal__backdrop" data-close-modal></div>
+  <div class="cg-modal__dialog">
+    <div class="cg-modal__sheet">
+      <div class="cg-modal__header">
+        <h3 id="ownerModalTitle" class="cg-modal__title">점주 편집</h3>
+        <button type="button" class="cg-modal__close" aria-label="닫기" data-close-modal>&times;</button>
+      </div>
+      <div class="cg-modal__content" style="display:flex;flex-direction:column;gap:20px">
+
+        <!-- A. 카페 소개/공지 -->
+        <div class="cg-panel">
+          <div class="cg-panel__head"><h4 class="cg-panel__title">소개 · 공지 · 영업정보</h4></div>
+          <div class="cg-panel__body">
+            <form id="cafeInfoFormModal" class="space-y">
+              <input type="hidden" name="id" id="cafeInfoIdModal"/>
+              <div class="cg-grid3">
+                <div class="field"><div class="field__label">오픈</div><input class="cg-input" name="openTime" placeholder="09:00"/></div>
+                <div class="field"><div class="field__label">마감</div><input class="cg-input" name="closeTime" placeholder="21:00"/></div>
+                <div class="field"><div class="field__label">휴무일</div><input class="cg-input" name="holiday" placeholder="월요일"/></div>
+              </div>
+              <div class="field"><div class="field__label">공지</div><input class="cg-input" name="notice" maxlength="20"/></div>
+              <div class="field"><div class="field__label">소개</div><textarea class="cg-input" name="info" rows="4" maxlength="500"></textarea></div>
+              <div class="cg-actions end">
+                <button type="button" class="cg-btn-outline cg-btn--sm" id="cafeInfoDeleteBtnModal">삭제</button>
+                <button type="button" class="cg-btn cg-btn--sm" id="cafeInfoSaveBtnModal">저장</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- B. 사진 관리 -->
+        <div class="cg-panel">
+          <div class="cg-panel__head"><h4 class="cg-panel__title">사진 관리</h4></div>
+          <div class="cg-panel__body">
+            <form id="photoUploadFormModal" enctype="multipart/form-data" class="cg-actions" style="margin-bottom:14px">
+              <input class="cg-input" type="file" name="files" accept="image/*" multiple required style="flex:1"/>
+              <button type="submit" class="cg-btn cg-btn--sm">업로드</button>
+            </form>
+            <ul id="cafePhotoListModal" class="cg-feed"></ul>
+          </div>
+        </div>
+
+        <!-- C. 메뉴 관리 -->
+        <div class="cg-panel">
+          <div class="cg-panel__head"><h4 class="cg-panel__title">메뉴 관리</h4></div>
+          <div class="cg-panel__body">
+            <form id="menuCreateFormModal" class="space-y" style="margin-bottom:16px">
+              <div class="cg-grid2">
+                <input class="cg-input" name="name" placeholder="메뉴명" required maxlength="30"/>
+                <input class="cg-input" type="number" name="price" placeholder="가격(원)" min="0" step="100" required/>
+              </div>
+              <div style="display:flex;gap:16px">
+                <label class="cg-checkbox"><input type="checkbox" name="isNew"/> 신규</label>
+                <label class="cg-checkbox"><input type="checkbox" name="isRecommended"/> 추천</label>
+              </div>
+              <input class="cg-input" type="file" name="menuPhoto" accept="image/*"/>
+              <div class="cg-actions end">
+                <button type="submit" class="cg-btn cg-btn--sm">메뉴 추가</button>
+              </div>
+            </form>
+            <hr style="border:none;border-top:1px solid var(--line);margin-bottom:14px"/>
+            <ul id="ownerMenuListModal" class="cg-feed"></ul>
+          </div>
+        </div>
+
+      </div>
+      <div class="cg-modal__footer">
+        <button type="button" class="cg-btn-outline" data-close-modal>닫기</button>
+        <button type="button" class="cg-btn" id="ownerSaveAllBtn">전체 저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const AUTH = (() => {
+    function token(){ return localStorage.getItem('accessToken')||sessionStorage.getItem('accessToken')||''; }
+    function withJwt(init){ init=init||{}; const t=token();
+      init.headers=Object.assign({'Accept':'application/json'},init.headers||{},t?{'Authorization':'Bearer '+t}:{});
+      init.credentials='same-origin'; return init; }
+    return { withJwt };
+  })();
+
+  const cafeId = document.querySelector('main.cg-container')?.dataset.cafeId || "{{#cafe}}{{id}}{{/cafe}}";
+
+  // 모달
+  const ownerBtn   = document.getElementById('ownerEditToggle');
+  const ownerModal = document.getElementById('ownerModal');
+  ownerBtn?.addEventListener('click', e=>{ e.preventDefault(); openModal(); });
+  function openModal(){ ownerModal.classList.add('is-open'); document.body.classList.add('cg-modal-open'); loadCafeInfo(); loadPhotos(); loadMenus(); }
+  function closeModal(){ ownerModal.classList.remove('is-open'); document.body.classList.remove('cg-modal-open'); }
+  ownerModal?.querySelectorAll('[data-close-modal]').forEach(el=>el.addEventListener('click', closeModal));
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'&&ownerModal?.classList.contains('is-open')) closeModal(); });
+
+  // A. CafeInfo
+  async function fetchCafeInfo(){ const r=await fetch(`/api/cafe-infos/by-cafe/${cafeId}`,AUTH.withJwt()); if(r.status===404)return null; return r.json(); }
+  async function loadCafeInfo(){
+    const f=document.getElementById('cafeInfoFormModal'); const data=await fetchCafeInfo();
+    document.getElementById('cafeInfoIdModal').value=data?.id||'';
+    f.openTime.value=data?.openTime||''; f.closeTime.value=data?.closeTime||'';
+    f.holiday.value=data?.holiday||''; f.notice.value=data?.notice||''; f.info.value=data?.info||'';
+  }
+  async function saveCafeInfo(){
+    const f=document.getElementById('cafeInfoFormModal');
+    const payload={cafe:{id:Number(cafeId)},openTime:f.openTime.value,closeTime:f.closeTime.value,holiday:f.holiday.value,notice:f.notice.value,info:f.info.value};
+    const id=document.getElementById('cafeInfoIdModal').value;
+    const url=id?`/api/cafe-infos/${id}`:`/api/cafe-infos/upsert/${cafeId}`;
+    const res=await fetch(url,AUTH.withJwt({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
+    return res.ok;
+  }
+  document.getElementById('ownerSaveAllBtn')?.addEventListener('click', async ()=>{
+    const ok=await saveCafeInfo(); if(ok){alert('저장했습니다.');location.reload();}else{alert('저장 실패');}
+  });
+  document.getElementById('cafeInfoSaveBtnModal')?.addEventListener('click', async ()=>{ const ok=await saveCafeInfo(); if(ok)alert('저장했습니다.'); else alert('저장 실패'); });
+
+  // B. Photos
+  async function fetchPhotos(){ const r=await fetch(`/api/cafes/${cafeId}/photos`,AUTH.withJwt()); return r.json(); }
+  function photoItemTpl(p){ return `<li class="cg-feed__item" data-id="${p.id}"><div style="display:flex;gap:12px;align-items:center"><img src="${p.url}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-sm)"><div style="flex:1"><div style="font-weight:600;font-size:14px">${p.originalName||'사진'}</div>${p.main?'<span class="cg-badge cg-badge--accent">대표</span>':''}</div><div style="display:flex;gap:6px">${p.main?'':'<button type="button" class="cg-btn-outline cg-btn--sm" data-act="main">대표설정</button>'}<button type="button" class="cg-btn-outline cg-btn--sm" data-act="del">삭제</button></div></div></li>`; }
+  async function loadPhotos(){
+    const list=document.getElementById('cafePhotoListModal'); if(!list)return;
+    const items=await fetchPhotos(); list.innerHTML=items.map(photoItemTpl).join('');
+    list.querySelectorAll('button[data-act]').forEach(btn=>{
+      const id=btn.closest('[data-id]').dataset.id;
+      if(btn.dataset.act==='del'){ btn.addEventListener('click',async()=>{ if(!confirm('삭제할까요?'))return; const r=await fetch(`/api/cafes/photos/${id}`,AUTH.withJwt({method:'DELETE'})); if(r.ok)loadPhotos(); else alert('삭제 실패'); }); }
+      else if(btn.dataset.act==='main'){ btn.addEventListener('click',async()=>{ const r=await fetch(`/api/cafes/photos/${id}/main`,AUTH.withJwt({method:'PATCH'})); if(r.ok)loadPhotos(); else alert('변경 실패'); }); }
+    });
+  }
+  document.getElementById('photoUploadFormModal')?.addEventListener('submit',async e=>{ e.preventDefault(); const fd=new FormData(e.currentTarget); const r=await fetch(`/api/cafes/${cafeId}/photos`,AUTH.withJwt({method:'POST',body:fd})); if(r.ok){e.currentTarget.reset();loadPhotos();}else alert('업로드 실패'); });
+
+  // C. Menus
+  async function fetchMenus(){ const r=await fetch(`/api/menus/by-cafe/${cafeId}`,AUTH.withJwt()); return r.json(); }
+  function menuItemTpl(m){ return `<li class="cg-feed__item" data-id="${m.id}"><div style="display:flex;gap:12px;align-items:center"><img src="${m.photo}" style="width:56px;height:56px;object-fit:cover;border-radius:var(--r-sm)" onerror="this.style.display='none'"><div style="flex:1"><div style="font-weight:700">${m.name} <span class="cg-muted">${m.price}원</span></div><div class="cg-muted">${m.isNew?'신규':''} ${m.isRecommended?'· 추천':''}</div></div><div style="display:flex;gap:4px"><button type="button" class="cg-btn-outline cg-btn--sm" data-act="edit">수정</button><button type="button" class="cg-btn-outline cg-btn--sm" data-act="del">삭제</button><button type="button" class="cg-btn-outline cg-btn--sm" data-act="photo">사진</button></div></div></li>`; }
+  async function loadMenus(){
+    const list=document.getElementById('ownerMenuListModal'); if(!list)return;
+    const items=await fetchMenus(); list.innerHTML=items.map(menuItemTpl).join('');
+    list.querySelectorAll('button[data-act]').forEach(btn=>{
+      const id=btn.closest('[data-id]').dataset.id;
+      if(btn.dataset.act==='del'){ btn.addEventListener('click',async()=>{ if(!confirm('삭제할까요?'))return; const r=await fetch('/api/menus/'+id,AUTH.withJwt({method:'DELETE'})); if(r.ok)loadMenus(); else alert('삭제 실패'); }); }
+      else if(btn.dataset.act==='edit'){ btn.addEventListener('click',async()=>{ const name=prompt('메뉴명?'); if(!name)return; const price=Number(prompt('가격(원)?')); if(isNaN(price))return alert('숫자 입력'); const isNew=confirm('신규?'); const isRecommended=confirm('추천?'); const r=await fetch('/api/menus/'+id,AUTH.withJwt({method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,price,isNew,isRecommended})})); if(r.ok)loadMenus(); else alert('수정 실패'); }); }
+      else if(btn.dataset.act==='photo'){ btn.addEventListener('click',()=>{ const input=document.createElement('input'); input.type='file'; input.accept='image/*'; input.onchange=async()=>{ const fd=new FormData(); fd.append('file',input.files[0]); const r=await fetch('/api/menus/'+id+'/photo',AUTH.withJwt({method:'POST',body:fd})); if(r.ok)loadMenus(); else alert('업로드 실패'); }; input.click(); }); }
+    });
+  }
+  document.getElementById('menuCreateFormModal')?.addEventListener('submit',async e=>{
+    e.preventDefault(); const f=e.currentTarget;
+    if(!f.menuPhoto.files[0]){alert('메뉴 사진은 필수입니다.');return;}
+    const fd=new FormData(); fd.append('cafeId',Number(cafeId)); fd.append('name',f.name.value.trim()); fd.append('price',Number(f.price.value)); fd.append('isNew',f.isNew.checked); fd.append('isRecommended',f.isRecommended.checked); fd.append('file',f.menuPhoto.files[0]);
+    const r=await fetch('/api/menus',AUTH.withJwt({method:'POST',body:fd})); if(!r.ok){alert('등록 실패');return;} f.reset(); loadMenus();
+  });
+})();
+</script>
+
+{{>layout/footer}}

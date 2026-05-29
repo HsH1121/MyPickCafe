@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>MyPickCafe</title>
+  <link rel="icon" href="/favicon.ico"/>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"/>
+  <link rel="stylesheet" href="/css/cafego.css"/>
+</head>
+<body>
+
+<nav class="cg-nav">
+  <div class="cg-container cg-nav__inner">
+    <a href="/" class="cg-brand">MyPickCafe</a>
+
+    <ul class="cg-navlinks">
+      <li><a href="/index/map" class="{{#isMap}}cg-nav-active{{/isMap}}">지도 탐색</a></li>
+      <li><a href="/cafes">카페 목록</a></li>
+    </ul>
+
+    <div class="cg-nav__actions">
+      {{^isLoggedIn}}
+        <a href="/login"  class="cg-btn-outline cg-btn--sm">로그인</a>
+        <a href="/signup" class="cg-btn cg-btn--sm">회원가입</a>
+      {{/isLoggedIn}}
+
+      {{#isLoggedIn}}
+        <span style="font-size:13px;color:var(--text-sub)">
+          <span class="cg-me-nickname">{{currentUserNickname}}</span>님
+        </span>
+
+        <div class="cg-noti">
+          <button id="notiBtn" class="cg-btn-outline cg-btn--sm" type="button"
+                  aria-haspopup="true" aria-expanded="false">
+            알림 <span id="notiCount"
+              style="display:inline-flex;align-items:center;justify-content:center;
+                     min-width:18px;height:18px;padding:0 4px;border-radius:99px;
+                     background:var(--accent);color:#fff;font-size:11px;font-weight:700;
+                     margin-left:2px">{{notificationCount}}</span>
+          </button>
+          <div id="notiDropdown" class="cg-dropdown">
+            <ul id="notiList"></ul>
+            <div class="cg-dropdown__footer">
+              <button id="notiReadAll" class="cg-btn-ghost cg-btn--sm" type="button">모두 읽음</button>
+            </div>
+          </div>
+        </div>
+
+        <a href="/member/me" class="cg-btn-outline cg-btn--sm">마이페이지</a>
+        {{#isAdmin}}<a href="/admin" class="cg-btn-outline cg-btn--sm">관리자</a>{{/isAdmin}}
+
+        <form id="logoutForm" action="/api/auth/logout" method="post" style="display:inline">
+          <button class="cg-btn-ghost cg-btn--sm" type="submit">로그아웃</button>
+        </form>
+      {{/isLoggedIn}}
+    </div>
+  </div>
+</nav>
+
+{{#flashInfo}}
+  <div class="cg-container">
+    <div class="cg-flash">{{flashInfo}}</div>
+  </div>
+{{/flashInfo}}
+
+<script>
+(function(){
+  const btn     = document.getElementById('notiBtn');
+  const dd      = document.getElementById('notiDropdown');
+  const list    = document.getElementById('notiList');
+  const countEl = document.getElementById('notiCount');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    const opened = dd.style.display === 'block';
+    dd.style.display = opened ? 'none' : 'block';
+    btn.setAttribute('aria-expanded', !opened);
+    if (!opened) fetchList();
+  });
+  document.addEventListener('click', e => {
+    if (!btn.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
+  });
+
+  function fmt(ts){ try{ return new Date(ts).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ts; } }
+  function render(items){
+    if (!Array.isArray(items) || !items.length){
+      list.innerHTML = '<li style="padding:12px 14px;color:var(--text-muted);font-size:13px">알림이 없습니다.</li>';
+      countEl.textContent = '0'; return;
+    }
+    const unread = items.filter(it => it.read === false).length;
+    countEl.textContent = String(unread);
+    list.innerHTML = items.map(it => `
+      <li>
+        <div style="font-size:13px;color:var(--text);font-weight:${it.read?'400':'600'}">${it.message||'(알림)'}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${fmt(it.createdAt)}</div>
+        ${it.read ? '' : `<button data-id="${it.id}" class="markRead cg-btn-ghost cg-btn--sm" style="margin-top:6px" type="button">읽음 처리</button>`}
+      </li>`).join('');
+    list.querySelectorAll('.markRead').forEach(b => {
+      b.addEventListener('click', () => fetch('/api/notifications/'+b.dataset.id+'/read',{method:'POST'}).then(fetchList));
+    });
+  }
+  function fetchList(){
+    fetch('/api/notifications',{credentials:'same-origin'})
+      .then(r=>r.json()).then(render).catch(()=>{});
+  }
+  function fetchCount(){
+    fetch('/api/notifications/unread-count',{credentials:'same-origin'})
+      .then(r=>r.text()).then(n=>{ countEl.textContent=n; }).catch(()=>{});
+  }
+  document.getElementById('notiReadAll')?.addEventListener('click', () => {
+    fetch('/api/notifications/read-all',{method:'POST',credentials:'same-origin'}).then(fetchList);
+  });
+  fetchCount();
+  setInterval(fetchCount, 12000);
+})();
+</script>

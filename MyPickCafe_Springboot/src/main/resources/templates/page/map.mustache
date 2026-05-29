@@ -1,0 +1,299 @@
+{{>layout/header}}
+
+<div class="cg-topbar">
+  <div class="cg-container cg-topbar__inner">
+    <span class="cg-logo">MyPickCafe</span>
+    <nav class="cg-breadcrumb">
+      <a href="/">홈</a>
+      <span>›</span>
+      <span class="em">지도 탐색</span>
+    </nav>
+  </div>
+</div>
+
+<main class="cg-container" style="padding:28px 0 64px">
+
+  <!-- 검색 -->
+  <div style="max-width:640px;margin:0 auto 20px">
+    <div class="cg-searchbar" style="display:flex;gap:10px">
+      <input id="searchInput" class="cg-input" type="text"
+             placeholder="주소 또는 키워드 (예: 브런치, 감성, 홍대입구)"
+             style="flex:1"/>
+      <button id="searchBtn" class="cg-btn">검색</button>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.6">
+      홍대입구·상수·연트럴파크·합정 반경 1.2km 이내 카페만 포함됩니다.
+      줌아웃은 초기 크기까지만 허용됩니다.
+    </p>
+  </div>
+
+  <!-- 지도 + 목록 -->
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start">
+
+    <!-- 지도 -->
+    <div class="cg-panel" style="overflow:hidden;padding:0">
+      <div id="map" style="width:100%;height:560px"></div>
+    </div>
+
+    <!-- 사이드 목록 -->
+    <aside style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <p class="cg-eyebrow">주변 카페</p>
+          <h2 style="font-size:18px;font-weight:800;margin:0">인기 장소</h2>
+        </div>
+        <button id="resetBtn" class="cg-btn-outline" style="font-size:13px;padding:6px 14px">초기화</button>
+      </div>
+
+      <ul id="placeList" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
+        {{#places}}
+          <li>
+            <a class="cg-card cg-card__link" href="/cafes/{{id}}"
+               style="display:block;padding:14px 16px;text-decoration:none">
+              <p style="font-size:14px;font-weight:700;color:var(--text);margin:0 0 4px">{{name}}</p>
+              <p style="font-size:12px;color:var(--text-muted);margin:0">⭐ {{rating}}</p>
+              {{#address}}<p style="font-size:12px;color:var(--text-sub);margin:2px 0 0">{{address}}</p>{{/address}}
+            </a>
+          </li>
+        {{/places}}
+        {{^places}}
+          <li class="cg-panel" style="padding:20px;text-align:center;color:var(--text-muted);font-size:14px">
+            표시할 장소가 없습니다.
+          </li>
+        {{/places}}
+      </ul>
+    </aside>
+
+  </div>
+</main>
+
+<!-- Kakao Maps SDK (+services,clusterer) -->
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false&libraries=services,clusterer"></script>
+
+<script>
+  const SERVER_PLACES  = {{&placesJson}}  || [];
+  const ANCHORS        = {{&anchorsJson}} || [];
+  const RADIUS_M = 1200;
+
+  let map, clusterer, infoWindow;
+  let MIN_OUT_LEVEL = null;
+  let placeMarkers = [];
+
+  kakao.maps.load(initMap);
+
+  function initMap() {
+    const container = document.getElementById('map');
+    map = new kakao.maps.Map(container, {
+      center: new kakao.maps.LatLng(37.553, 126.921),
+      level: 5
+    });
+
+    infoWindow = new kakao.maps.InfoWindow({ removable: true });
+    clusterer  = new kakao.maps.MarkerClusterer({
+      map,
+      averageCenter: true,
+      minLevel: 6
+    });
+
+    const allowedBounds = buildAllowedBounds(ANCHORS, RADIUS_M);
+    if (!allowedBounds.isEmpty()) {
+      map.setBounds(allowedBounds);
+    }
+
+    function setMinLevelOnce() {
+      MIN_OUT_LEVEL = map.getLevel();
+      kakao.maps.event.removeListener(map, 'idle', setMinLevelOnce);
+      if (map.setMaxLevel) map.setMaxLevel(MIN_OUT_LEVEL);
+    }
+    kakao.maps.event.addListener(map, 'idle', setMinLevelOnce);
+
+    kakao.maps.event.addListener(map, 'zoom_changed', () => {
+      if (MIN_OUT_LEVEL == null) return;
+      const lvl = map.getLevel();
+      if (lvl > MIN_OUT_LEVEL) {
+        map.setLevel(MIN_OUT_LEVEL, { anchor: map.getCenter() });
+      }
+    });
+
+    kakao.maps.event.addListener(map, 'dragend', () => clampCenterIntoBounds(map, allowedBounds));
+
+    drawAnchorMarkers(ANCHORS);
+    renderPlaces(SERVER_PLACES);
+    wireSearchHandlers(allowedBounds);
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      infoWindow.close();
+      map.setBounds(allowedBounds);
+      renderPlaces(SERVER_PLACES);
+    });
+  }
+
+  function metersToDegree(lat, meters) {
+    const dLat = meters / 111320;
+    const dLng = meters / (111320 * Math.cos(lat * Math.PI / 180));
+    return { dLat, dLng };
+  }
+
+  function buildAllowedBounds(anchors, radiusM) {
+    const bounds = new kakao.maps.LatLngBounds();
+    (anchors || []).forEach(a => {
+      const { dLat, dLng } = metersToDegree(a.lat, radiusM);
+      const sw = new kakao.maps.LatLng(a.lat - dLat, a.lng - dLng);
+      const ne = new kakao.maps.LatLng(a.lat + dLat, a.lng + dLng);
+      bounds.extend(sw); bounds.extend(ne);
+    });
+    return bounds;
+  }
+
+  function clampCenterIntoBounds(map, bounds) {
+    const c  = map.getCenter();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const lat = Math.min(Math.max(c.getLat(), sw.getLat()), ne.getLat());
+    const lng = Math.min(Math.max(c.getLng(), sw.getLng()), ne.getLng());
+    if (lat !== c.getLat() || lng !== c.getLng()) {
+      map.setCenter(new kakao.maps.LatLng(lat, lng));
+    }
+  }
+
+  function drawAnchorMarkers(anchors) {
+    const anchorImg = new kakao.maps.MarkerImage(
+      'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_red.png',
+      new kakao.maps.Size(24, 35)
+    );
+    (anchors || []).forEach(a => {
+      const pos = new kakao.maps.LatLng(a.lat, a.lng);
+      new kakao.maps.Marker({ map, position: pos, title: a.name, image: anchorImg });
+    });
+  }
+
+  function clearPlaceMarkers() {
+    infoWindow.close();
+    if (placeMarkers.length) {
+      placeMarkers.forEach(m => m.setMap(null));
+      placeMarkers = [];
+    }
+    clusterer.clear();
+  }
+
+  function renderPlaces(places) {
+    renderList(places);
+    clearPlaceMarkers();
+    const markers = [];
+    (places || []).forEach(p => {
+      if (!p.lat || !p.lng) return;
+      const pos = new kakao.maps.LatLng(p.lat, p.lng);
+      const marker = new kakao.maps.Marker({ position: pos, title: p.name });
+      kakao.maps.event.addListener(marker, 'click', () => openInfo(marker, p));
+      markers.push(marker);
+    });
+    placeMarkers = markers;
+    clusterer.addMarkers(markers);
+  }
+
+  function openInfo(marker, p) {
+    const tags   = Array.isArray(p.tags) ? p.tags.slice(0, 3).join(' · ') : '';
+    const rating = (p.rating != null) ? `⭐ ${p.rating}` : '평점 정보 없음';
+    const addr   = p.address ? `<div style="font-size:12px;color:#6B7280;margin:4px 0">${escapeHtml(p.address)}</div>` : '';
+    const detailHref = p.id
+      ? `/cafes/${p.id}`
+      : (p.place_url || `https://map.kakao.com/link/to/${encodeURIComponent(p.name)},${p.lat},${p.lng}`);
+    const content = `
+      <div style="padding:12px 14px;min-width:220px;font-family:inherit">
+        <strong style="display:block;font-size:14px;font-weight:700;margin-bottom:4px">${escapeHtml(p.name)}</strong>
+        <div style="font-size:12px;color:#6B7280;margin-bottom:4px">${rating}${tags ? ' · ' + escapeHtml(tags) : ''}</div>
+        ${addr}
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <a href="${detailHref}" target="${p.id ? '_self' : '_blank'}"
+             style="font-size:12px;padding:5px 10px;background:#92400E;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">자세히 보기</a>
+          <a href="https://map.kakao.com/link/to/${encodeURIComponent(p.name)},${p.lat},${p.lng}" target="_blank"
+             style="font-size:12px;padding:5px 10px;border:1px solid #D1D5DB;border-radius:6px;text-decoration:none;color:#374151;font-weight:600">길찾기</a>
+        </div>
+      </div>
+    `;
+    infoWindow.setContent(content);
+    infoWindow.open(map, marker);
+  }
+
+  function renderList(places) {
+    const listEl = document.getElementById('placeList');
+    if (!places || places.length === 0) {
+      listEl.innerHTML = `<li class="cg-panel" style="padding:20px;text-align:center;color:var(--text-muted);font-size:14px">표시할 장소가 없습니다.</li>`;
+      return;
+    }
+    listEl.innerHTML = places.map(p => {
+      const href   = p.id ? `/cafes/${p.id}` : (p.place_url || `https://map.kakao.com/link/to/${encodeURIComponent(p.name)},${p.lat},${p.lng}`);
+      const target = p.id ? '_self' : '_blank';
+      const rating = (p.rating != null) ? `⭐ ${p.rating}` : '평점 정보 없음';
+      const addr   = p.address ? `<p style="font-size:12px;color:var(--text-sub);margin:2px 0 0">${escapeHtml(p.address)}</p>` : '';
+      return `
+        <li>
+          <a class="cg-card cg-card__link" href="${href}" target="${target}"
+             style="display:block;padding:14px 16px;text-decoration:none">
+            <p style="font-size:14px;font-weight:700;color:var(--text);margin:0 0 4px">${escapeHtml(p.name)}</p>
+            <p style="font-size:12px;color:var(--text-muted);margin:0">${rating}</p>
+            ${addr}
+          </a>
+        </li>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function wireSearchHandlers(allowedBounds) {
+    const $input = document.getElementById('searchInput');
+    const $btn   = document.getElementById('searchBtn');
+    const ps       = new kakao.maps.services.Places();
+    const geocoder = new kakao.maps.services.Geocoder();
+
+    function runSearch() {
+      const q = ($input.value || '').trim();
+      if (!q) return;
+
+      geocoder.addressSearch(q, (res, status) => {
+        if (status === kakao.maps.services.Status.OK && res[0]) {
+          const pos = new kakao.maps.LatLng(res[0].y, res[0].x);
+          map.setCenter(pos);
+        }
+      });
+
+      ps.keywordSearch(q, (data, status) => {
+        if (status !== kakao.maps.services.Status.OK || !data?.length) {
+          renderPlaces([]);
+          return;
+        }
+        const places = data.map(d => ({
+          id: null,
+          name: d.place_name,
+          rating: null,
+          address: d.road_address_name || d.address_name || '',
+          lat: parseFloat(d.y),
+          lng: parseFloat(d.x),
+          tags: [],
+          thumbnail: null,
+          place_url: d.place_url
+        }));
+
+        renderPlaces(places);
+
+        const b = new kakao.maps.LatLngBounds();
+        places.forEach(p => b.extend(new kakao.maps.LatLng(p.lat, p.lng)));
+        if (!b.isEmpty()) {
+          map.setBounds(b);
+          if (MIN_OUT_LEVEL != null && map.getLevel() > MIN_OUT_LEVEL) {
+            map.setLevel(MIN_OUT_LEVEL);
+          }
+          clampCenterIntoBounds(map, allowedBounds);
+        }
+      }, { bounds: map.getBounds() });
+    }
+
+    $btn.addEventListener('click', runSearch);
+    $input.addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+  }
+</script>
+
+{{>layout/footer}}

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"D:\\\\GoCafe\\\\GoCafe_Review_Tag_AI\"; Get-ChildItem -File | Where-Object { $_.Name -notlike \".gitignore\" } | Select-Object Name, Length | Format-Table -AutoSize)",
+      "PowerShell(Rename-Item *)"
+    ]
+  }
+}

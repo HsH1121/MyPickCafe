@@ -1,0 +1,111 @@
+{{>layout/header}}
+
+<main>
+
+  <!-- ── HERO ── -->
+  <section class="cg-hero-main">
+    <div class="cg-container">
+      <p class="cg-hero-main__eyebrow">카페 탐색 플랫폼</p>
+      <h1 class="cg-hero-main__title">나만의 카페,<br>지금 바로 찾아보세요</h1>
+      <p class="cg-hero-main__desc">전국 카페를 탐색하고, 솔직한 리뷰를 남겨보세요.</p>
+      <form class="cg-search-hero" method="get" action="/search">
+        <input class="cg-input-hero" type="text" name="q"
+               placeholder="지역, 분위기, 메뉴를 검색해보세요"/>
+        <button class="cg-btn--search" type="submit">검색</button>
+      </form>
+      <div class="cg-chips cg-chips--hero">
+        {{#cafeTags}}
+          <button class="cg-chip" data-category="{{categoryCode}}" data-tag="{{code}}">{{code}}</button>
+        {{/cafeTags}}
+      </div>
+    </div>
+  </section>
+
+  <div class="cg-main-body cg-container">
+
+    <!-- ── 지금 뜨는 카페 ── -->
+    <section class="cg-section">
+      <div class="cg-section__head">
+        <div>
+          <p class="cg-eyebrow">인기 카페</p>
+          <h2 class="cg-section__title">지금 뜨는 카페</h2>
+        </div>
+        <a class="cg-link" href="/cafes">모두 보기 →</a>
+      </div>
+      <ul class="cg-card-grid">
+        {{#cafeCards}}
+          <li class="cg-card cg-cafe-card">
+            <a class="cg-card__link" href="/cafes/{{id}}">
+              <div class="cg-card__imgwrap">
+                <img class="cg-card__img" src="{{mainPhoto}}" alt="{{name}}"
+                     onerror="this.style.display='none';this.parentElement.classList.add('cg-noimg')"/>
+                <span class="cg-card__views-badge">조회 {{views}}</span>
+              </div>
+              <div class="cg-card__body-inner">
+                <p class="cg-card__title">{{name}}</p>
+                <p class="cg-card__addr">📍 {{address}}</p>
+              </div>
+            </a>
+          </li>
+        {{/cafeCards}}
+        {{^cafeCards}}
+          <li class="cg-empty">등록된 카페가 없어요.</li>
+        {{/cafeCards}}
+      </ul>
+    </section>
+
+    <!-- ── 최근 올라온 후기 ── -->
+    <section class="cg-section">
+      <div class="cg-section__head">
+        <div>
+          <p class="cg-eyebrow">실시간 후기</p>
+          <h2 class="cg-section__title">최근 올라온 후기</h2>
+        </div>
+      </div>
+      <ul class="cg-review-grid">
+        {{#recentReviews}}
+          <li class="cg-review-card">
+            <div class="cg-review-card__top">
+              <span class="cg-review-card__cafe">{{cafe.name}}</span>
+              {{#sentiment}}<span class="cg-badge--sentiment">{{sentiment}}</span>{{/sentiment}}
+            </div>
+            <p class="cg-review-card__content">{{content}}</p>
+            <div class="cg-review-card__meta">
+              <span>👍 {{good}} &nbsp;👎 {{bad}}</span>
+              <span>{{createdAt}}</span>
+            </div>
+          </li>
+        {{/recentReviews}}
+        {{^recentReviews}}
+          <li class="cg-empty">아직 후기가 없어요.</li>
+        {{/recentReviews}}
+      </ul>
+    </section>
+
+    <!-- ── 카페 등록 유도 ── -->
+    <section class="cg-section">
+      <div style="background:var(--accent-light);border:1px solid var(--accent-mid);
+                  border-radius:var(--r-lg);padding:40px 36px;
+                  display:flex;align-items:center;justify-content:space-between;
+                  gap:24px;flex-wrap:wrap;">
+        <div>
+          <p class="cg-eyebrow">카페 오너이신가요?</p>
+          <h2 style="font-size:20px;font-weight:800;letter-spacing:-.3px;color:var(--text);margin-bottom:8px">
+            내 카페를 MyPickCafe에 등록해보세요
+          </h2>
+          <p style="font-size:14px;color:var(--text-sub)">
+            리뷰를 통해 더 많은 손님과 만나보세요.
+          </p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="cg-btn" href="/cafes/new">카페 등록하기</a>
+          <a class="cg-btn-outline" href="/cafes">카페 목록 보기</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+</main>
+
+{{>layout/footer}}

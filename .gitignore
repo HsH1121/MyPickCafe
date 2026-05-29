@@ -1,0 +1,14 @@
+# Spring Boot 관련 제외
+**/target/
+**/build/
+**.gradle/
+**.idea/
+
+# Python 관련 제외
+**/venv/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+
+# 설정 및 비밀번호 파일 (필요시)
+**/.env

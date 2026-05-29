@@ -1,0 +1,57 @@
+{{>layout/header}}
+
+<main class="cg-container">
+  <div class="cg-mypage-grid">
+
+    <aside>
+      <nav class="cg-sidenav">
+        <a href="/member/me">내 정보</a>
+        <a href="/member/edit">정보 수정</a>
+        <a href="/member/reviews">내가 쓴 리뷰</a>
+        <a href="/favorites" class="is-active">즐겨찾기</a>
+        <div class="cg-sidenav__divider"></div>
+        <a href="/member/withdraw" class="is-danger">회원 탈퇴</a>
+      </nav>
+    </aside>
+
+    <section>
+      <div class="cg-panel">
+        <div class="cg-panel__head">
+          <div>
+            <p class="cg-eyebrow">내 컬렉션</p>
+            <h2 class="cg-panel__title">즐겨찾기</h2>
+          </div>
+        </div>
+        <div class="cg-panel__body">
+          {{#favorites.length}}
+            <ul class="cg-card-grid">
+              {{#favorites}}
+                <li class="cg-card cg-cafe-card">
+                  <a class="cg-card__link" href="/cafes/{{id}}">
+                    <div class="cg-card__imgwrap">
+                      <img class="cg-card__img" src="{{photo}}" alt="{{name}}"
+                           onerror="this.style.display='none';this.parentElement.classList.add('cg-noimg')"/>
+                    </div>
+                    <div class="cg-card__body-inner">
+                      <p class="cg-card__title">{{name}}</p>
+                      <p class="cg-card__addr">📍 {{address}}</p>
+                    </div>
+                  </a>
+                </li>
+              {{/favorites}}
+            </ul>
+          {{/favorites.length}}
+          {{^favorites.length}}
+            <div class="cg-empty" style="padding:48px 20px">
+              <p style="margin-bottom:16px">아직 즐겨찾기한 카페가 없어요.</p>
+              <a class="cg-btn" href="/">카페 찾으러 가기</a>
+            </div>
+          {{/favorites.length}}
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+{{>layout/footer}}
