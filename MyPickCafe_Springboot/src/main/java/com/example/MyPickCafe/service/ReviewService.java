@@ -24,6 +24,7 @@ import com.example.MyPickCafe.repository.ReviewTagRepository;
 import com.example.MyPickCafe.support.EntityIdUtil;
 import com.example.MyPickCafe.support.NotFoundException;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -228,20 +229,42 @@ public class ReviewService {
     private void syncCafeTopTags(Long cafeId) {
         List<Object[]> rows = reviewTagRepository.findTagCountsByCafe(cafeId);
 
-        Map<String, String> top = new LinkedHashMap<>();
+        // category -> [(code, count)] 이미 cnt 내림차순 정렬된 상태
+        Map<String, List<Object[]>> byCategory = new LinkedHashMap<>();
         for (Object[] row : rows) {
-            top.putIfAbsent((String) row[0], (String) row[1]);
+            byCategory.computeIfAbsent((String) row[0], k -> new ArrayList<>()).add(row);
         }
 
-        CafeTag cafeTag = cafeTagRepository.findByCafe_Id(cafeId)
-                .orElseGet(() -> { CafeTag t = new CafeTag(); t.setCafe(cafeRepository.getReferenceById(cafeId)); return t; });
+        cafeTagRepository.deleteAllByCafeId(cafeId);
 
-        cafeTag.setFacilityTag(parseEnum(FacilityTag.class, top.get("FACILITY")));
-        cafeTag.setMenuTag(parseEnum(MenuTag.class,         top.get("MENU")));
-        cafeTag.setPurposeTag(parseEnum(PurposeTag.class,   top.get("PURPOSE")));
-        cafeTag.setMoodTag(parseEnum(MoodTag.class,         top.get("MOOD")));
+        Cafe cafeRef = cafeRepository.getReferenceById(cafeId);
 
-        cafeTagRepository.save(cafeTag);
+        for (Map.Entry<String, List<Object[]>> entry : byCategory.entrySet()) {
+            String category = entry.getKey();
+            List<Object[]> tagCounts = entry.getValue();
+            long topCount = ((Number) tagCounts.get(0)[2]).longValue();
+
+            for (Object[] tagCount : tagCounts) {
+                long cnt = ((Number) tagCount[2]).longValue();
+                if (cnt < topCount * 0.85) break;
+
+                String code = (String) tagCount[1];
+                CafeTag cafeTag = new CafeTag();
+                cafeTag.setCafe(cafeRef);
+
+                switch (category) {
+                    case "FACILITY" -> cafeTag.setFacilityTag(parseEnum(FacilityTag.class, code));
+                    case "MENU"     -> cafeTag.setMenuTag(parseEnum(MenuTag.class, code));
+                    case "PURPOSE"  -> cafeTag.setPurposeTag(parseEnum(PurposeTag.class, code));
+                    case "MOOD"     -> cafeTag.setMoodTag(parseEnum(MoodTag.class, code));
+                }
+
+                if (cafeTag.getFacilityTag() != null || cafeTag.getMenuTag() != null
+                        || cafeTag.getPurposeTag() != null || cafeTag.getMoodTag() != null) {
+                    cafeTagRepository.save(cafeTag);
+                }
+            }
+        }
     }
 
     private <E extends Enum<E>> E parseEnum(Class<E> clazz, String value) {
