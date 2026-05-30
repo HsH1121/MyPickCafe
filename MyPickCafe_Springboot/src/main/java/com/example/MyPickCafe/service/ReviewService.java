@@ -1,22 +1,31 @@
 // src/main/java/com/example/MyPickCafe/service/ReviewService.java
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.domain.FacilityTag;
+import com.example.MyPickCafe.domain.MenuTag;
+import com.example.MyPickCafe.domain.MoodTag;
+import com.example.MyPickCafe.domain.PurposeTag;
 import com.example.MyPickCafe.dto.MyReviewItem;
 import com.example.MyPickCafe.dto.PythonTagRequest;
 import com.example.MyPickCafe.dto.PythonTagResponse;
 import com.example.MyPickCafe.dto.ReviewCreateForm;
 import com.example.MyPickCafe.dto.ReviewForm;
 import com.example.MyPickCafe.entity.Cafe;
+import com.example.MyPickCafe.entity.CafeTag;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.entity.Review;
 import com.example.MyPickCafe.entity.ReviewTag;
 import com.example.MyPickCafe.repository.CafePhotoRepository;
 import com.example.MyPickCafe.repository.CafeRepository;
+import com.example.MyPickCafe.repository.CafeTagRepository;
 import com.example.MyPickCafe.repository.MemberRepository;
 import com.example.MyPickCafe.repository.ReviewRepository;
 import com.example.MyPickCafe.repository.ReviewTagRepository;
 import com.example.MyPickCafe.support.EntityIdUtil;
 import com.example.MyPickCafe.support.NotFoundException;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +44,7 @@ public class ReviewService {
     private final NotificationService notificationService;
     private final ReviewTagRepository reviewTagRepository;
     private final CafeRepository cafeRepository;
+    private final CafeTagRepository cafeTagRepository;
     private final MemberRepository memberRepository;
     private final PythonTagClient pythonTagClient;
 
@@ -139,21 +149,15 @@ public class ReviewService {
         r.setMember(memberRepository.getReferenceById(memberId));
 
         // ⬇️ 아래 3줄은 네 엔티티/폼 필드명에 맞게 필요하면 이름만 바꿔줘!
-        r.setContent(form.getReviewContent());         // 예: form.getText() / r.setText(...)
-        r.setSentiment(
-                form.getSentiment() != null ? form.getSentiment() : "GOOD"
-        );                                       // 감성 필드명 다르면 맞게 변경
+        r.setContent(form.getReviewContent());
 
         return r;
     }
     @Transactional
-    public Review saveWithTags(ReviewForm form, Member me, Cafe cafe, String normalizedSentiment) {
+    public Review saveWithTags(ReviewForm form, Member me, Cafe cafe) {
         // 1. 리뷰 저장
         Review review = form.toEntity(cafe, me);
         if (review.getCreatedAt() == null) review.setCreatedAt(LocalDateTime.now());
-        review.setSentiment(normalizedSentiment);
-        if ("GOOD".equals(normalizedSentiment)) { review.setGood(1); review.setBad(0); }
-        else if ("BAD".equals(normalizedSentiment)) { review.setGood(0); review.setBad(1); }
         Review saved = reviewRepository.save(review);
 
         if (cafe.getOwner() != null && (me == null || !cafe.getOwner().getId().equals(me.getId()))) {
@@ -168,6 +172,7 @@ public class ReviewService {
 
         pythonTagClient.analyze(pyReq).ifPresent(res -> {
             saveEnumTags(saved, res);
+            syncCafeTopTags(saved.getCafe().getId());
             if (res.getSentiment() != null) {
                 String s = res.getSentiment().trim().toUpperCase();
                 if ("GOOD".equals(s) || "BAD".equals(s)) {
@@ -183,15 +188,15 @@ public class ReviewService {
     }
 
     @Transactional
-    public Review updateWithTags(Long reviewId, ReviewForm form, String normalizedSentiment) {
+    public Review updateWithTags(Long reviewId, ReviewForm form) {
         // 1. 기존 리뷰 조회 및 필드 업데이트
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new NotFoundException("Review not found: " + reviewId));
 
         review.setContent(form.getReviewContent());
-        review.setSentiment(normalizedSentiment);
-        if ("GOOD".equals(normalizedSentiment)) { review.setGood(1); review.setBad(0); }
-        else if ("BAD".equals(normalizedSentiment)) { review.setGood(0); review.setBad(1); }
+        review.setSentiment(null);
+        review.setGood(0);
+        review.setBad(0);
         Review saved = reviewRepository.save(review);
 
         // 2. 기존 태그 전부 삭제
@@ -205,6 +210,7 @@ public class ReviewService {
 
         pythonTagClient.analyze(pyReq).ifPresent(res -> {
             saveEnumTags(saved, res);
+            syncCafeTopTags(saved.getCafe().getId());
             if (res.getSentiment() != null) {
                 String s = res.getSentiment().trim().toUpperCase();
                 if ("GOOD".equals(s) || "BAD".equals(s)) {
@@ -217,6 +223,30 @@ public class ReviewService {
         });
 
         return saved;
+    }
+
+    private void syncCafeTopTags(Long cafeId) {
+        List<Object[]> rows = reviewTagRepository.findTagCountsByCafe(cafeId);
+
+        Map<String, String> top = new LinkedHashMap<>();
+        for (Object[] row : rows) {
+            top.putIfAbsent((String) row[0], (String) row[1]);
+        }
+
+        CafeTag cafeTag = cafeTagRepository.findByCafe_Id(cafeId)
+                .orElseGet(() -> { CafeTag t = new CafeTag(); t.setCafe(cafeRepository.getReferenceById(cafeId)); return t; });
+
+        cafeTag.setFacilityTag(parseEnum(FacilityTag.class, top.get("FACILITY")));
+        cafeTag.setMenuTag(parseEnum(MenuTag.class,         top.get("MENU")));
+        cafeTag.setPurposeTag(parseEnum(PurposeTag.class,   top.get("PURPOSE")));
+        cafeTag.setMoodTag(parseEnum(MoodTag.class,         top.get("MOOD")));
+
+        cafeTagRepository.save(cafeTag);
+    }
+
+    private <E extends Enum<E>> E parseEnum(Class<E> clazz, String value) {
+        if (value == null) return null;
+        try { return Enum.valueOf(clazz, value); } catch (IllegalArgumentException e) { return null; }
     }
 
     private void saveEnumTags(Review saved, PythonTagResponse res) {

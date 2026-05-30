@@ -17,7 +17,6 @@ public class ReviewForm {
 
     private Long cafeId;
     private String reviewContent;
-    private String sentiment;
     private LocalDateTime reviewDate;
 
     public Review toEntity(Cafe cafe, Member member) {
@@ -27,7 +26,6 @@ public class ReviewForm {
                 .content(reviewContent)
                 .good(0)
                 .bad(0)
-                .sentiment(sentiment)
                 .createdAt(reviewDate)
                 .build();
     }

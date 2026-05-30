@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
 @Controller
 @RequiredArgsConstructor
 @RequestMapping("/reviews")
@@ -69,11 +70,7 @@ public class ReviewController {
         Member me = memberService.findByEmail(authentication.getName());
         Cafe cafe = cafeService.findById(form.getCafeId());
 
-        String s = (form.getSentiment() != null) ? form.getSentiment() : request.getParameter("sentiment");
-        if (s != null) s = s.trim().toUpperCase();
-        if (!"GOOD".equals(s) && !"BAD".equals(s)) s = null;
-
-        reviewService.saveWithTags(form, me, cafe, s);
+        reviewService.saveWithTags(form, me, cafe);
 
         ra.addFlashAttribute("message", "리뷰가 등록되었습니다.");
         return "redirect:/cafes/" + form.getCafeId();
@@ -90,11 +87,7 @@ public class ReviewController {
             return "redirect:/login";
         }
 
-        String s = form.getSentiment();
-        if (s != null) s = s.trim().toUpperCase();
-        if (!"GOOD".equals(s) && !"BAD".equals(s)) s = null;
-
-        reviewService.updateWithTags(id, form, s);
+        reviewService.updateWithTags(id, form);
 
         ra.addFlashAttribute("message", "리뷰가 수정되었습니다.");
         return "redirect:/cafes/" + form.getCafeId();

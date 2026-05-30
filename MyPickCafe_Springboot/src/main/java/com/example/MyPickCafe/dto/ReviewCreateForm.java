@@ -8,5 +8,4 @@ public class ReviewCreateForm {
     private Long cafeId;
     private String reviewContent;
     private MultipartFile[] photos;
-    private String sentiment;
 }
