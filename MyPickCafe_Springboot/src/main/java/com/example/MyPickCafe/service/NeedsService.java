@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.entity.UserNeeds;
 import com.example.MyPickCafe.repository.NeedsRepository;
 import com.example.MyPickCafe.support.EntityIdUtil;
@@ -48,5 +49,26 @@ public class NeedsService {
             throw new NotFoundException("Needs not found: " + id);
         }
         repository.deleteById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserNeeds> findByMemberId(Long memberId) {
+        return repository.findByMember_Id(memberId);
+    }
+
+    @Transactional
+    public void replaceAll(Long memberId, List<String> selectedCodes, Member member) {
+        repository.deleteByMember_Id(memberId);
+        if (selectedCodes == null) return;
+        for (String code : selectedCodes) {
+            String[] parts = code.split(":");
+            if (parts.length != 2) continue;
+            UserNeeds needs = new UserNeeds();
+            needs.setMember(member);
+            needs.setCategoryCode(parts[0]);
+            needs.setCode(parts[1]);
+            needs.setNecessary(false);
+            repository.save(needs);
+        }
     }
 }

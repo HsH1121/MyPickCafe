@@ -1,9 +1,15 @@
 package com.example.MyPickCafe.controller;
 
+import com.example.MyPickCafe.domain.FacilityTag;
+import com.example.MyPickCafe.domain.MenuTag;
+import com.example.MyPickCafe.domain.MoodTag;
+import com.example.MyPickCafe.domain.PurposeTag;
 import com.example.MyPickCafe.dto.MemberForm;
 import com.example.MyPickCafe.dto.MyReviewItem;
 import com.example.MyPickCafe.entity.Member;
+import com.example.MyPickCafe.entity.UserNeeds;
 import com.example.MyPickCafe.service.MemberService;
+import com.example.MyPickCafe.service.NeedsService;
 import com.example.MyPickCafe.service.ReviewService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,6 +26,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -28,12 +35,14 @@ public class MemberController {
 
     private final MemberService memberService;
     private final ReviewService reviewService;
+    private final NeedsService needsService;
 
     /* =========================
      *        MY PAGE
      * ========================= */
     @GetMapping("/me")
     public String myPage(@AuthenticationPrincipal org.springframework.security.core.userdetails.User principal,
+                         @RequestParam(value = "needs", required = false) String needsParam,
                          Model model) {
         if (principal == null) return "redirect:/login";
 
@@ -47,6 +56,15 @@ public class MemberController {
         // 본문 모델
         model.addAttribute("member", view);
         model.addAttribute("memberPhoto", member.getPhoto() == null ? "" : member.getPhoto());
+
+        model.addAttribute("needs_saved", "saved".equals(needsParam));
+
+        // 니즈 선택 패널
+        List<UserNeeds> myNeeds = needsService.findByMemberId(member.getId());
+        Set<String> selected = myNeeds.stream()
+                .map(n -> n.getCategoryCode() + ":" + n.getCode())
+                .collect(Collectors.toSet());
+        model.addAttribute("needsCategories", buildNeedsCategories(selected));
 
         // 좌측 네비 활성화
         model.addAttribute("nav_me", true);
@@ -207,6 +225,18 @@ public class MemberController {
     }
 
     /* =========================
+     *       MY NEEDS (POST)
+     * ========================= */
+    @PostMapping("/needs")
+    public String saveNeeds(@AuthenticationPrincipal User principal,
+                            @RequestParam(value = "needs", required = false) List<String> needs) {
+        if (principal == null) return "redirect:/login";
+        Member me = memberService.findByEmail(principal.getUsername());
+        needsService.replaceAll(me.getId(), needs, me);
+        return "redirect:/member/me?needs=saved";
+    }
+
+    /* =========================
      *         HELPERS
      * ========================= */
 
@@ -222,6 +252,47 @@ public class MemberController {
         view.setPhoto(member.getPhoto());
         view.setTokenVersion(member.getTokenVersion());
         return view;
+    }
+
+    private List<Map<String, Object>> buildNeedsCategories(Set<String> selected) {
+        List<Map<String, Object>> categories = new ArrayList<>();
+
+        List<Map<String, Object>> facilityItems = Arrays.stream(FacilityTag.values())
+                .map(t -> needsItem("FACILITY:" + t.name(), t.getLabel(), selected.contains("FACILITY:" + t.name())))
+                .collect(Collectors.toList());
+        categories.add(needsCategory("시설", facilityItems));
+
+        List<Map<String, Object>> menuItems = Arrays.stream(MenuTag.values())
+                .map(t -> needsItem("MENU:" + t.name(), t.getLabel(), selected.contains("MENU:" + t.name())))
+                .collect(Collectors.toList());
+        categories.add(needsCategory("메뉴", menuItems));
+
+        List<Map<String, Object>> purposeItems = Arrays.stream(PurposeTag.values())
+                .map(t -> needsItem("PURPOSE:" + t.name(), t.getLabel(), selected.contains("PURPOSE:" + t.name())))
+                .collect(Collectors.toList());
+        categories.add(needsCategory("목적", purposeItems));
+
+        List<Map<String, Object>> moodItems = Arrays.stream(MoodTag.values())
+                .map(t -> needsItem("MOOD:" + t.name(), t.getLabel(), selected.contains("MOOD:" + t.name())))
+                .collect(Collectors.toList());
+        categories.add(needsCategory("분위기", moodItems));
+
+        return categories;
+    }
+
+    private Map<String, Object> needsCategory(String label, List<Map<String, Object>> items) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("categoryLabel", label);
+        m.put("items", items);
+        return m;
+    }
+
+    private Map<String, Object> needsItem(String value, String label, boolean selected) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("value", value);
+        m.put("label", label);
+        m.put("selected", selected);
+        return m;
     }
 
     private void populateCommonUserModel(Model model, Member member) {
