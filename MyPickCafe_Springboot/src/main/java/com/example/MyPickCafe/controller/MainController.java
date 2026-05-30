@@ -4,12 +4,17 @@ import com.example.MyPickCafe.dto.CafeCardForm;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.entity.CafeTag;
+import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.entity.Review;
 import com.example.MyPickCafe.service.CafePhotoService;
 import com.example.MyPickCafe.service.CafeService;
 import com.example.MyPickCafe.service.CafeTagService;
+import com.example.MyPickCafe.service.MemberService;
+import com.example.MyPickCafe.service.RecommendService;
 import com.example.MyPickCafe.service.ReviewService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,9 +31,11 @@ public class MainController {
     private final CafeTagService cafeTagService;
     private final ReviewService reviewService;
     private final CafePhotoService cafePhotoService;
+    private final MemberService memberService;
+    private final RecommendService recommendService;
 
     @GetMapping({"/", "/main"})
-    public String home(Model model) {
+    public String home(Model model, Authentication authentication) {
         List<Cafe> cafes = cafeService.findApprovedTopByViews(8);
         Set<Long> topIds = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
         List<CafePhoto> mainPhotos = cafePhotoService.findForCafeIdsOrderByMainThenSort(topIds);
@@ -66,6 +73,17 @@ public class MainController {
         model.addAttribute("cafeCards", cafeCards);
         model.addAttribute("cafeTags", cafeTags);
         model.addAttribute("recentReviews", recentReviews);
+
+        // 로그인 사용자에게 자카드 기반 추천 카페
+        if (authentication != null && authentication.isAuthenticated()
+                && !(authentication instanceof AnonymousAuthenticationToken)) {
+            Member me = memberService.findByEmail(authentication.getName());
+            if (me != null) {
+                List<CafeCardForm> recommended = recommendService.recommendForMember(me.getId(), 6);
+                model.addAttribute("recommendedCafes", recommended);
+                model.addAttribute("hasRecommendedCafes", !recommended.isEmpty());
+            }
+        }
 
         return "page/main";
     }

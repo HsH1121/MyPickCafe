@@ -23,6 +23,36 @@
 
   <div class="cg-main-body cg-container">
 
+    <!-- ── 나를 위한 추천 카페 ── -->
+    {{#hasRecommendedCafes}}
+    <section class="cg-section">
+      <div class="cg-section__head">
+        <div>
+          <p class="cg-eyebrow">맞춤 추천</p>
+          <h2 class="cg-section__title">나를 위한 카페</h2>
+        </div>
+        <a class="cg-link" href="/member/me">니즈 설정 →</a>
+      </div>
+      <ul class="cg-card-grid">
+        {{#recommendedCafes}}
+          <li class="cg-card cg-cafe-card">
+            <a class="cg-card__link" href="/cafes/{{id}}">
+              <div class="cg-card__imgwrap">
+                <img class="cg-card__img" src="{{mainPhoto}}" alt="{{name}}"
+                     onerror="this.style.display='none';this.parentElement.classList.add('cg-noimg')"/>
+                <span class="cg-card__views-badge">조회 {{views}}</span>
+              </div>
+              <div class="cg-card__body-inner">
+                <p class="cg-card__title">{{name}}</p>
+                <p class="cg-card__addr">📍 {{address}}</p>
+              </div>
+            </a>
+          </li>
+        {{/recommendedCafes}}
+      </ul>
+    </section>
+    {{/hasRecommendedCafes}}
+
     <!-- ── 지금 뜨는 카페 ── -->
     <section class="cg-section">
       <div class="cg-section__head">
