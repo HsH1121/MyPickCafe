@@ -26,7 +26,7 @@ public class ReviewTag {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Review review;
 
-    // 기존 범용 태그 시스템 (WAIT, COMPANION, TASTE, LIKE, SENTIMENT, AI 등)
+    // AI 추출 태그 카테고리 (FACILITY, MENU, PURPOSE, MOOD)
     @Column(name = "category_code", length = 20)
     private String categoryCode;
 

@@ -160,20 +160,44 @@ public class ReviewService {
             try { notificationService.notifyReviewCreated(saved); } catch (Exception ignore) {}
         }
 
-        // 2. 사용자 입력 태그 저장
-        if (form.getWaitingTime() != null)
-            reviewTagRepository.save(new ReviewTag(null, saved, "WAIT", String.valueOf(form.getWaitingTime())));
-        if (form.getCompanionType() != null && !form.getCompanionType().isBlank())
-            reviewTagRepository.save(new ReviewTag(null, saved, "COMPANION", form.getCompanionType()));
-        if (form.getTaste() != null)
-            reviewTagRepository.save(new ReviewTag(null, saved, "TASTE", String.valueOf(form.getTaste())));
-        if (form.getLikedTagCodes() != null)
-            for (String code : form.getLikedTagCodes())
-                reviewTagRepository.save(new ReviewTag(null, saved, "LIKE", code));
-        if (normalizedSentiment != null)
-            reviewTagRepository.save(new ReviewTag(null, saved, "SENTIMENT", normalizedSentiment));
+        // 2. FastAPI 태그 추출 (저장 후 호출, 실패 시 태그 없이 진행)
+        PythonTagRequest pyReq = PythonTagRequest.builder()
+                .reviewId(saved.getId())
+                .reviewText(saved.getContent())
+                .build();
 
-        // 3. FastAPI 태그 추출 (저장 후 호출, 실패 시 태그 없이 진행)
+        pythonTagClient.analyze(pyReq).ifPresent(res -> {
+            saveEnumTags(saved, res);
+            if (res.getSentiment() != null) {
+                String s = res.getSentiment().trim().toUpperCase();
+                if ("GOOD".equals(s) || "BAD".equals(s)) {
+                    saved.setSentiment(s);
+                    saved.setGood("GOOD".equals(s) ? 1 : 0);
+                    saved.setBad("BAD".equals(s)  ? 1 : 0);
+                    reviewRepository.save(saved);
+                }
+            }
+        });
+
+        return saved;
+    }
+
+    @Transactional
+    public Review updateWithTags(Long reviewId, ReviewForm form, String normalizedSentiment) {
+        // 1. 기존 리뷰 조회 및 필드 업데이트
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new NotFoundException("Review not found: " + reviewId));
+
+        review.setContent(form.getReviewContent());
+        review.setSentiment(normalizedSentiment);
+        if ("GOOD".equals(normalizedSentiment)) { review.setGood(1); review.setBad(0); }
+        else if ("BAD".equals(normalizedSentiment)) { review.setGood(0); review.setBad(1); }
+        Review saved = reviewRepository.save(review);
+
+        // 2. 기존 태그 전부 삭제
+        reviewTagRepository.deleteByReviewId(reviewId);
+
+        // 3. FastAPI 태그 재추출
         PythonTagRequest pyReq = PythonTagRequest.builder()
                 .reviewId(saved.getId())
                 .reviewText(saved.getContent())

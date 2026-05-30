@@ -46,20 +46,8 @@ public class Review {
     @Column(name = "bad", nullable = false)
     private int bad = 0;
 
-    @Column(name = "waiting_time")
-    private Integer waitingTime;
-
-    @Column(name = "companion_type")
-    private String companionType;
-
-    @Column(name = "taste")
-    private Integer taste;
-
     @Column(name = "sentiment")
     private String sentiment;
-
-    @Column(name = "liked_tag_csv")
-    private String likedTagCsv;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

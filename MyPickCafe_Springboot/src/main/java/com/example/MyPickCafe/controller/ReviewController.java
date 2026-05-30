@@ -79,6 +79,27 @@ public class ReviewController {
         return "redirect:/cafes/" + form.getCafeId();
     }
 
+    @PostMapping("/{id}/edit")
+    public String edit(@PathVariable Long id,
+                       @ModelAttribute ReviewForm form,
+                       RedirectAttributes ra,
+                       Authentication authentication) {
+
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+            return "redirect:/login";
+        }
+
+        String s = form.getSentiment();
+        if (s != null) s = s.trim().toUpperCase();
+        if (!"GOOD".equals(s) && !"BAD".equals(s)) s = null;
+
+        reviewService.updateWithTags(id, form, s);
+
+        ra.addFlashAttribute("message", "리뷰가 수정되었습니다.");
+        return "redirect:/cafes/" + form.getCafeId();
+    }
+
     @GetMapping("/cafes/{cafeId}/reviews")
     public String list(@PathVariable Long cafeId, Model model) {
         List<Review> reviews = reviewService.findByCafeIdWithMember(cafeId);

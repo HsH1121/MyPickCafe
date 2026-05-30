@@ -87,27 +87,27 @@ public class DataInitializer implements ApplicationRunner {
         addMenus(c6, "베이커리",new String[]{"수제마들렌", "레몬파운드"},               new int[]{2500, 4000});
 
         /* ── 5. 리뷰 ── */
-        saveReview(c1, u2, "케이크가 정말 맛있어요! 아인슈페너도 진해서 좋았습니다. 주말엔 웨이팅이 있지만 충분히 기다릴 만해요.", "GOOD", 15, "친구");
-        saveReview(c1, u3, "수제 케이크 종류가 다양하고 플레이팅도 예뻐서 사진 찍기 딱이에요. 가격이 조금 비싸긴 하지만 분위기값 합니다.", "GOOD", 10, "혼자");
-        saveReview(c1, u4, "홍대에서 이런 조용한 카페 찾기 쉽지 않아요. 핸드드립 퀄리티가 높아서 자주 올 것 같아요.", "GOOD", 5,  "연인");
+        saveReview(c1, u2, "케이크가 정말 맛있어요! 아인슈페너도 진해서 좋았습니다. 주말엔 웨이팅이 있지만 충분히 기다릴 만해요.", "GOOD");
+        saveReview(c1, u3, "수제 케이크 종류가 다양하고 플레이팅도 예뻐서 사진 찍기 딱이에요. 가격이 조금 비싸긴 하지만 분위기값 합니다.", "GOOD");
+        saveReview(c1, u4, "홍대에서 이런 조용한 카페 찾기 쉽지 않아요. 핸드드립 퀄리티가 높아서 자주 올 것 같아요.", "GOOD");
 
-        saveReview(c2, u1, "아침 8시부터 열어서 출근 전에 들르기 좋아요. 크루아상이 갓 구워져서 진짜 맛있었어요.", "GOOD", 0,  "혼자");
-        saveReview(c2, u3, "콜드브루가 깔끔하고 산미가 좋았어요. 인테리어도 심플하고 작업하기 좋은 환경이에요.", "GOOD", 5,  "혼자");
-        saveReview(c2, u5, "브런치 메뉴 좀 더 다양했으면 좋겠어요. 에그타르트는 맛있는데 종류가 적어서 아쉬워요.", "BAD",  10, "친구");
+        saveReview(c2, u1, "아침 8시부터 열어서 출근 전에 들르기 좋아요. 크루아상이 갓 구워져서 진짜 맛있었어요.", "GOOD");
+        saveReview(c2, u3, "콜드브루가 깔끔하고 산미가 좋았어요. 인테리어도 심플하고 작업하기 좋은 환경이에요.", "GOOD");
+        saveReview(c2, u5, "브런치 메뉴 좀 더 다양했으면 좋겠어요. 에그타르트는 맛있는데 종류가 적어서 아쉬워요.", "BAD");
 
-        saveReview(c3, u1, "연남동 감성 제대로입니다. 테라스에서 마신 유자에이드 최고였어요.", "GOOD", 0,  "연인");
-        saveReview(c3, u4, "바스크 치즈케이크가 촉촉하고 달지 않아서 정말 좋았어요. 재방문 의사 100%!", "GOOD", 0,  "친구");
-        saveReview(c3, u5, "주차공간이 없어서 불편했지만 카페 자체는 너무 예뻐요. 플랫화이트가 진하고 고소해요.", "GOOD", 20, "혼자");
+        saveReview(c3, u1, "연남동 감성 제대로입니다. 테라스에서 마신 유자에이드 최고였어요.", "GOOD");
+        saveReview(c3, u4, "바스크 치즈케이크가 촉촉하고 달지 않아서 정말 좋았어요. 재방문 의사 100%!", "GOOD");
+        saveReview(c3, u5, "주차공간이 없어서 불편했지만 카페 자체는 너무 예뻐요. 플랫화이트가 진하고 고소해요.", "GOOD");
 
-        saveReview(c4, u2, "에스프레소 마티니가 이 가격에 이 퀄리티면 진짜 대박이에요. 바 분위기도 너무 좋고요.", "GOOD", 10, "연인");
-        saveReview(c4, u3, "낮에 커피 마시러 갔다가 저녁에 칵테일까지 마셨어요. 공간이 넓고 조용해서 데이트하기 딱이에요.", "GOOD", 5,  "연인");
+        saveReview(c4, u2, "에스프레소 마티니가 이 가격에 이 퀄리티면 진짜 대박이에요. 바 분위기도 너무 좋고요.", "GOOD");
+        saveReview(c4, u3, "낮에 커피 마시러 갔다가 저녁에 칵테일까지 마셨어요. 공간이 넓고 조용해서 데이트하기 딱이에요.", "GOOD");
 
-        saveReview(c5, u1, "인절미 라떼가 진짜 전통 맛이에요. 레트로 인테리어도 너무 좋고 사진 찍기 좋아요.", "GOOD", 0,  "친구");
-        saveReview(c5, u2, "쌍화차가 따뜻하고 향이 좋아요. 혼자 조용히 책 읽기 완벽한 공간이에요.", "GOOD", 0,  "혼자");
-        saveReview(c5, u4, "흑임자 라떼도 고소하고 맛있는데 양이 좀 적은 느낌이에요. 분위기는 100점!", "GOOD", 5,  "혼자");
+        saveReview(c5, u1, "인절미 라떼가 진짜 전통 맛이에요. 레트로 인테리어도 너무 좋고 사진 찍기 좋아요.", "GOOD");
+        saveReview(c5, u2, "쌍화차가 따뜻하고 향이 좋아요. 혼자 조용히 책 읽기 완벽한 공간이에요.", "GOOD");
+        saveReview(c5, u4, "흑임자 라떼도 고소하고 맛있는데 양이 좀 적은 느낌이에요. 분위기는 100점!", "GOOD");
 
-        saveReview(c6, u3, "오후에 창문으로 노을이 들어올 때 정말 아름다웠어요. 마들렌이 갓 구워져서 따뜻하고 버터향 가득!", "GOOD", 0,  "연인");
-        saveReview(c6, u5, "로즈라떼가 향이 강하지 않고 부드러워서 좋았어요. 오후에 가면 자리 잡기 힘들 수 있으니 평일 추천해요.", "GOOD", 10, "혼자");
+        saveReview(c6, u3, "오후에 창문으로 노을이 들어올 때 정말 아름다웠어요. 마들렌이 갓 구워져서 따뜻하고 버터향 가득!", "GOOD");
+        saveReview(c6, u5, "로즈라떼가 향이 강하지 않고 부드러워서 좋았어요. 오후에 가면 자리 잡기 힘들 수 있으니 평일 추천해요.", "GOOD");
 
         /* ── 6. RAG 태그 설명 ── */
         initRagTagDescriptions();
@@ -282,8 +282,7 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
-    private void saveReview(Cafe cafe, Member member, String content,
-                             String sentiment, int waitingTime, String companion) {
+    private void saveReview(Cafe cafe, Member member, String content, String sentiment) {
         Review r = Review.builder()
                 .cafe(cafe)
                 .member(member)
@@ -291,8 +290,6 @@ public class DataInitializer implements ApplicationRunner {
                 .sentiment(sentiment)
                 .good("GOOD".equals(sentiment) ? 1 : 0)
                 .bad("BAD".equals(sentiment)  ? 1 : 0)
-                .waitingTime(waitingTime)
-                .companionType(companion)
                 .createdAt(LocalDateTime.now().minusDays((long)(Math.random() * 60 + 1)))
                 .build();
         reviewRepository.save(r);
