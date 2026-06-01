@@ -5,8 +5,10 @@ import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.dto.CafeCardForm;
 import com.example.MyPickCafe.dto.CafeForm;
 import com.example.MyPickCafe.entity.Cafe;
+import com.example.MyPickCafe.entity.CafeInfo;
 import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.entity.Member;
+import com.example.MyPickCafe.repository.CafeInfoRepository;
 import com.example.MyPickCafe.repository.CafePhotoRepository;
 import com.example.MyPickCafe.repository.CafeRepository;
 import com.example.MyPickCafe.repository.CafeTagRepository;
@@ -32,6 +34,7 @@ public class CafeService {
 
     private final CafeRepository cafeRepository;
     private final CafePhotoRepository cafePhotoRepository;
+    private final CafeInfoRepository cafeInfoRepository;
     private final CafeTagRepository cafeTagRepository;
     private final MemberRepository memberRepository;
     private final ReviewRepository reviewRepository;
@@ -94,57 +97,61 @@ public class CafeService {
 
     // 생성 (폼 + 파일 업로드)
     @Transactional
-    public Long createCafe(Long cafeOwnerId, CafeForm form) throws AccessDeniedException {
-        return createCafe(cafeOwnerId, form, null, null);
-    }
-
-    @Transactional
     public Long createCafe(Long cafeOwnerId,
                            CafeForm form,
-                           MultipartFile cafePhotoFile,
+                           List<MultipartFile> cafePhotoFiles,
                            MultipartFile bizDocFile) throws AccessDeniedException {
 
         // 1) 소유자 확인
         Member cafeOwner = memberRepository.findById(cafeOwnerId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        // 2) 중복 방지(선택)
+        // 2) 중복 방지
         if (form.getName() != null && cafeRepository.existsByName(form.getName()))
             throw new IllegalArgumentException("이미 존재하는 카페명입니다.");
         if (form.getNumber() != null && cafeRepository.existsByNumber(form.getNumber()))
             throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
 
-        // 3) 엔티티 생성 + 소유자 연관관계 지정
+        // 3) 카페 엔티티 생성
         Cafe cafe = form.toEntity();
         cafe.setStatus(CafeStatus.PENDING);
-        cafe.setOwner(cafeOwner);                 // // Member 연관관계로 설정
-
+        cafe.setOwner(cafeOwner);
         Cafe saved = cafeRepository.save(cafe);
 
-        // 4) 카페 사진 업로드 → CafePhoto INSERT
-        if (cafePhotoFile != null && !cafePhotoFile.isEmpty()) {
-            String photoUrl = fileStorageService.save(cafePhotoFile, "cafes/" + saved.getId());
-
-            boolean hasMain = cafePhotoRepository.existsByCafe_IdAndMainTrue(saved.getId()); // 첫 업로드면 자동 메인
-            int nextOrder = (int) cafePhotoRepository.countByCafe_Id(saved.getId());                // 정렬값
-
-            CafePhoto photo = new CafePhoto();
-            photo.setCafe(saved);                     // // FK 연결
-            photo.setUrl(photoUrl);                   // // 저장 경로/URL
-            photo.setSortIndex(nextOrder);         // // 정렬용 숫자(필드명이 int라 여기에 매핑)
-            photo.setMain(!hasMain);             // // 기존 메인 없으면 이번 것을 메인으로
-
-            cafePhotoRepository.save(photo);
-        }
-
-        // 5) 사업자 증빙 파일 업로드(선택)
-        if (bizDocFile != null && !bizDocFile.isEmpty()) {
-            String docUrl = fileStorageService.save(bizDocFile, "cafes/" + saved.getId() + "/docs");
-            try {
-                saved.setBizDoc(docUrl);
-            } catch (Exception ignored) {
+        // 4) 카페 사진 다중 업로드
+        if (cafePhotoFiles != null) {
+            for (MultipartFile file : cafePhotoFiles) {
+                if (file == null || file.isEmpty()) continue;
+                String photoUrl = fileStorageService.save(file, "cafes/" + saved.getId());
+                boolean hasMain = cafePhotoRepository.existsByCafe_IdAndMainTrue(saved.getId());
+                int nextOrder  = (int) cafePhotoRepository.countByCafe_Id(saved.getId());
+                CafePhoto photo = new CafePhoto();
+                photo.setCafe(saved);
+                photo.setUrl(photoUrl);
+                photo.setSortIndex(nextOrder);
+                photo.setMain(!hasMain);
+                cafePhotoRepository.save(photo);
             }
         }
+
+        // 5) 사업자 증빙 파일
+        if (bizDocFile != null && !bizDocFile.isEmpty()) {
+            String docUrl = fileStorageService.save(bizDocFile, "cafes/" + saved.getId() + "/docs");
+            saved.setBizDoc(docUrl);
+        }
+
+        // 6) CafeInfo 저장
+        CafeInfo info = new CafeInfo();
+        info.setCafe(saved);
+        info.setOpenTime(form.getOpenTime());
+        info.setCloseTime(form.getCloseTime());
+        info.setHoliday(form.getHoliday());
+        info.setNotice(form.getNotice());
+        info.setInfo(form.getInfo());
+        cafeInfoRepository.save(info);
+
+        // 7) 관리자 알림
+        try { notificationService.notifyAdminCafeRegistered(saved); } catch (Exception ignore) {}
 
         return saved.getId();
     }
