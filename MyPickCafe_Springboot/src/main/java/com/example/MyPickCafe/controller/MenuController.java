@@ -67,15 +67,6 @@ public class MenuController {
         ));
     }
 
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CAFEOWNER','ADMIN')")
-    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
-        Menu menu = menuService.findById(id);
-        ensureOwner(auth, menu.getCafe());
-        menuService.delete(id);
-        return ResponseEntity.noContent().build();
-    }
-
     private void ensureOwner(Authentication auth, Cafe cafe) {
         if (auth == null || !auth.isAuthenticated())
             throw new AccessDeniedException("로그인이 필요합니다.");

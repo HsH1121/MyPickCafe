@@ -180,7 +180,7 @@ public class CafeController {
         }
 
         var photos = cafePhotoService.list(cafeId).stream()
-                .map(p -> Map.of("id", p.getId(), "url", p.getUrl(), "main", p.isMain()))
+                .map(p -> Map.of("id", p.getId(), "url", p.getUrl(), "main", Boolean.TRUE.equals(p.getMain())))
                 .collect(Collectors.toList());
 
         var menus = menuService.findByCafeId(cafeId).stream()
