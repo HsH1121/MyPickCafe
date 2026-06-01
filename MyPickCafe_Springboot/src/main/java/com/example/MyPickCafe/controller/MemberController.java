@@ -65,6 +65,7 @@ public class MemberController {
                 .map(n -> n.getCategoryCode() + ":" + n.getCode())
                 .collect(Collectors.toSet());
         model.addAttribute("needsCategories", buildNeedsCategories(selected));
+        model.addAttribute("hasSelectedNeeds", !myNeeds.isEmpty());
 
         // 좌측 네비 활성화
         model.addAttribute("nav_me", true);
@@ -232,7 +233,7 @@ public class MemberController {
                             @RequestParam(value = "needs", required = false) List<String> needs) {
         if (principal == null) return "redirect:/login";
         Member me = memberService.findByEmail(principal.getUsername());
-        needsService.replaceAll(me.getId(), needs, me);
+        needsService.replaceAll(me.getId(), needs);
         return "redirect:/member/me?needs=saved";
     }
 
