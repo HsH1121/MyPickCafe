@@ -76,24 +76,60 @@
           </div>
         </div>
         <div class="cg-panel__body">
-          {{#needs_saved}}<p class="cg-note" style="margin-bottom:12px;color:var(--primary)">저장되었습니다.</p>{{/needs_saved}}
-          <form method="post" action="/member/needs">
-            {{#_csrf}}<input type="hidden" name="{{parameterName}}" value="{{token}}">{{/_csrf}}
-            {{#needsCategories}}
-              <div style="margin-bottom:16px">
-                <p style="font-weight:700;margin-bottom:8px">{{categoryLabel}}</p>
-                <div class="cg-chips">
+          {{#needs_saved}}<p style="margin-bottom:12px;color:var(--primary);font-size:14px">저장되었습니다.</p>{{/needs_saved}}
+
+          <!-- 보기 모드 -->
+          <div id="needs-view">
+            {{#hasSelectedNeeds}}
+              <div class="cg-chips">
+                {{#needsCategories}}
                   {{#items}}
-                    <label class="cg-chip">
-                      <input type="checkbox" name="needs" value="{{value}}" {{#selected}}checked{{/selected}}/>
-                      {{label}}
-                    </label>
+                    {{#selected}}<span class="cg-chip is-active cg-chip--static">{{label}}</span>{{/selected}}
                   {{/items}}
-                </div>
+                {{/needsCategories}}
               </div>
-            {{/needsCategories}}
-            <button type="submit" class="cg-btn cg-btn--sm" style="margin-top:8px">저장</button>
-          </form>
+            {{/hasSelectedNeeds}}
+            {{^hasSelectedNeeds}}
+              <p style="font-size:14px;color:var(--text-muted)">선택된 니즈가 없습니다.</p>
+            {{/hasSelectedNeeds}}
+            <button type="button" class="cg-btn-outline cg-btn--sm" style="margin-top:12px"
+                    onclick="document.getElementById('needs-view').style.display='none';document.getElementById('needs-edit').style.display='block'">
+              수정하기
+            </button>
+          </div>
+
+          <!-- 수정 모드 -->
+          <div id="needs-edit" style="display:none">
+            <form method="post" action="/member/needs">
+              {{#needsCategories}}
+                <div style="margin-bottom:16px">
+                  <p style="font-weight:700;margin-bottom:8px">{{categoryLabel}}</p>
+                  <div class="cg-chips">
+                    {{#items}}
+                      <label class="cg-chip {{#selected}}is-active{{/selected}}">
+                        <input type="checkbox" name="needs" value="{{value}}" {{#selected}}checked{{/selected}}/>
+                        {{label}}
+                      </label>
+                    {{/items}}
+                  </div>
+                </div>
+              {{/needsCategories}}
+              <div style="display:flex;gap:8px;margin-top:8px">
+                <button type="submit" class="cg-btn cg-btn--sm">저장</button>
+                <button type="button" class="cg-btn-outline cg-btn--sm"
+                        onclick="document.getElementById('needs-edit').style.display='none';document.getElementById('needs-view').style.display='block'">
+                  취소
+                </button>
+              </div>
+            </form>
+            <script>
+              document.querySelectorAll('#needs-edit input[type=checkbox]').forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                  this.closest('label').classList.toggle('is-active', this.checked);
+                });
+              });
+            </script>
+          </div>
         </div>
       </div>
 

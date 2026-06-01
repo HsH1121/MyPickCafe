@@ -33,11 +33,11 @@ public class DataInitializer implements ApplicationRunner {
 
         /* ── 1. 회원 ── */
         Member admin  = save(member("admin@MyPickCafe.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "admin",   28, "M", RoleKind.ADMIN));
-        Member u1     = save(member("user1@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "user1",   25, "M", RoleKind.MEMBER));
-        Member u2     = save(member("user2@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "user2",   30, "F", RoleKind.MEMBER));
-        Member u3     = save(member("user3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "user3",   22, "M", RoleKind.MEMBER));
-        Member u4     = save(member("user4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "user4",  27, "F", RoleKind.MEMBER));
-        Member u5     = save(member("user5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "user5",   35, "M", RoleKind.MEMBER));
+        Member u1     = save(member("member1@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member1",   25, "M", RoleKind.MEMBER));
+        Member u2     = save(member("member2@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member2",   30, "F", RoleKind.MEMBER));
+        Member u3     = save(member("member3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member3",   22, "M", RoleKind.MEMBER));
+        Member u4     = save(member("member4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member4",  27, "F", RoleKind.MEMBER));
+        Member u5     = save(member("member5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member5",   35, "M", RoleKind.MEMBER));
 
         /* ── 2. 카페 (홍대·상수·합정 일대) ── */
         Cafe c1 = saveCafe(u1, "블루버드",  "서울 마포구 홍익로 5길 20",         37.5568, 126.9241, "02-333-1001", "DESSERT");

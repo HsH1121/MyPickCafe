@@ -323,11 +323,19 @@ textarea.cg-input{resize:vertical}
   background:var(--bg);font-size:12px;font-weight:600;color:var(--text-sub);
   cursor:pointer;transition:all var(--t);
 }
-.cg-chip:hover,.cg-chip.is-active{
+.cg-chip:hover{
   border-color:var(--accent);color:var(--accent);background:var(--accent-light);
+}
+.cg-chip.is-active{
+  border-color:var(--accent);background:var(--accent);color:#fff;
+}
+.cg-chip--static,.cg-chip--static:hover{
+  cursor:default;pointer-events:none;
+  border-color:var(--accent);background:var(--accent);color:#fff;
 }
 label.cg-chip{cursor:pointer}
 label.cg-chip input{position:absolute;opacity:0;width:0;height:0}
+label.cg-chip:has(input[type=checkbox]:checked){border-color:var(--accent);background:var(--accent);color:#fff;}
 
 .cg-main-body{padding-top:52px}
 

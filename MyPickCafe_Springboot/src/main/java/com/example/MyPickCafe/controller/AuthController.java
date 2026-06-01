@@ -39,6 +39,8 @@ public class AuthController {
                             Model model) {
         if (error != null && !error.isBlank()) model.addAttribute("error", error);
         if (redirect != null && !redirect.isBlank()) model.addAttribute("redirect", redirect);
+        if (!model.containsAttribute("prefillEmail")) model.addAttribute("prefillEmail", "");
+        if (!model.containsAttribute("prefillPassword")) model.addAttribute("prefillPassword", "");
         return "auth/login";
     }
 
