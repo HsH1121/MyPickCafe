@@ -51,6 +51,8 @@ public class AuthController {
         Optional<Member> memberTryingLogin = memberService.findByEmailOptional(email);
         if (memberTryingLogin.isEmpty()) {
             ra.addFlashAttribute("error", "이메일 또는 비밀번호가 올바르지 않습니다.");
+            ra.addFlashAttribute("prefillEmail", email);
+            ra.addFlashAttribute("prefillPassword", password);
             return "redirect:/login";
         }
         Member member = memberTryingLogin.get();
@@ -61,6 +63,8 @@ public class AuthController {
         }
         if (!matches) {
             ra.addFlashAttribute("error", "이메일 또는 비밀번호가 올바르지 않습니다.");
+            ra.addFlashAttribute("prefillEmail", email);
+            ra.addFlashAttribute("prefillPassword", password);
             return "redirect:/login";
         }
 
