@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.config;
 
+import com.example.MyPickCafe.domain.*;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.*;
@@ -117,48 +118,20 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     private void initRagTagDescriptions() {
-        // FACILITY
-        saveTagDesc("FACILITY", "PLUG",       "콘센트", "카페에 콘센트·전원이 있어 노트북 및 스마트기기 충전 가능", "콘센트,충전,전원,노트북,작업,플러그");
-        saveTagDesc("FACILITY", "CHAIR",      "좌석",   "다양한 좌석 형태(소파·바스툴·테이블)로 편안한 착석 환경 제공", "좌석,의자,소파,자리,편안,앉다");
-        saveTagDesc("FACILITY", "TERRACE",    "테라스", "야외 테라스 또는 루프탑 공간이 있어 야외에서 음료를 즐길 수 있음", "테라스,야외,루프탑,실외,야외석,바깥");
-        saveTagDesc("FACILITY", "PET",        "반려동물","반려동물 동반 입장 가능한 펫프렌들리 카페", "반려동물,강아지,고양이,펫,애견,동물");
-        saveTagDesc("FACILITY", "PARKING",    "주차",   "카페 전용 주차장 또는 근처 주차 가능 공간 제공", "주차,주차장,주차공간,차,주차가능");
-        saveTagDesc("FACILITY", "WIFI",       "와이파이","고속 무선 인터넷 와이파이 서비스 제공", "와이파이,wifi,인터넷,무선,네트워크,랜");
-
-        // MENU
-        saveTagDesc("MENU", "AMERICANO", "아메리카노", "아메리카노가 특색 있거나 맛이 좋다고 언급됨", "아메리카노,블랙커피,에스프레소,커피,아아,아이스아메리카노");
-        saveTagDesc("MENU", "LATTE",     "라떼",      "라떼 계열 음료(카페라떼·플랫화이트 등)가 맛있음", "라떼,카페라떼,플랫화이트,우유,밀크,크리미");
-        saveTagDesc("MENU", "COLDBREW",  "콜드브루",  "콜드브루 또는 더치커피가 특색 있거나 맛이 좋음", "콜드브루,더치,차가운커피,콜드,찬커피,질소커피");
-        saveTagDesc("MENU", "BAKERY",    "베이커리",  "크루아상·파운드케이크 등 빵 종류가 맛있음", "베이커리,빵,크루아상,파운드,스콘,마들렌,브레드");
-        saveTagDesc("MENU", "CAKE",      "케이크",    "케이크 종류가 다양하거나 특별히 맛있음", "케이크,조각케이크,크림케이크,치즈케이크,레이어케이크,바스크");
-        saveTagDesc("MENU", "ADE",       "에이드",    "에이드나 청량음료류가 맛있거나 특색 있음", "에이드,레몬에이드,유자에이드,자몽에이드,청량,스파클링");
-        saveTagDesc("MENU", "DESSERT",   "디저트",    "다양한 디저트 메뉴가 있거나 특별히 맛있음", "디저트,티라미수,마카롱,와플,빙수,달콤,스위트");
-
-        // PURPOSE
-        saveTagDesc("PURPOSE", "STUDY",   "공부",   "공부하거나 혼자 집중 작업하기 좋은 환경", "공부,작업,집중,노트북,스터디,독서,조용,업무");
-        saveTagDesc("PURPOSE", "TALK",    "대화",   "친구나 지인과 이야기 나누기 좋은 환경", "대화,수다,만남,친구,모임,이야기,떠들다");
-        saveTagDesc("PURPOSE", "REST",    "휴식",   "편안하게 쉬거나 혼자 여유를 즐기기 좋은 공간", "휴식,쉬다,여유,힐링,편안,릴렉스,느긋");
-        saveTagDesc("PURPOSE", "DATE",    "데이트", "연인과 함께하기 좋은 로맨틱한 분위기", "데이트,연인,커플,로맨틱,둘이,분위기");
-        saveTagDesc("PURPOSE", "PHOTO",   "사진",   "인스타그램 사진 찍기 좋은 인테리어나 포토존이 있음", "사진,포토존,인스타,인테리어,예쁘다,감성,사진맛집");
-        saveTagDesc("PURPOSE", "MEETING", "미팅",   "비즈니스 미팅이나 소규모 그룹 모임에 적합한 공간", "미팅,회의,비즈니스,단체,그룹,모임,업무");
-
-        // MOOD
-        saveTagDesc("MOOD", "MODERN",      "모던",        "깔끔하고 세련된 현대적 인테리어", "모던,세련,깔끔,미니멀,심플,현대적,화이트");
-        saveTagDesc("MOOD", "RETRO",       "레트로",      "복고풍 또는 빈티지 스타일의 인테리어", "레트로,빈티지,복고,오래된,감성,다방,앤틱");
-        saveTagDesc("MOOD", "NATURE",      "자연",        "식물이나 자연 소재를 활용한 초록 분위기", "자연,식물,초록,나무,그린,식물원,가드닝");
-        saveTagDesc("MOOD", "INDUSTRIAL",  "인더스트리얼","벽돌·철제 등을 활용한 공장풍 인테리어", "인더스트리얼,공장,벽돌,철제,노출,빈티지");
-        saveTagDesc("MOOD", "CLASSIC",     "클래식",      "고전적이고 우아한 유럽풍 인테리어", "클래식,우아,고급,유럽,앤틱,전통");
+        for (FacilityTag tag : FacilityTag.values()) saveTagDesc(tag);
+        for (MenuTag     tag : MenuTag.values())     saveTagDesc(tag);
+        for (PurposeTag  tag : PurposeTag.values())  saveTagDesc(tag);
+        for (MoodTag     tag : MoodTag.values())     saveTagDesc(tag);
     }
 
-    private void saveTagDesc(String category, String tagEnum, String label,
-                              String description, String keywords) {
+    private void saveTagDesc(TagEnum tag) {
         tagDictionaryRepository.save(
             TagDictionary.builder()
-                .tagCategory(category)
-                .tagEnum(tagEnum)
-                .tagLabel(label)
-                .description(description)
-                .keywords(keywords)
+                .tagCategory(tag.getCategory())
+                .tagEnum(tag.name())
+                .tagLabel(tag.getLabel())
+                .description(tag.getDescription())
+                .keywords(tag.getKeywords())
                 .build()
         );
     }

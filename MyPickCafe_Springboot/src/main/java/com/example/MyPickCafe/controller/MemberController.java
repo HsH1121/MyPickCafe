@@ -4,6 +4,7 @@ import com.example.MyPickCafe.domain.FacilityTag;
 import com.example.MyPickCafe.domain.MenuTag;
 import com.example.MyPickCafe.domain.MoodTag;
 import com.example.MyPickCafe.domain.PurposeTag;
+import com.example.MyPickCafe.domain.TagEnum;
 import com.example.MyPickCafe.dto.MemberForm;
 import com.example.MyPickCafe.dto.MyReviewItem;
 import com.example.MyPickCafe.entity.Member;
@@ -257,28 +258,20 @@ public class MemberController {
 
     private List<Map<String, Object>> buildNeedsCategories(Set<String> selected) {
         List<Map<String, Object>> categories = new ArrayList<>();
-
-        List<Map<String, Object>> facilityItems = Arrays.stream(FacilityTag.values())
-                .map(t -> needsItem("FACILITY:" + t.name(), t.getLabel(), selected.contains("FACILITY:" + t.name())))
-                .collect(Collectors.toList());
-        categories.add(needsCategory("시설", facilityItems));
-
-        List<Map<String, Object>> menuItems = Arrays.stream(MenuTag.values())
-                .map(t -> needsItem("MENU:" + t.name(), t.getLabel(), selected.contains("MENU:" + t.name())))
-                .collect(Collectors.toList());
-        categories.add(needsCategory("메뉴", menuItems));
-
-        List<Map<String, Object>> purposeItems = Arrays.stream(PurposeTag.values())
-                .map(t -> needsItem("PURPOSE:" + t.name(), t.getLabel(), selected.contains("PURPOSE:" + t.name())))
-                .collect(Collectors.toList());
-        categories.add(needsCategory("목적", purposeItems));
-
-        List<Map<String, Object>> moodItems = Arrays.stream(MoodTag.values())
-                .map(t -> needsItem("MOOD:" + t.name(), t.getLabel(), selected.contains("MOOD:" + t.name())))
-                .collect(Collectors.toList());
-        categories.add(needsCategory("분위기", moodItems));
-
+        addNeedsCategory(categories, FacilityTag.values(), selected);
+        addNeedsCategory(categories, MenuTag.values(), selected);
+        addNeedsCategory(categories, PurposeTag.values(), selected);
+        addNeedsCategory(categories, MoodTag.values(), selected);
         return categories;
+    }
+
+    private void addNeedsCategory(List<Map<String, Object>> categories, TagEnum[] tags, Set<String> selected) {
+        if (tags.length == 0) return;
+        List<Map<String, Object>> items = Arrays.stream(tags)
+                .map(t -> needsItem(t.getCategory() + ":" + t.name(), t.getLabel(),
+                        selected.contains(t.getCategory() + ":" + t.name())))
+                .collect(Collectors.toList());
+        categories.add(needsCategory(tags[0].getCategoryLabel(), items));
     }
 
     private Map<String, Object> needsCategory(String label, List<Map<String, Object>> items) {
