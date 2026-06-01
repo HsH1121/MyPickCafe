@@ -87,6 +87,12 @@ public class ReviewController {
             return "redirect:/login";
         }
 
+        Review review = reviewService.findById(id);
+        if (!review.getMember().getEmail().equals(authentication.getName())) {
+            ra.addFlashAttribute("message", "본인의 리뷰만 수정할 수 있습니다.");
+            return "redirect:/cafes/" + form.getCafeId();
+        }
+
         reviewService.updateWithTags(id, form);
 
         ra.addFlashAttribute("message", "리뷰가 수정되었습니다.");

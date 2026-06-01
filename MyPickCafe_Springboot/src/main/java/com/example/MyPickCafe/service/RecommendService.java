@@ -3,7 +3,6 @@ package com.example.MyPickCafe.service;
 import com.example.MyPickCafe.dto.CafeCardForm;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafePhoto;
-import com.example.MyPickCafe.entity.CafeTag;
 import com.example.MyPickCafe.entity.UserNeeds;
 import com.example.MyPickCafe.repository.CafePhotoRepository;
 import com.example.MyPickCafe.repository.CafeRepository;
@@ -36,15 +35,14 @@ public class RecommendService {
                 .map(n -> n.getCategoryCode() + ":" + n.getCode())
                 .collect(Collectors.toSet());
 
-        // cafeId -> 해당 카페의 태그 집합
+        // cafeId -> 해당 카페의 태그 집합 (엔티티 전체 로드 없이 태그 문자열만 조회)
         Map<Long, Set<String>> tagsByCafe = new HashMap<>();
-        for (CafeTag tag : cafeTagRepository.findAll()) {
-            Long cafeId = tag.getCafe().getId();
-            Set<String> set = tagsByCafe.computeIfAbsent(cafeId, k -> new HashSet<>());
-            if (tag.getFacilityTag() != null) set.add("FACILITY:" + tag.getFacilityTag().name());
-            if (tag.getMenuTag()     != null) set.add("MENU:"     + tag.getMenuTag().name());
-            if (tag.getPurposeTag()  != null) set.add("PURPOSE:"  + tag.getPurposeTag().name());
-            if (tag.getMoodTag()     != null) set.add("MOOD:"     + tag.getMoodTag().name());
+        for (Object[] row : cafeTagRepository.findAllCafeTagStrings()) {
+            Long cafeId = ((Number) row[0]).longValue();
+            String tagStr = (String) row[1];
+            if (tagStr != null) {
+                tagsByCafe.computeIfAbsent(cafeId, k -> new HashSet<>()).add(tagStr);
+            }
         }
 
         // 자카드 유사도 계산 후 내림차순 정렬

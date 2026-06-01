@@ -82,10 +82,11 @@ public class ReviewService {
 
     @Transactional
     public void delete(Long id) {
-        if (!reviewRepository.existsById(id)) {
-            throw new NotFoundException("Review not found: " + id);
-        }
+        Review review = reviewRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Review not found: " + id));
+        Long cafeId = review.getCafe().getId();
         reviewRepository.deleteById(id);
+        syncCafeTopTags(cafeId);
     }
 
     public Review save(Review review) {
