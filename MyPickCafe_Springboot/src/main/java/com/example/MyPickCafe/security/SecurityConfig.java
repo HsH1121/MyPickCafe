@@ -105,19 +105,28 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
 
                         // 비로그인 접근 허용
-                        .requestMatchers("/", "/index/**", "/search/**", "/signup", "/cafes/**","/login").permitAll()
+                        .requestMatchers("/", "/index/**", "/search/**", "/signup", "/login").permitAll()
+                        .requestMatchers("/cafes", "/cafes/{cafeId}").permitAll()
                         .requestMatchers("/css/**", "/js/**", "/images/**", "/img/**", "/favicon.ico").permitAll()
                         .requestMatchers("/uploads/**", "/files/**").permitAll()
-
                         .requestMatchers("/api/auth/login", "/api/auth/signup").permitAll()
-                        .requestMatchers("/h2-console/**").permitAll()
-
-                        .requestMatchers("/api/private/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/cafes/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/**").permitAll()
 
-                        // 리뷰 작성(POST)은 서버에서 인증 체크도 하지만, 보안상 보호
+                        // ADMIN 전용
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+
+                        // CAFEOWNER 전용 (카페 등록·사진·메뉴 관리)
+                        .requestMatchers("/cafes/new", "/cafes/create").hasAnyRole("CAFEOWNER", "ADMIN")
+                        .requestMatchers("/api/cafes/*/photos", "/api/cafes/photos/**").hasAnyRole("CAFEOWNER", "ADMIN")
+                        .requestMatchers("/api/menus/**").hasAnyRole("CAFEOWNER", "ADMIN")
+
+                        // 로그인 사용자 공통 (MEMBER, CAFEOWNER, ADMIN)
                         .requestMatchers("/reviews/**").authenticated()
+                        .requestMatchers("/favorites/**").authenticated()
+                        .requestMatchers("/member/**").authenticated()
+                        .requestMatchers("/api/favorites/**").authenticated()
+                        .requestMatchers("/api/private/**").authenticated()
 
                         .anyRequest().authenticated()
                 )

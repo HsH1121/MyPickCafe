@@ -1,4 +1,4 @@
 package com.example.MyPickCafe.domain;
 public enum NotificationType {
-    REVIEW, CAFE_APPROVED, CAFE_REJECTED
+    REVIEW, CAFE_APPROVED, CAFE_REJECTED, CAFE_REGISTERED
 }

@@ -32,6 +32,11 @@ public class CustomUserDetailsService implements UserDetailsService {
         List<GrantedAuthority> authorities = switch (kind) {
             case ADMIN -> List.of(
                     new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("ROLE_CAFEOWNER"),
+                    new SimpleGrantedAuthority("ROLE_MEMBER")
+            );
+            case CAFEOWNER -> List.of(
+                    new SimpleGrantedAuthority("ROLE_CAFEOWNER"),
                     new SimpleGrantedAuthority("ROLE_MEMBER")
             );
             default -> List.of(new SimpleGrantedAuthority("ROLE_MEMBER"));

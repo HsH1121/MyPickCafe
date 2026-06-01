@@ -27,12 +27,6 @@ public class TagDictionary {
     @Column(name = "tag_label", nullable = false, length = 20)
     private String tagLabel;      // e.g. 와이파이
 
-    @Column(name = "description", nullable = false, length = 500)
-    private String description;
-
-    @Column(name = "keywords", nullable = false, length = 300)
-    private String keywords;      // comma-separated
-
     @Lob
     @Column(name = "embedding")
     private String embedding;     // JSON float array, populated by FastAPI

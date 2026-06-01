@@ -2,9 +2,12 @@ package com.example.MyPickCafe.service;
 
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.NotificationType;
+import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Cafe;
+import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.entity.Notification;
 import com.example.MyPickCafe.entity.Review;
+import com.example.MyPickCafe.repository.MemberRepository;
 import com.example.MyPickCafe.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,6 +19,20 @@ import java.util.List;
 @Service @RequiredArgsConstructor
 public class NotificationService {
     private final NotificationRepository notificationRepository;
+    private final MemberRepository memberRepository;
+
+    @Transactional
+    public void notifyAdminCafeRegistered(Cafe cafe) {
+        List<Member> admins = memberRepository.findByRoleKind(RoleKind.ADMIN);
+        for (Member admin : admins) {
+            Notification n = new Notification();
+            n.setRecipient(admin);
+            n.setCafe(cafe);
+            n.setType(NotificationType.CAFE_REGISTERED);
+            n.setMessage("[" + cafe.getName() + "] 카페 등록 신청이 접수되었습니다. 사업자 증빙을 확인 후 승인해주세요.");
+            notificationRepository.save(n);
+        }
+    }
 
     @Transactional
     public void notifyReviewCreated(Review review) {
