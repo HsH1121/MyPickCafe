@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -40,4 +41,14 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     long countByMember_Id(Long memberId);
     long countByMember_IdAndSentiment(Long memberId, String sentiment);
+
+    @Query("""
+        SELECT r.cafe.id,
+               SUM(CASE WHEN r.sentiment = 'GOOD' THEN 1 ELSE 0 END),
+               COUNT(r)
+        FROM Review r
+        WHERE r.cafe.id IN :cafeIds
+        GROUP BY r.cafe.id
+    """)
+    List<Object[]> findSentimentCountsByCafeIds(@Param("cafeIds") Collection<Long> cafeIds);
 }

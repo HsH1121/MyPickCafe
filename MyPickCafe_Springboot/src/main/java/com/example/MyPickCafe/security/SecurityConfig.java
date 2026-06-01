@@ -85,8 +85,20 @@ public class SecurityConfig {
                         .contentTypeOptions(Customizer.withDefaults())
                 )
                 .exceptionHandling(e -> e
-                        .authenticationEntryPoint((req, res, ex) -> res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
-                        .accessDeniedHandler((req, res, ex) -> res.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden"))
+                        .authenticationEntryPoint((req, res, ex) -> {
+                            if (isApiRequest(req)) {
+                                res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+                            } else {
+                                res.sendRedirect("/login");
+                            }
+                        })
+                        .accessDeniedHandler((req, res, ex) -> {
+                            if (isApiRequest(req)) {
+                                res.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden");
+                            } else {
+                                res.sendRedirect("/");
+                            }
+                        })
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -142,5 +154,12 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
+    }
+
+    private boolean isApiRequest(jakarta.servlet.http.HttpServletRequest req) {
+        String uri = req.getRequestURI();
+        if (uri.startsWith("/api/")) return true;
+        String accept = req.getHeader("Accept");
+        return accept != null && accept.contains("application/json");
     }
 }

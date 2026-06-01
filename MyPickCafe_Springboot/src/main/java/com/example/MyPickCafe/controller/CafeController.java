@@ -1,7 +1,9 @@
 // src/main/java/com/example/MyPickCafe/controller/CafeController.java
 package com.example.MyPickCafe.controller;
 
+import com.example.MyPickCafe.domain.*;
 import com.example.MyPickCafe.domain.CafeStatus;
+import com.example.MyPickCafe.dto.CafeCardForm;
 import com.example.MyPickCafe.dto.CafeForm;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafePhoto;
@@ -12,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,8 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.text.NumberFormat;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Controller
@@ -38,6 +40,96 @@ public class CafeController {
     private final CafePhotoService cafePhotoService;
     private final CafeInfoService cafeInfoService;
     private final MenuService menuService;
+    private final RecommendService recommendService;
+
+    /** 카페 목록 */
+    @GetMapping
+    public String cafeList(@RequestParam(value = "sort", defaultValue = "views") String sort,
+                           @RequestParam(value = "tag",  required = false) String tag,
+                           Authentication auth,
+                           Model model) {
+
+        boolean isLoggedIn = auth != null && auth.isAuthenticated()
+                && !(auth instanceof AnonymousAuthenticationToken);
+        boolean needsLogin   = false;
+        boolean noNeedsSet   = false;
+
+        List<CafeCardForm> cafes;
+
+        if ("recommend".equals(sort)) {
+            if (!isLoggedIn) {
+                needsLogin = true;
+                cafes = cafeService.findApprovedCardsSorted("views", 40);
+            } else {
+                Member me = memberService.findByEmail(auth.getName());
+                cafes = recommendService.recommendForMember(me.getId(), 40);
+                if (cafes.isEmpty() && !recommendService.hasNeeds(me.getId())) noNeedsSet = true;
+            }
+        } else if (tag != null && !tag.isBlank()) {
+            String[] parts = tag.split(":", 2);
+            cafes = parts.length == 2
+                    ? cafeService.findApprovedCardsByTag(parts[0], parts[1], 40)
+                    : cafeService.findApprovedCardsSorted(sort, 40);
+        } else {
+            cafes = cafeService.findApprovedCardsSorted(sort, 40);
+        }
+
+        String tagSuffix  = (tag != null && !tag.isBlank()) ? "&tag=" + tag : "";
+        String sortSuffix = "?sort=" + sort;
+
+        model.addAttribute("cafes",       cafes);
+        model.addAttribute("isEmpty",     cafes.isEmpty());
+        model.addAttribute("sort",        sort);
+        model.addAttribute("selectedTag", tag);
+        model.addAttribute("isLoggedIn",  isLoggedIn);
+        model.addAttribute("needsLogin",  needsLogin);
+        model.addAttribute("noNeedsSet",  noNeedsSet);
+
+        model.addAttribute("sortViews",     "views".equals(sort));
+        model.addAttribute("sortLikes",     "likes".equals(sort));
+        model.addAttribute("sortNewest",    "newest".equals(sort));
+        model.addAttribute("sortRecommend", "recommend".equals(sort));
+
+        model.addAttribute("urlSortViews",     "/cafes?sort=views"     + tagSuffix);
+        model.addAttribute("urlSortLikes",     "/cafes?sort=likes"     + tagSuffix);
+        model.addAttribute("urlSortNewest",    "/cafes?sort=newest"    + tagSuffix);
+        model.addAttribute("urlSortRecommend", "/cafes?sort=recommend" + tagSuffix);
+        model.addAttribute("urlClearTag",      "/cafes" + sortSuffix);
+        model.addAttribute("hasTagFilter",     tag != null && !tag.isBlank());
+
+        model.addAttribute("tagGroups", buildTagGroups(sort, tag));
+        return "cafes/list";
+    }
+
+    private List<Map<String, Object>> buildTagGroups(String sort, String selectedTag) {
+        List<Map<String, Object>> groups = new ArrayList<>();
+        addTagGroup(groups, FacilityTag.values(), sort, selectedTag);
+        addTagGroup(groups, MenuTag.values(),      sort, selectedTag);
+        addTagGroup(groups, PurposeTag.values(),   sort, selectedTag);
+        addTagGroup(groups, MoodTag.values(),      sort, selectedTag);
+        return groups;
+    }
+
+    private void addTagGroup(List<Map<String, Object>> groups, TagEnum[] tags,
+                             String sort, String selectedTag) {
+        if (tags.length == 0) return;
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (TagEnum t : tags) {
+            String value  = t.getCategory() + ":" + t.name();
+            boolean active = value.equals(selectedTag);
+            Map<String, Object> item = new HashMap<>();
+            item.put("label",  t.getLabel());
+            item.put("active", active);
+            item.put("href",   active
+                    ? "/cafes?sort=" + sort
+                    : "/cafes?sort=" + sort + "&tag=" + value);
+            items.add(item);
+        }
+        Map<String, Object> group = new HashMap<>();
+        group.put("categoryLabel", tags[0].getCategoryLabel());
+        group.put("tags", items);
+        groups.add(group);
+    }
 
     /** 신규 등록 폼 */
     @PreAuthorize("isAuthenticated()")

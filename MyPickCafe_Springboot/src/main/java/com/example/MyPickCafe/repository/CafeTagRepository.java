@@ -29,4 +29,14 @@ public interface CafeTagRepository extends JpaRepository<CafeTag, Long> {
           FROM cafe_tag
     """, nativeQuery = true)
     List<Object[]> findAllCafeTagStrings();
+
+    @Query(value = """
+        SELECT DISTINCT cafe_id FROM cafe_tag
+        WHERE (facility_tag = :tagCode AND :tagCategory = 'FACILITY')
+           OR (menu_tag     = :tagCode AND :tagCategory = 'MENU')
+           OR (purpose_tag  = :tagCode AND :tagCategory = 'PURPOSE')
+           OR (mood_tag     = :tagCode AND :tagCategory = 'MOOD')
+    """, nativeQuery = true)
+    List<Long> findCafeIdsByTag(@Param("tagCategory") String tagCategory,
+                                @Param("tagCode") String tagCode);
 }

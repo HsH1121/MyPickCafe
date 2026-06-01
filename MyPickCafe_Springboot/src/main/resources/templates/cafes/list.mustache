@@ -1,0 +1,106 @@
+{{>layout/header}}
+
+<main class="cg-container" style="padding-top:32px;padding-bottom:64px">
+
+  <!-- 페이지 헤더 -->
+  <div style="margin-bottom:28px">
+    <p class="cg-eyebrow">카페 탐색</p>
+    <h1 style="font-size:26px;font-weight:900;letter-spacing:-.5px">전체 카페</h1>
+  </div>
+
+  <!-- 정렬 탭 -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;border-bottom:2px solid var(--line);padding-bottom:0">
+    <a href="{{urlSortViews}}"
+       style="padding:10px 18px;font-size:14px;font-weight:600;border-radius:var(--r-sm) var(--r-sm) 0 0;text-decoration:none;transition:all var(--t);
+              {{#sortViews}}background:var(--accent);color:#fff;{{/sortViews}}
+              {{^sortViews}}color:var(--text-sub);{{/sortViews}}">
+      조회수 순
+    </a>
+    <a href="{{urlSortLikes}}"
+       style="padding:10px 18px;font-size:14px;font-weight:600;border-radius:var(--r-sm) var(--r-sm) 0 0;text-decoration:none;transition:all var(--t);
+              {{#sortLikes}}background:var(--accent);color:#fff;{{/sortLikes}}
+              {{^sortLikes}}color:var(--text-sub);{{/sortLikes}}">
+      좋아요 비율
+    </a>
+    <a href="{{urlSortNewest}}"
+       style="padding:10px 18px;font-size:14px;font-weight:600;border-radius:var(--r-sm) var(--r-sm) 0 0;text-decoration:none;transition:all var(--t);
+              {{#sortNewest}}background:var(--accent);color:#fff;{{/sortNewest}}
+              {{^sortNewest}}color:var(--text-sub);{{/sortNewest}}">
+      최근 등록
+    </a>
+    <a href="{{urlSortRecommend}}"
+       style="padding:10px 18px;font-size:14px;font-weight:600;border-radius:var(--r-sm) var(--r-sm) 0 0;text-decoration:none;transition:all var(--t);
+              {{#sortRecommend}}background:var(--accent);color:#fff;{{/sortRecommend}}
+              {{^sortRecommend}}color:var(--text-sub);{{/sortRecommend}}">
+      맞춤 추천
+    </a>
+  </div>
+
+  <!-- 안내 메시지 -->
+  {{#needsLogin}}
+    <div class="cg-flash" style="margin-bottom:20px">
+      맞춤 추천은 로그인 후 이용할 수 있어요.
+      <a href="/login" class="cg-link" style="margin-left:8px">로그인하기 →</a>
+    </div>
+  {{/needsLogin}}
+  {{#noNeedsSet}}
+    <div class="cg-flash" style="margin-bottom:20px">
+      설정된 니즈가 없어요. 마이페이지에서 니즈를 선택하면 맞춤 카페를 추천해드려요.
+      <a href="/member/me" class="cg-link" style="margin-left:8px">니즈 설정하기 →</a>
+    </div>
+  {{/noNeedsSet}}
+
+  <!-- 태그 필터 -->
+  <div style="margin-bottom:28px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:13px;font-weight:700;color:var(--text-sub)">태그 필터</span>
+      {{#hasTagFilter}}
+        <a href="{{urlClearTag}}" class="cg-btn-outline cg-btn--sm">전체 보기 ×</a>
+      {{/hasTagFilter}}
+    </div>
+    {{#tagGroups}}
+      <div style="margin-bottom:10px">
+        <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-right:8px">
+          {{categoryLabel}}
+        </span>
+        <span class="cg-chips" style="display:inline-flex;flex-wrap:wrap;gap:6px">
+          {{#tags}}
+            <a href="{{href}}"
+               class="cg-chip {{#active}}is-active{{/active}}"
+               style="text-decoration:none">{{label}}</a>
+          {{/tags}}
+        </span>
+      </div>
+    {{/tagGroups}}
+  </div>
+
+  <!-- 카페 목록 -->
+  {{#isEmpty}}
+    <div class="cg-empty">
+      <p>조건에 맞는 카페가 없습니다.</p>
+    </div>
+  {{/isEmpty}}
+
+  {{^isEmpty}}
+    <ul class="cg-card-grid" style="list-style:none;padding:0;margin:0">
+      {{#cafes}}
+        <li class="cg-card cg-cafe-card">
+          <a class="cg-card__link" href="/cafes/{{id}}">
+            <div class="cg-card__imgwrap">
+              <img class="cg-card__img" src="{{mainPhoto}}" alt="{{name}}"
+                   onerror="this.style.display='none';this.parentElement.classList.add('cg-noimg')"/>
+              <span class="cg-card__views-badge">조회 {{views}}</span>
+            </div>
+            <div class="cg-card__body-inner">
+              <p class="cg-card__title">{{name}}</p>
+              <p class="cg-card__addr">📍 {{address}}</p>
+            </div>
+          </a>
+        </li>
+      {{/cafes}}
+    </ul>
+  {{/isEmpty}}
+
+</main>
+
+{{>layout/footer}}

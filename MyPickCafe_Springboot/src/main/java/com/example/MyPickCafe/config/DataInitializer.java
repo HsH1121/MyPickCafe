@@ -26,6 +26,7 @@ public class DataInitializer implements ApplicationRunner {
     private final ReviewRepository             reviewRepository;
     private final TagDictionaryRepository      tagDictionaryRepository;
     private final RagReviewExampleRepository   ragReviewExampleRepository;
+    private final CafeTagRepository            cafeTagRepository;
 
     @Override
     @Transactional
@@ -87,7 +88,33 @@ public class DataInitializer implements ApplicationRunner {
         addMenus(c6, "음료",  new String[]{"아메리카노",  "로즈라떼",   "자몽티"},       new int[]{4500, 6500, 5500});
         addMenus(c6, "베이커리",new String[]{"수제마들렌", "레몬파운드"},               new int[]{2500, 4000});
 
-        /* ── 5. 리뷰 ── */
+        /* ── 5. CafeTag ── */
+        // c1 블루버드 (디저트, 클래식, 데이트)
+        saveCafeTag(c1, null,             MenuTag.CAKE,      PurposeTag.DATE,  MoodTag.CLASSIC);
+        saveCafeTag(c1, null,             MenuTag.DESSERT,   null,             null);
+
+        // c2 모닝브루 (와이파이/콘센트, 공부, 베이커리)
+        saveCafeTag(c2, FacilityTag.WIFI, null,              PurposeTag.STUDY, MoodTag.MODERN);
+        saveCafeTag(c2, FacilityTag.PLUG, MenuTag.BAKERY,    null,             null);
+        saveCafeTag(c2, null,             MenuTag.AMERICANO, null,             null);
+
+        // c3 연트로 (테라스, 자연, 데이트)
+        saveCafeTag(c3, FacilityTag.TERRACE, MenuTag.ADE,   PurposeTag.DATE,  MoodTag.NATURE);
+        saveCafeTag(c3, null,                MenuTag.CAKE,  null,             null);
+
+        // c4 하프문 (인더스트리얼, 데이트)
+        saveCafeTag(c4, null, MenuTag.AMERICANO, PurposeTag.DATE,    MoodTag.INDUSTRIAL);
+        saveCafeTag(c4, null, null,              PurposeTag.MEETING, null);
+
+        // c5 상수다방 (레트로, 휴식, 디저트)
+        saveCafeTag(c5, null, MenuTag.DESSERT, PurposeTag.REST,  MoodTag.RETRO);
+        saveCafeTag(c5, null, MenuTag.LATTE,   PurposeTag.PHOTO, null);
+
+        // c6 오후세시 (클래식, 사진, 케이크)
+        saveCafeTag(c6, null, MenuTag.CAKE,   PurposeTag.PHOTO, MoodTag.CLASSIC);
+        saveCafeTag(c6, null, MenuTag.BAKERY, PurposeTag.DATE,  null);
+
+        /* ── 6. 리뷰 ── */
         saveReview(c1, u2, "케이크가 정말 맛있어요! 아인슈페너도 진해서 좋았습니다. 주말엔 웨이팅이 있지만 충분히 기다릴 만해요.", "GOOD");
         saveReview(c1, u3, "수제 케이크 종류가 다양하고 플레이팅도 예뻐서 사진 찍기 딱이에요. 가격이 조금 비싸긴 하지만 분위기값 합니다.", "GOOD");
         saveReview(c1, u4, "홍대에서 이런 조용한 카페 찾기 쉽지 않아요. 핸드드립 퀄리티가 높아서 자주 올 것 같아요.", "GOOD");
@@ -253,6 +280,16 @@ public class DataInitializer implements ApplicationRunner {
             m.setRecommended(i == 0);
             menuRepository.save(m);
         }
+    }
+
+    private void saveCafeTag(Cafe cafe, FacilityTag facility, MenuTag menu, PurposeTag purpose, MoodTag mood) {
+        CafeTag ct = new CafeTag();
+        ct.setCafe(cafe);
+        ct.setFacilityTag(facility);
+        ct.setMenuTag(menu);
+        ct.setPurposeTag(purpose);
+        ct.setMoodTag(mood);
+        cafeTagRepository.save(ct);
     }
 
     private void saveReview(Cafe cafe, Member member, String content, String sentiment) {

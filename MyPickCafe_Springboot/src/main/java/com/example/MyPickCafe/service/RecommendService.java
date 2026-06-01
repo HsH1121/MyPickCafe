@@ -26,6 +26,10 @@ public class RecommendService {
 
     private static final String PLACEHOLDER = "/images/placeholder-cafe.jpg";
 
+    public boolean hasNeeds(Long memberId) {
+        return !needsRepository.findByMember_Id(memberId).isEmpty();
+    }
+
     @Transactional(readOnly = true)
     public List<CafeCardForm> recommendForMember(Long memberId, int limit) {
         List<UserNeeds> needs = needsRepository.findByMember_Id(memberId);

@@ -2,13 +2,16 @@
 package com.example.MyPickCafe.service;
 
 import com.example.MyPickCafe.domain.CafeStatus;
+import com.example.MyPickCafe.dto.CafeCardForm;
 import com.example.MyPickCafe.dto.CafeForm;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.CafePhotoRepository;
 import com.example.MyPickCafe.repository.CafeRepository;
+import com.example.MyPickCafe.repository.CafeTagRepository;
 import com.example.MyPickCafe.repository.MemberRepository;
+import com.example.MyPickCafe.repository.ReviewRepository;
 import com.example.MyPickCafe.support.EntityIdUtil;
 import com.example.MyPickCafe.support.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -18,15 +21,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class CafeService {
 
+    private static final String PLACEHOLDER = "/images/placeholder-cafe.jpg";
+
     private final CafeRepository cafeRepository;
     private final CafePhotoRepository cafePhotoRepository;
+    private final CafeTagRepository cafeTagRepository;
     private final MemberRepository memberRepository;
+    private final ReviewRepository reviewRepository;
     private final FileStorageService fileStorageService;
     private final NotificationService notificationService;
 
@@ -219,5 +227,55 @@ public class CafeService {
 
     @Transactional(readOnly = true)
     public long countAll() { return cafeRepository.count(); }
+
+    @Transactional(readOnly = true)
+    public List<CafeCardForm> findApprovedCardsSorted(String sort, int limit) {
+        List<Cafe> cafes;
+        if ("likes".equals(sort)) {
+            List<Cafe> all = cafeRepository.findByStatus(CafeStatus.APPROVED);
+            Set<Long> ids = all.stream().map(Cafe::getId).collect(Collectors.toSet());
+            Map<Long, Double> ratioMap = new HashMap<>();
+            for (Object[] row : reviewRepository.findSentimentCountsByCafeIds(ids)) {
+                long cafeId = ((Number) row[0]).longValue();
+                long good   = ((Number) row[1]).longValue();
+                long total  = ((Number) row[2]).longValue();
+                ratioMap.put(cafeId, total == 0 ? 0.0 : (double) good / total);
+            }
+            cafes = all.stream()
+                    .sorted(Comparator.comparingDouble((Cafe c) ->
+                            ratioMap.getOrDefault(c.getId(), 0.0)).reversed())
+                    .limit(limit)
+                    .collect(Collectors.toList());
+        } else if ("newest".equals(sort)) {
+            cafes = cafeRepository.findByStatusOrderByDateDesc(CafeStatus.APPROVED, PageRequest.of(0, limit));
+        } else {
+            cafes = cafeRepository.findByStatusOrderByViewsDesc(CafeStatus.APPROVED, PageRequest.of(0, limit));
+        }
+        return enrichWithPhotos(cafes);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CafeCardForm> findApprovedCardsByTag(String category, String code, int limit) {
+        List<Long> ids = cafeTagRepository.findCafeIdsByTag(category, code);
+        if (ids.isEmpty()) return List.of();
+        return enrichWithPhotos(
+                cafeRepository.findByStatusAndIdInOrderByViewsDesc(CafeStatus.APPROVED, ids)
+                        .stream().limit(limit).collect(Collectors.toList()));
+    }
+
+    private List<CafeCardForm> enrichWithPhotos(List<Cafe> cafes) {
+        if (cafes.isEmpty()) return List.of();
+        Set<Long> ids = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
+        Map<Long, String> photoMap = new HashMap<>();
+        for (CafePhoto p : cafePhotoRepository.findForCafeIdsOrderByMainThenSort(ids)) {
+            photoMap.putIfAbsent(p.getCafe().getId(), p.getUrl());
+        }
+        return cafes.stream()
+                .map(c -> new CafeCardForm(
+                        c.getId(), c.getName(), c.getAddress(),
+                        c.getNumber(), c.getCode(), c.getViews(),
+                        photoMap.getOrDefault(c.getId(), PLACEHOLDER)))
+                .collect(Collectors.toList());
+    }
 }
 
