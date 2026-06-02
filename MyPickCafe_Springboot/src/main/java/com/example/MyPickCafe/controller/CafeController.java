@@ -12,7 +12,6 @@ import com.example.MyPickCafe.service.*;
 import com.example.MyPickCafe.support.NotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -132,36 +131,102 @@ public class CafeController {
     }
 
     /** 신규 등록 폼 */
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
     @GetMapping("/new")
     public String createCafeForm() {
         return "cafes/create";
     }
 
     /** 카페 등록 */
-    @PreAuthorize("isAuthenticated()")
-    @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
+    @PostMapping("/create")
     public String createCafe(Authentication auth,
                              @Valid @ModelAttribute("form") CafeForm form,
-                             @RequestParam(value = "cafePhotoFile", required = false) MultipartFile cafePhotoFile,
+                             @RequestParam(value = "cafePhotoFiles", required = false) List<MultipartFile> cafePhotoFiles,
                              @RequestParam(value = "bizDocFile", required = false) MultipartFile bizDocFile,
                              RedirectAttributes ra) {
-
-        if (auth == null || !auth.isAuthenticated()) {
-            ra.addFlashAttribute("msg", "로그인이 필요한 서비스입니다.");
-            return "redirect:/login";
-        }
 
         String email = auth.getName();
         Member me = memberService.findByEmail(email);
         if (me == null) {
-            ra.addFlashAttribute("msg", "로그인 정보를 찾을 수 없습니다.");
+            ra.addFlashAttribute("errorMsg", "로그인 정보를 찾을 수 없습니다.");
             return "redirect:/login";
         }
 
-        Long cafeId = cafeService.createCafe(me.getId(), form, cafePhotoFile, bizDocFile);
-        ra.addFlashAttribute("msg", "카페가 등록되었습니다. (승인 대기 중)");
-        return "redirect:/cafes/" + cafeId;
+        try {
+            Long cafeId = cafeService.createCafe(me.getId(), form, cafePhotoFiles, bizDocFile);
+            ra.addFlashAttribute("successMsg", "카페 등록 신청이 완료되었습니다. 사진과 메뉴를 추가해주세요.");
+            return "redirect:/cafes/" + cafeId + "/manage";
+        } catch (Exception e) {
+            String msg = (e.getMessage() != null) ? e.getMessage() : "카페 등록 중 오류가 발생했습니다.";
+            ra.addFlashAttribute("errorMsg", msg);
+            return "redirect:/cafes/new";
+        }
+    }
+
+    /** 카페 관리 페이지 (사진/메뉴 추가) */
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
+    @GetMapping("/{cafeId}/manage")
+    public String manageCafe(@PathVariable Long cafeId, Authentication auth, Model model) {
+        Cafe cafe = cafeService.findById(cafeId);
+
+        // 오너 또는 관리자만 접근
+        Member me = memberService.findByEmail(auth.getName());
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        boolean isOwner = cafe.getOwner() != null && cafe.getOwner().getId().equals(me.getId());
+        if (!isOwner && !isAdmin) {
+            return "redirect:/cafes/" + cafeId;
+        }
+
+        var photos = cafePhotoService.list(cafeId).stream()
+                .map(p -> Map.of("id", p.getId(), "url", p.getUrl(), "main", Boolean.TRUE.equals(p.getMain())))
+                .collect(Collectors.toList());
+
+        var menus = menuService.findByCafeId(cafeId).stream()
+                .map(m -> Map.of(
+                        "id",    m.getId(),
+                        "name",  m.getName(),
+                        "price", m.getPrice(),
+                        "photo", m.getPhoto() != null ? m.getPhoto() : "/images/placeholder-cafe.jpg"
+                ))
+                .collect(Collectors.toList());
+
+        var cafeInfoOpt = cafeInfoService.findByCafeId(cafeId);
+        cafeInfoOpt.ifPresent(ci -> {
+            model.addAttribute("infoId",        ci.getId());
+            model.addAttribute("infoOpenTime",  ci.getOpenTime() != null  ? ci.getOpenTime()  : "");
+            model.addAttribute("infoCloseTime", ci.getCloseTime() != null ? ci.getCloseTime() : "");
+            model.addAttribute("infoHoliday",   ci.getHoliday() != null   ? ci.getHoliday()   : "");
+            model.addAttribute("infoNotice",    ci.getNotice() != null    ? ci.getNotice()    : "");
+            model.addAttribute("infoInfo",      ci.getInfo() != null      ? ci.getInfo()      : "");
+        });
+
+        model.addAttribute("cafe",        cafe);
+        model.addAttribute("cafePhotos",  photos);
+        model.addAttribute("menus",       menus);
+        model.addAttribute("isPending",   cafe.isPending());
+        model.addAttribute("isApproved",  cafe.isApproved());
+        model.addAttribute("isRejected",  cafe.isRejected());
+        return "cafes/manage";
+    }
+
+    /** 카페 삭제 */
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
+    @PostMapping("/{cafeId}/delete")
+    public String deleteCafe(@PathVariable Long cafeId, Authentication auth, RedirectAttributes ra) {
+        Cafe cafe = cafeService.findById(cafeId);
+        Member me = memberService.findByEmail(auth.getName());
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        boolean isOwner = cafe.getOwner() != null && cafe.getOwner().getId().equals(me.getId());
+        if (!isOwner && !isAdmin) {
+            ra.addFlashAttribute("flashInfo", "권한이 없습니다.");
+            return "redirect:/cafes/" + cafeId;
+        }
+        cafeService.delete(cafeId);
+        ra.addFlashAttribute("flashInfo", "카페가 삭제되었습니다.");
+        return "redirect:/member/me";
     }
 
     /** 카페 상세 */
@@ -173,7 +238,6 @@ public class CafeController {
 
         // 0) 카페 존재 확인
         Cafe cafe = cafeService.findById(cafeId);
-        if (cafe == null) throw new NotFoundException("카페가 없습니다.");
 
         // 1) 대표 사진
         CafePhoto mainPhoto = cafePhotoService.getMainPhoto(cafeId);
@@ -209,6 +273,9 @@ public class CafeController {
         model.addAttribute("isOwner", isOwner);
         model.addAttribute("isAdmin", isAdmin);
         model.addAttribute("isLoggedIn", auth != null && auth.isAuthenticated());
+        model.addAttribute("cafeLat", cafe.getLat() != null ? cafe.getLat() : "");
+        model.addAttribute("cafeLon", cafe.getLon() != null ? cafe.getLon() : "");
+        model.addAttribute("hasLocation", cafe.getLat() != null && cafe.getLon() != null);
 
         // 5) CafeInfo 주입 (영업정보/소개/공지)
         var cafeInfoOpt = cafeInfoService.findByCafeId(cafeId);

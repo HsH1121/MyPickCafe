@@ -25,7 +25,7 @@ public class DataInitializer implements ApplicationRunner {
     private final MenuRepository               menuRepository;
     private final ReviewRepository             reviewRepository;
     private final TagDictionaryRepository      tagDictionaryRepository;
-    private final RagReviewExampleRepository   ragReviewExampleRepository;
+
     private final CafeTagRepository            cafeTagRepository;
 
     @Override
@@ -35,11 +35,22 @@ public class DataInitializer implements ApplicationRunner {
 
         /* ── 1. 회원 ── */
         Member admin  = save(member("admin@MyPickCafe.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "admin",   28, "M", RoleKind.ADMIN));
-        Member u1     = save(member("member1@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member1",   25, "M", RoleKind.MEMBER));
-        Member u2     = save(member("member2@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member2",   30, "F", RoleKind.MEMBER));
-        Member u3     = save(member("member3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member3",   22, "M", RoleKind.MEMBER));
-        Member u4     = save(member("member4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member4",  27, "F", RoleKind.MEMBER));
-        Member u5     = save(member("member5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member5",   35, "M", RoleKind.MEMBER));
+        Member u1     = save(member("cafeowner1@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner1",   25, "M", RoleKind.CAFEOWNER));
+        Member u2     = save(member("cafeowner2@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner2",   30, "F", RoleKind.CAFEOWNER));
+        Member u3     = save(member("cafeowner3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner3",   22, "M", RoleKind.CAFEOWNER));
+        Member u4     = save(member("cafeowner4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner4",  27, "F", RoleKind.CAFEOWNER));
+        Member u5     = save(member("cafeowner5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner5",   35, "M", RoleKind.CAFEOWNER));
+
+        save(member("member1@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member1",  23, "F", RoleKind.MEMBER));
+        save(member("member2@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member2",  26, "M", RoleKind.MEMBER));
+        save(member("member3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member3",  31, "F", RoleKind.MEMBER));
+        save(member("member4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member4",  19, "M", RoleKind.MEMBER));
+        save(member("member5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member5",  28, "F", RoleKind.MEMBER));
+        save(member("member6@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member6",  34, "M", RoleKind.MEMBER));
+        save(member("member7@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member7",  21, "F", RoleKind.MEMBER));
+        save(member("member8@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member8",  29, "M", RoleKind.MEMBER));
+        save(member("member9@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member9",  24, "F", RoleKind.MEMBER));
+        save(member("member10@example.com", "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member10", 32, "M", RoleKind.MEMBER));
 
         /* ── 2. 카페 (홍대·상수·합정 일대) ── */
         Cafe c1 = saveCafe(u1, "블루버드",  "서울 마포구 홍익로 5길 20",         37.5568, 126.9241, "02-333-1001", "DESSERT");
@@ -139,9 +150,6 @@ public class DataInitializer implements ApplicationRunner {
 
         /* ── 6. RAG 태그 설명 ── */
         initRagTagDescriptions();
-
-        /* ── 7. RAG 리뷰 예시 ── */
-        initRagReviewExamples();
     }
 
     private void initRagTagDescriptions() {
@@ -157,63 +165,6 @@ public class DataInitializer implements ApplicationRunner {
                 .tagCategory(tag.getCategory())
                 .tagEnum(tag.name())
                 .tagLabel(tag.getLabel())
-                .description(tag.getDescription())
-                .keywords(tag.getKeywords())
-                .build()
-        );
-    }
-
-    private void initRagReviewExamples() {
-        saveEx("콘센트가 많아서 노트북 작업하기 정말 좋아요. 와이파이도 빠르고 안정적이에요.",
-               "PLUG,WIFI", null, "STUDY", "MODERN");
-        saveEx("야외 테라스가 있어서 강아지 데리고 갈 수 있어요. 반려동물 환영 카페입니다.",
-               "TERRACE,PET", null, "REST", "NATURE");
-        saveEx("주차 공간이 넉넉해서 차 끌고 가기 편해요. 자리도 많고 소파석이 편안했어요.",
-               "PARKING,CHAIR", null, "REST", null);
-        saveEx("아메리카노가 정말 맛있어요. 산미가 적당하고 깔끔한 맛이에요.",
-               null, "AMERICANO", null, "MODERN");
-        saveEx("라떼 종류가 다양하고 크리미해서 좋았어요. 흑임자 라떼가 특히 고소했어요.",
-               null, "LATTE", null, "RETRO");
-        saveEx("콜드브루가 진하고 부드러워요. 질소 콜드브루도 있어서 선택지가 넓어요.",
-               null, "COLDBREW", null, "MODERN");
-        saveEx("크루아상이 갓 구워져서 버터향이 가득해요. 마들렌도 촉촉하고 맛있어요.",
-               null, "BAKERY", "REST", null);
-        saveEx("치즈케이크 맛집이에요! 바스크 치즈케이크가 촉촉하고 달지 않아서 좋았어요.",
-               null, "CAKE", "DATE", "CLASSIC");
-        saveEx("유자에이드가 상큼하고 맛있어요. 시그니처 에이드가 다양해서 고르는 재미가 있어요.",
-               null, "ADE", "DATE", "MODERN");
-        saveEx("디저트 종류가 정말 많아요. 티라미수랑 마카롱이 특히 맛있었어요.",
-               null, "DESSERT,CAKE", "TALK", "CLASSIC");
-        saveEx("조용한 편이라 혼자 공부하러 자주 와요. 콘센트도 많고 집중하기 좋아요.",
-               "PLUG,WIFI", "AMERICANO", "STUDY", "MODERN");
-        saveEx("친구들이랑 수다 떨기 좋아요. 테이블이 넓고 오래 앉아 있어도 눈치 안 줘요.",
-               "CHAIR", null, "TALK", "RETRO");
-        saveEx("연인이랑 데이트하기 딱 좋은 분위기예요. 조명이 따뜻하고 아늑해요.",
-               null, "LATTE,DESSERT", "DATE", "CLASSIC");
-        saveEx("사진 찍기 너무 좋아요! 포토존도 있고 인테리어 하나하나가 다 예뻐요.",
-               null, "CAKE", "PHOTO", "RETRO");
-        saveEx("루프탑 테라스에서 보는 뷰가 최고예요. 야외에서 커피 마시는 느낌이 좋아요.",
-               "TERRACE", "AMERICANO", "REST,DATE", "NATURE");
-        saveEx("비즈니스 미팅하기 좋아요. 조용하고 와이파이도 잘 터지고 좌석도 편안해요.",
-               "WIFI,CHAIR", "AMERICANO", "MEETING", "MODERN");
-        saveEx("레트로 감성 가득한 다방이에요. 쌍화차랑 전통 간식이 맛있어요.",
-               null, "DESSERT", "REST,PHOTO", "RETRO");
-        saveEx("식물이 많아서 힐링되는 느낌이에요. 자연스러운 인테리어가 눈을 편하게 해줘요.",
-               null, null, "REST", "NATURE");
-        saveEx("벽돌 인테리어가 멋진 인더스트리얼 카페예요. 에스프레소가 진하고 향이 좋아요.",
-               null, "AMERICANO", "PHOTO", "INDUSTRIAL");
-        saveEx("단체 모임하기 좋아요. 큰 테이블이 있고 주차도 가능해서 접근하기 편해요.",
-               "PARKING,CHAIR", null, "MEETING,TALK", null);
-    }
-
-    private void saveEx(String text, String facility, String menu, String purpose, String mood) {
-        ragReviewExampleRepository.save(
-            RagReviewExample.builder()
-                .reviewText(text)
-                .facilityTags(facility)
-                .menuTags(menu)
-                .purposeTags(purpose)
-                .moodTags(mood)
                 .build()
         );
     }

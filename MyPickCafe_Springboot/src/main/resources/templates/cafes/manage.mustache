@@ -1,0 +1,470 @@
+{{>layout/header}}
+
+<div class="cg-topbar">
+  <div class="cg-container cg-topbar__inner">
+    <span class="cg-logo">MyPickCafe</span>
+    <nav class="cg-breadcrumb">
+      <a href="/cafes">카페 목록</a>
+      <span>›</span>
+      <a href="/cafes/{{cafe.id}}">{{cafe.name}}</a>
+      <span>›</span>
+      <span class="em">관리</span>
+    </nav>
+  </div>
+</div>
+
+<main class="cg-container" style="padding:32px 0 64px">
+  <div style="max-width:800px;margin:0 auto;display:flex;flex-direction:column;gap:24px">
+
+    <!-- 상태 배너 -->
+    {{#isPending}}
+      <div class="cg-notice-panel">
+        <strong>⏳ 승인 대기 중</strong>
+        관리자가 사업자 등록증을 확인 후 승인하면 사이트에 노출됩니다.
+        그 전에 아래에서 사진과 메뉴를 미리 등록해두세요.
+      </div>
+    {{/isPending}}
+    {{#isApproved}}
+      <div class="cg-notice-panel" style="border-color:#22c55e;background:#f0fdf4">
+        <strong>✅ 승인됨</strong> 카페가 사이트에 공개되어 있습니다.
+        <a href="/cafes/{{cafe.id}}" style="margin-left:8px;color:var(--accent)">카페 페이지 보기 →</a>
+      </div>
+    {{/isApproved}}
+    {{#isRejected}}
+      <div class="cg-notice-panel is-danger">
+        <strong>🚫 반려됨</strong> 등록이 반려되었습니다. 관리자에게 문의해주세요.
+      </div>
+    {{/isRejected}}
+
+    <!-- 헤더 -->
+    <div>
+      <p class="cg-eyebrow">카페 관리</p>
+      <h1 style="font-size:24px;font-weight:900;letter-spacing:-.5px">{{cafe.name}}</h1>
+      <p style="font-size:14px;color:var(--text-sub)">{{cafe.address}}</p>
+    </div>
+
+    <!-- 기본 정보 편집 -->
+    <div class="cg-panel">
+      <div class="cg-panel__head">
+        <div><p class="cg-eyebrow">기본 정보</p><h2 class="cg-panel__title">소개 · 공지 · 영업 정보</h2></div>
+      </div>
+      <div class="cg-panel__body space-y">
+        <div class="cg-grid2">
+          <div class="field">
+            <div class="field__label">오픈 시간</div>
+            <input class="cg-input" id="infoOpenTime" type="time" value="{{infoOpenTime}}"/>
+          </div>
+          <div class="field">
+            <div class="field__label">마감 시간</div>
+            <input class="cg-input" id="infoCloseTime" type="time" value="{{infoCloseTime}}"/>
+          </div>
+          <div class="field">
+            <div class="field__label">휴무일</div>
+            <input class="cg-input" id="infoHoliday" maxlength="7" placeholder="예: 월요일" value="{{infoHoliday}}"/>
+          </div>
+          <div class="field">
+            <div class="field__label">공지사항</div>
+            <input class="cg-input" id="infoNotice" maxlength="20" placeholder="최대 20자" value="{{infoNotice}}"/>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field__label">카페 소개</div>
+          <textarea class="cg-input" id="infoInfo" rows="4" maxlength="500" placeholder="카페를 소개해주세요. (최대 500자)">{{infoInfo}}</textarea>
+        </div>
+        <div id="infoSaveMsg" style="font-size:13px;color:var(--accent);display:none">저장되었습니다.</div>
+        <div style="text-align:right">
+          <button type="button" id="btnSaveInfo" class="cg-btn">저장</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카페 사진 관리 -->
+    <div class="cg-panel">
+      <div class="cg-panel__head">
+        <div><p class="cg-eyebrow">사진 관리</p><h2 class="cg-panel__title">카페 사진</h2></div>
+      </div>
+      <div class="cg-panel__body space-y">
+
+        <!-- 기존 사진 목록 -->
+        <div id="existingPhotoList" class="photo-manage-grid">
+          {{#cafePhotos}}
+            <div class="photo-manage-item" data-id="{{id}}">
+              <img src="{{url}}" alt="카페 사진"/>
+              {{#main}}<span class="main-badge">대표</span>{{/main}}
+              <div class="photo-manage-actions">
+                {{^main}}
+                  <button type="button" class="cg-btn cg-btn--sm btn-set-main" data-id="{{id}}">대표 설정</button>
+                {{/main}}
+                <button type="button" class="cg-btn cg-btn--sm cg-btn--danger-outline btn-delete-photo" data-id="{{id}}">삭제</button>
+              </div>
+            </div>
+          {{/cafePhotos}}
+          {{^cafePhotos}}
+            <p style="color:var(--text-sub);font-size:14px">등록된 사진이 없습니다.</p>
+          {{/cafePhotos}}
+        </div>
+
+        <!-- 사진 추가 -->
+        <div>
+          <div class="field__label" style="margin-bottom:8px">사진 추가</div>
+          <div id="uploadDropzone" class="create-dropzone" style="padding:20px">
+            <input type="file" id="newPhotoInput" accept="image/*" multiple style="display:none"/>
+            <div onclick="document.getElementById('newPhotoInput').click()" style="cursor:pointer">
+              <p style="margin:0;font-weight:600">클릭하거나 드래그하여 사진 추가</p>
+              <p style="margin:4px 0 0;font-size:13px;color:var(--text-sub)">JPG, PNG</p>
+            </div>
+          </div>
+          <div id="uploadProgress" style="margin-top:8px;font-size:13px;color:var(--text-sub)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 메뉴 관리 -->
+    <div class="cg-panel">
+      <div class="cg-panel__head">
+        <div><p class="cg-eyebrow">메뉴 관리</p><h2 class="cg-panel__title">메뉴 리스트</h2></div>
+      </div>
+      <div class="cg-panel__body space-y">
+
+        <!-- 기존 메뉴 목록 -->
+        <div id="menuList" class="menu-manage-list">
+          {{#menus}}
+            <div class="menu-manage-item" data-id="{{id}}">
+              <img src="{{photo}}" alt="{{name}}" class="menu-thumb"
+                   onerror="this.src='/images/placeholder-cafe.jpg'"/>
+              <div class="menu-info">
+                <span class="menu-name">{{name}}</span>
+                <span class="menu-price">{{price}}원</span>
+              </div>
+              <button type="button" class="cg-btn cg-btn--sm cg-btn--danger-outline btn-delete-menu"
+                      data-id="{{id}}">삭제</button>
+            </div>
+          {{/menus}}
+          {{^menus}}
+            <p id="noMenuMsg" style="color:var(--text-sub);font-size:14px">등록된 메뉴가 없습니다.</p>
+          {{/menus}}
+        </div>
+
+        <!-- 메뉴 추가 폼 -->
+        <div class="cg-panel" style="background:var(--bg-sub);border:1px solid var(--border)">
+          <div class="cg-panel__body">
+            <p class="cg-eyebrow" style="margin-bottom:12px">메뉴 추가</p>
+            <div class="cg-grid2" style="gap:12px">
+              <div class="field">
+                <div class="field__label">메뉴명 <span class="req">*</span></div>
+                <input class="cg-input" id="menuName" maxlength="12" placeholder="최대 12자"/>
+              </div>
+              <div class="field">
+                <div class="field__label">가격 <span class="req">*</span></div>
+                <input class="cg-input" id="menuPrice" type="number" min="0" placeholder="0"/>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <div class="field__label">메뉴 사진</div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <input type="file" id="menuPhotoInput" accept="image/*" style="display:none"/>
+                <button type="button" class="cg-btn-outline cg-btn--sm"
+                        onclick="document.getElementById('menuPhotoInput').click()">사진 선택</button>
+                <span id="menuPhotoLabel" style="font-size:13px;color:var(--text-sub)">선택된 파일 없음</span>
+                <img id="menuPhotoPreview" src="" alt="" style="display:none;width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"/>
+              </div>
+            </div>
+            <div style="margin-top:16px;text-align:right">
+              <button type="button" id="btnAddMenu" class="cg-btn">메뉴 추가</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="cg-actions end">
+      {{#isApproved}}<a href="/cafes/{{cafe.id}}" class="cg-btn-outline">카페 페이지로</a>{{/isApproved}}
+    </div>
+
+    <!-- 위험 구역 -->
+    <div class="cg-panel" style="border-color:#fca5a5">
+      <div class="cg-panel__head" style="border-bottom-color:#fca5a5">
+        <div><p class="cg-eyebrow" style="color:#dc2626">위험 구역</p><h2 class="cg-panel__title">카페 삭제</h2></div>
+      </div>
+      <div class="cg-panel__body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <p style="font-size:14px;color:var(--text-sub);margin:0">
+          카페를 삭제하면 사진, 메뉴, 리뷰 등 모든 데이터가 영구적으로 제거됩니다.
+        </p>
+        <form method="post" action="/cafes/{{cafe.id}}/delete">
+          {{#_csrf}}<input type="hidden" name="{{parameterName}}" value="{{token}}">{{/_csrf}}
+          <button class="cg-btn cg-btn--sm" type="submit"
+                  style="background:#dc2626;border-color:#dc2626"
+                  onclick="return confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')">카페 삭제</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<style>
+.photo-manage-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.photo-manage-item {
+  position: relative;
+  width: 120px;
+}
+.photo-manage-item img {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  display: block;
+}
+.photo-manage-item .main-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.photo-manage-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.menu-manage-list { display: flex; flex-direction: column; gap: 10px; }
+.menu-manage-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-sub);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.menu-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.menu-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.menu-name { font-weight: 600; font-size: 14px; }
+.menu-price { font-size: 13px; color: var(--text-sub); }
+.create-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.create-dropzone:hover, .create-dropzone.drag-over { border-color: var(--accent); }
+</style>
+
+<script>
+(function () {
+  const CAFE_ID = {{cafe.id}};
+  const token   = () => localStorage.getItem('accessToken');
+  const headers = () => ({ 'Authorization': `Bearer ${token()}` });
+
+  // ── 기본 정보 저장 ──
+  document.getElementById('btnSaveInfo').addEventListener('click', async () => {
+    const payload = {
+      openTime:  document.getElementById('infoOpenTime').value,
+      closeTime: document.getElementById('infoCloseTime').value,
+      holiday:   document.getElementById('infoHoliday').value,
+      notice:    document.getElementById('infoNotice').value,
+      info:      document.getElementById('infoInfo').value,
+      cafe: { id: CAFE_ID }
+    };
+    const btn = document.getElementById('btnSaveInfo');
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/cafe-infos/upsert/${CAFE_ID}`, {
+        method: 'POST',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const msg = document.getElementById('infoSaveMsg');
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 2500);
+    } catch (e) {
+      alert('저장 실패: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── 사진 업로드 ──
+  const newPhotoInput  = document.getElementById('newPhotoInput');
+  const uploadProgress = document.getElementById('uploadProgress');
+  const uploadDropzone = document.getElementById('uploadDropzone');
+
+  async function uploadPhoto(file) {
+    const fd = new FormData();
+    fd.append('files', file);
+    const res = await fetch(`/api/cafes/${CAFE_ID}/photos`, {
+      method: 'POST', headers: headers(), body: fd
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  function addPhotoToGrid(photo) {
+    const noMsg = document.querySelector('#existingPhotoList > p');
+    if (noMsg) noMsg.remove();
+
+    const item = document.createElement('div');
+    item.className = 'photo-manage-item';
+    item.dataset.id = photo.id;
+    item.innerHTML = `
+      <img src="${photo.url}" alt="카페 사진"/>
+      <div class="photo-manage-actions">
+        <button type="button" class="cg-btn cg-btn--sm btn-set-main" data-id="${photo.id}">대표 설정</button>
+        <button type="button" class="cg-btn cg-btn--sm cg-btn--danger-outline btn-delete-photo" data-id="${photo.id}">삭제</button>
+      </div>
+    `;
+    document.getElementById('existingPhotoList').appendChild(item);
+  }
+
+  async function handlePhotoFiles(files) {
+    for (const file of files) {
+      uploadProgress.textContent = `업로드 중: ${file.name}`;
+      try {
+        const photos = await uploadPhoto(file);
+        const last   = Array.isArray(photos) ? photos[photos.length - 1] : null;
+        if (last) addPhotoToGrid(last);
+      } catch (e) {
+        alert('업로드 실패: ' + e.message);
+      }
+    }
+    uploadProgress.textContent = '';
+  }
+
+  newPhotoInput.addEventListener('change', () => handlePhotoFiles(newPhotoInput.files));
+  uploadDropzone.addEventListener('dragover',  e => { e.preventDefault(); uploadDropzone.classList.add('drag-over'); });
+  uploadDropzone.addEventListener('dragleave', () => uploadDropzone.classList.remove('drag-over'));
+  uploadDropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadDropzone.classList.remove('drag-over');
+    handlePhotoFiles(e.dataTransfer.files);
+  });
+
+  // ── 대표 사진 설정 ──
+  document.addEventListener('click', async e => {
+    const btn = e.target.closest('.btn-set-main');
+    if (!btn) return;
+    const photoId = btn.dataset.id;
+    try {
+      await fetch(`/api/cafes/photos/${photoId}/main`, { method: 'PATCH', headers: headers() });
+      location.reload();
+    } catch { alert('대표 사진 설정 실패'); }
+  });
+
+  // ── 사진 삭제 ──
+  document.addEventListener('click', async e => {
+    const btn = e.target.closest('.btn-delete-photo');
+    if (!btn) return;
+    if (!confirm('이 사진을 삭제하시겠습니까?')) return;
+    const photoId = btn.dataset.id;
+    try {
+      await fetch(`/api/cafes/photos/${photoId}`, { method: 'DELETE', headers: headers() });
+      btn.closest('.photo-manage-item').remove();
+    } catch { alert('사진 삭제 실패'); }
+  });
+
+  // ── 메뉴 사진 미리보기 ──
+  document.getElementById('menuPhotoInput').addEventListener('change', function () {
+    const file    = this.files[0];
+    const label   = document.getElementById('menuPhotoLabel');
+    const preview = document.getElementById('menuPhotoPreview');
+    if (file) {
+      label.textContent    = file.name;
+      preview.src          = URL.createObjectURL(file);
+      preview.style.display = 'block';
+    } else {
+      label.textContent    = '선택된 파일 없음';
+      preview.style.display = 'none';
+    }
+  });
+
+  // ── 메뉴 추가 ──
+  document.getElementById('btnAddMenu').addEventListener('click', async () => {
+    const name  = document.getElementById('menuName').value.trim();
+    const price = document.getElementById('menuPrice').value;
+    const file  = document.getElementById('menuPhotoInput').files[0];
+
+    if (!name || !price) { alert('메뉴명과 가격을 입력해주세요.'); return; }
+
+    const fd = new FormData();
+    fd.append('cafeId', CAFE_ID);
+    fd.append('name',   name);
+    fd.append('price',  price);
+    if (file) fd.append('file', file);
+
+    const btn = document.getElementById('btnAddMenu');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/menus', { method: 'POST', headers: headers(), body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      const menu = await res.json();
+      addMenuToList(menu);
+
+      document.getElementById('menuName').value   = '';
+      document.getElementById('menuPrice').value  = '';
+      document.getElementById('menuPhotoInput').value = '';
+      document.getElementById('menuPhotoLabel').textContent   = '선택된 파일 없음';
+      document.getElementById('menuPhotoPreview').style.display = 'none';
+    } catch (e) {
+      alert('메뉴 추가 실패: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function addMenuToList(menu) {
+    const noMsg = document.getElementById('noMenuMsg');
+    if (noMsg) noMsg.remove();
+
+    const photo = menu.photo || '/images/placeholder-cafe.jpg';
+    const item  = document.createElement('div');
+    item.className = 'menu-manage-item';
+    item.dataset.id = menu.id;
+    item.innerHTML = `
+      <img src="${photo}" alt="${menu.name}" class="menu-thumb"
+           onerror="this.src='/images/placeholder-cafe.jpg'"/>
+      <div class="menu-info">
+        <span class="menu-name">${menu.name}</span>
+        <span class="menu-price">${Number(menu.price).toLocaleString()}원</span>
+      </div>
+      <button type="button" class="cg-btn cg-btn--sm cg-btn--danger-outline btn-delete-menu"
+              data-id="${menu.id}">삭제</button>
+    `;
+    document.getElementById('menuList').appendChild(item);
+  }
+
+  // ── 메뉴 삭제 ──
+  document.addEventListener('click', async e => {
+    const btn = e.target.closest('.btn-delete-menu');
+    if (!btn) return;
+    if (!confirm('이 메뉴를 삭제하시겠습니까?')) return;
+    const menuId = btn.dataset.id;
+    try {
+      const res = await fetch(`/api/menus/${menuId}`, { method: 'DELETE', headers: headers() });
+      if (!res.ok) throw new Error(await res.text());
+      btn.closest('.menu-manage-item').remove();
+    } catch (e) {
+      alert('메뉴 삭제 실패: ' + e.message);
+    }
+  });
+})();
+</script>
+
+{{>layout/footer}}

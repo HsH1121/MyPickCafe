@@ -37,6 +37,7 @@ public class MemberController {
     private final MemberService memberService;
     private final ReviewService reviewService;
     private final NeedsService needsService;
+    private final com.example.MyPickCafe.service.CafeService cafeService;
 
     /* =========================
      *        MY PAGE
@@ -70,6 +71,28 @@ public class MemberController {
 
         // 좌측 네비 활성화
         model.addAttribute("nav_me", true);
+        model.addAttribute("isMemberRole",    member.getRoleKind() == com.example.MyPickCafe.domain.RoleKind.MEMBER);
+        model.addAttribute("isCafeOwnerRole", member.getRoleKind() == com.example.MyPickCafe.domain.RoleKind.CAFEOWNER);
+
+        // 카페 오너: 내 카페 목록
+        if (member.getRoleKind() == com.example.MyPickCafe.domain.RoleKind.CAFEOWNER
+                || member.getRoleKind() == com.example.MyPickCafe.domain.RoleKind.ADMIN) {
+            var myCafes = cafeService.findByOwnerId(member.getId()).stream()
+                    .map(c -> {
+                        Map<String, Object> m2 = new java.util.LinkedHashMap<>();
+                        m2.put("id",       c.getId());
+                        m2.put("name",     c.getName());
+                        m2.put("address",  c.getAddress());
+                        m2.put("status",   c.getStatus().name());
+                        m2.put("isPending",  c.isPending());
+                        m2.put("isApproved", c.isApproved());
+                        m2.put("isRejected", c.isRejected());
+                        return m2;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+            model.addAttribute("myCafes",    myCafes);
+            model.addAttribute("hasMyCafes", !myCafes.isEmpty());
+        }
 
         return "member/mypage";
     }

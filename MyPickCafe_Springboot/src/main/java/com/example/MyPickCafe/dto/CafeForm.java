@@ -16,9 +16,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class CafeForm {
 
-    // 서버에서 로그인 사용자로 덮어쓰기 권장
     private Member owner;
 
+    // 기본 정보
     private String name;
     private String address;
     private Double lat;
@@ -27,6 +27,13 @@ public class CafeForm {
     private Long views;
     private String code;
     private String bizDoc;
+
+    // 카페 소개 (CafeInfo)
+    private String openTime;
+    private String closeTime;
+    private String holiday;
+    private String notice;
+    private String info;
 
     public Cafe toEntity() {
         Cafe cafe = new Cafe();

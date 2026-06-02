@@ -5,6 +5,4 @@ public interface TagEnum {
     String getLabel();
     String getCategory();
     String getCategoryLabel();
-    String getDescription();
-    String getKeywords();
 }

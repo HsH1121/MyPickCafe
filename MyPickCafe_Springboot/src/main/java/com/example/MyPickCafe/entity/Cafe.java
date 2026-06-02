@@ -37,10 +37,10 @@
         @Column(name = "address", nullable = false, length = 60)
         private String address;
 
-        @Column(name = "lat", nullable = false)
+        @Column(name = "lat")
         private Double lat;
 
-        @Column(name = "lon", nullable = false)
+        @Column(name = "lon")
         private Double lon;
 
         @Column(name = "number", nullable = false, unique = true, length = 15)

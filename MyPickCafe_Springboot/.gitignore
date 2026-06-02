@@ -35,3 +35,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Uploads ###
+uploads/
+
+### Claude ###
+.claude/settings.local.json
