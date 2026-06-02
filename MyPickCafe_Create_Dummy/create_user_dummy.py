@@ -1,14 +1,9 @@
 import random
 
-# -----------------------------------------------
-# 옵션: 생성할 리뷰 작성자 수
-MEMBER_COUNT = 10000
-# -----------------------------------------------
-
 TEST_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lN07"
 
 
-def generate(count: int = MEMBER_COUNT) -> list:
+def generate(count: int) -> list:
     sql_lines = ["-- Member Dummy Data (공통 비밀번호: test1234)", ""]
     print(f"🚀 [3/4] 리뷰 작성자 더미 데이터 생성 시작 ({count}명)")
 

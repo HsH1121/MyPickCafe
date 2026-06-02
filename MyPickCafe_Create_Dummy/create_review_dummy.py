@@ -3,12 +3,6 @@ import random
 import time
 import ollama
 
-# -----------------------------------------------
-# 옵션: 생성할 리뷰 수 / 리뷰 작성자 수 (create_user_dummy.py 의 MEMBER_COUNT 와 맞출 것)
-TOTAL_REVIEWS = 100
-MEMBER_COUNT  = 10000
-# -----------------------------------------------
-
 ALLOWED_TAGS = {
     "FACILITY": {"PLUG", "TERRACE", "PET", "PARKING", "WIFI"},
     "MENU":     {"AMERICANO", "LATTE", "COLDBREW", "BAKERY", "CAKE", "ADE", "DESSERT"},
@@ -40,7 +34,7 @@ CAFE_FEATURES = [
 ]
 
 
-def _generate_review_content(cafe_name: str, rating: int, persona: str, features: list) -> str:
+def _generate(cafe_name: str, rating: int, persona: str, features: list) -> dict:
     sentiment_guide = (
         "매우 만족스럽고 칭찬하는" if rating >= 4 else
         "아쉽거나 불만족스러운"    if rating <= 2 else
@@ -53,60 +47,46 @@ def _generate_review_content(cafe_name: str, rating: int, persona: str, features
                 {
                     'role': 'system',
                     'content': (
-                        f"당신은 카페 방문 후 솔직한 리뷰를 작성하는 실제 고객입니다.\n"
+                        f"당신은 카페를 방문한 실제 고객입니다. 리뷰를 작성하고 태그를 추출하여 JSON으로 반환하세요.\n\n"
                         f"조건 1: 말투는 [{persona}]로 작성.\n"
                         f"조건 2: 별점은 {rating}점이며 전체 뉘앙스는 [{sentiment_guide}] 느낌.\n"
                         f"조건 3: 주로 언급할 카페 특징은 [{', '.join(features)}].\n"
-                        f"주의: AI가 쓴 것처럼 정형화된 서론('안녕하세요', '이 카페는~')이나 결론 없이 "
-                        f"실제 사람이 쓴 구어체로 본문만 출력."
+                        f"조건 4: 리뷰에서 명시적으로 언급된 내용만 태그로 추출. 부정 언급 태그 제외.\n\n"
+                        f"허용 태그:\n"
+                        f"FACILITY: PLUG, TERRACE, PET, PARKING, WIFI\n"
+                        f"MENU: AMERICANO, LATTE, COLDBREW, BAKERY, CAKE, ADE, DESSERT\n"
+                        f"MOOD: MODERN, RETRO, NATURE, INDUSTRIAL, CLASSIC\n"
+                        f"PURPOSE: STUDY, TALK, REST, DATE, PHOTO, MEETING\n\n"
+                        f"반드시 아래 JSON 형식으로만 출력:\n"
+                        f'{{"content": "리뷰본문", "sentiment": "GOOD or BAD or null", '
+                        f'"FACILITY": [], "MENU": [], "MOOD": [], "PURPOSE": []}}'
                     ),
                 },
-                {'role': 'user', 'content': f"'{cafe_name}' 카페 리뷰를 작성해줘."},
-            ],
-            options={'temperature': 0.85, 'top_p': 0.9, 'num_predict': 150, 'seed': random.randint(1, 999999)},
-        )
-        return response['message']['content'].strip()
-    except Exception as e:
-        print(f"  [경고] 리뷰 생성 실패: {e}")
-        return "방문했는데 나쁘지 않았어요."
-
-
-def _analyze_tags(content: str) -> dict:
-    try:
-        response = ollama.chat(
-            model='qwen2.5:7b',
-            messages=[
-                {
-                    'role': 'system',
-                    'content': (
-                        "당신은 카페 리뷰를 분석해 태그를 추출하는 AI입니다.\n"
-                        "리뷰에서 명시적으로 언급된 내용만 태그로 추출하세요. 추측 금지.\n"
-                        "부정적으로 언급된 항목은 포함하지 마세요.\n\n"
-                        "허용 태그 목록:\n"
-                        "- FACILITY: PLUG(콘센트), TERRACE(테라스), PET(반려동물), PARKING(주차), WIFI(와이파이)\n"
-                        "- MENU: AMERICANO(아메리카노), LATTE(라떼), COLDBREW(콜드브루), BAKERY(베이커리), CAKE(케이크), ADE(에이드), DESSERT(디저트)\n"
-                        "- MOOD: MODERN(모던), RETRO(레트로), NATURE(자연), INDUSTRIAL(인더스트리얼), CLASSIC(클래식)\n"
-                        "- PURPOSE: STUDY(공부), TALK(대화), REST(휴식), DATE(데이트), PHOTO(사진), MEETING(미팅)\n\n"
-                        "반드시 아래 JSON 형식으로만 출력하세요:\n"
-                        '{"FACILITY": [], "MENU": [], "MOOD": [], "PURPOSE": []}'
-                    ),
-                },
-                {'role': 'user', 'content': f"다음 리뷰를 분석해줘:\n{content}"},
+                {'role': 'user', 'content': f"'{cafe_name}' 카페 리뷰를 작성하고 태그를 추출해줘."},
             ],
             format='json',
-            options={'temperature': 0.1, 'top_p': 0.9, 'num_predict': 200, 'seed': random.randint(1, 999999)},
+            options={'temperature': 0.85, 'top_p': 0.9, 'num_predict': 120, 'seed': random.randint(1, 999999)},
         )
         raw = json.loads(response['message']['content'])
-        return {
+
+        content   = raw.get('content', '방문했는데 나쁘지 않았어요.')
+        sentiment = raw.get('sentiment')
+        if sentiment not in ('GOOD', 'BAD'):
+            sentiment = "GOOD" if rating >= 4 else "BAD" if rating <= 2 else None
+
+        tags = {
             cat: [tag for tag in raw.get(cat, []) if tag in allowed]
             for cat, allowed in ALLOWED_TAGS.items()
         }
+        return {'content': content, 'sentiment': sentiment, 'tags': tags}
+
     except Exception as e:
-        print(f"  [경고] 태그 분석 실패: {e}")
-        return {cat: [] for cat in ALLOWED_TAGS}
+        print(f"  [경고] 생성 실패: {e}")
+        sentiment = "GOOD" if rating >= 4 else "BAD" if rating <= 2 else None
+        return {'content': '방문했는데 나쁘지 않았어요.', 'sentiment': sentiment, 'tags': {cat: [] for cat in ALLOWED_TAGS}}
 
 
-def generate(cafe_names: list, total_reviews: int = TOTAL_REVIEWS, member_count: int = MEMBER_COUNT) -> list:
+def generate(cafe_names: list, total_reviews: int, member_count: int) -> list:
     sql_lines = ["-- Review + ReviewTag Dummy Data", ""]
     print(f"🚀 [4/4] 리뷰 더미 데이터 생성 시작 ({total_reviews}개)")
 
@@ -118,13 +98,15 @@ def generate(cafe_names: list, total_reviews: int = TOTAL_REVIEWS, member_count:
         cafe_name    = random.choice(cafe_names)
         member_email = f"user{random.randint(1, member_count):05d}@test.com"
 
-        content   = _generate_review_content(cafe_name, rating, persona, features)
-        sentiment = "GOOD" if rating >= 4 else "BAD" if rating <= 2 else random.choice(["GOOD", "BAD"])
+        result    = _generate(cafe_name, rating, persona, features)
+        content   = result['content']
+        sentiment = result['sentiment']
+        tags      = result['tags']
         good      = 1 if sentiment == "GOOD" else 0
         bad       = 1 if sentiment == "BAD"  else 0
-        tags      = _analyze_tags(content)
+        sentiment_sql = f"'{sentiment}'" if sentiment else "NULL"
 
-        content_esc   = content.replace("'", "''")
+        content_esc   = content[:1000].replace("'", "''")
         cafe_name_esc = cafe_name.replace("'", "''")
 
         sql_lines.append(
@@ -132,7 +114,7 @@ def generate(cafe_names: list, total_reviews: int = TOTAL_REVIEWS, member_count:
             f"VALUES ("
             f"(SELECT cafe_id FROM cafe WHERE name = '{cafe_name_esc}'), "
             f"(SELECT member_id FROM member WHERE email = '{member_email}'), "
-            f"'{content_esc}', {good}, {bad}, '{sentiment}', SYSTIMESTAMP"
+            f"'{content_esc}', {good}, {bad}, {sentiment_sql}, SYSTIMESTAMP"
             f");"
         )
 

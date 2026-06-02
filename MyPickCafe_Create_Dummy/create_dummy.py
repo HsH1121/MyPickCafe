@@ -5,14 +5,21 @@ import create_review_dummy
 
 # -----------------------------------------------
 # 옵션: 생성 횟수 설정
-CAFEOWNER_COUNT = 100    # 카페 사장 수 (= 카페 수)
-MEMBER_COUNT    = 10000  # 리뷰 작성자 수
-TOTAL_REVIEWS   = 100    # 생성할 리뷰 수
+CAFEOWNER_COUNT = 50    # 카페 사장 수 (= 카페 수)
+MEMBER_COUNT    = 500  # 리뷰 작성자 수
+TOTAL_REVIEWS   = 1000    # 생성할 리뷰 수
 # -----------------------------------------------
 
 OUTPUT_FILE = "all_dummy.sql"
 
-all_sql = []
+all_sql = [
+    "-- 기존 데이터 초기화 (FK 순서 역순)",
+    "DELETE FROM review_tag;",
+    "DELETE FROM review;",
+    "DELETE FROM cafe;",
+    "DELETE FROM member;",
+    "",
+]
 
 # 1. 카페 사장
 all_sql += create_cafeowner_dummy.generate(CAFEOWNER_COUNT)
@@ -29,6 +36,8 @@ all_sql += ["", ""]
 
 # 4. 리뷰 + 태그
 all_sql += create_review_dummy.generate(cafe_names, TOTAL_REVIEWS, MEMBER_COUNT)
+
+all_sql += ["", "COMMIT;"]
 
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     f.write("\n".join(all_sql))

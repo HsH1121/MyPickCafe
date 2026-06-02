@@ -1,14 +1,9 @@
 import random
 
-# -----------------------------------------------
-# 옵션: 생성할 카페 사장 수
-CAFEOWNER_COUNT = 100
-# -----------------------------------------------
-
 TEST_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lN07"
 
 
-def generate(count: int = CAFEOWNER_COUNT) -> list:
+def generate(count: int) -> list:
     sql_lines = ["-- CafeOwner Dummy Data (공통 비밀번호: test1234)", ""]
     print(f"🚀 [1/4] 카페 사장 더미 데이터 생성 시작 ({count}명)")
 

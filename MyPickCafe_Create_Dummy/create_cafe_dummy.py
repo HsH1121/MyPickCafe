@@ -2,11 +2,6 @@ import random
 import time
 import ollama
 
-# -----------------------------------------------
-# 옵션: 생성할 카페 수 (CAFEOWNER_COUNT 와 반드시 동일하게 설정)
-CAFEOWNER_COUNT = 100
-# -----------------------------------------------
-
 CAFE_STYLES = [
     "모던하고 미니멀한 감성 카페 이름 (한글 또는 영문, 예: BLANK, 여백)",
     "따뜻하고 아늑한 분위기 카페 이름 (예: 온기, 포근한오후)",
@@ -56,7 +51,7 @@ def _generate_cafe_name(style: str, idx: int) -> str:
         return f"카페{idx}"
 
 
-def generate(count: int = CAFEOWNER_COUNT) -> tuple:
+def generate(count: int) -> tuple:
     sql_lines  = ["-- Cafe Dummy Data", ""]
     cafe_names = []
     used_names: set = set()
