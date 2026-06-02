@@ -1,7 +1,7 @@
-import create_cafeowner_dummy
-import create_cafe_dummy
-import create_user_dummy
-import create_review_dummy
+from src import create_cafeowner_dummy
+from src import create_cafe_dummy
+from src import create_user_dummy
+from src import create_review_dummy
 
 # -----------------------------------------------
 # 옵션: 생성 횟수 설정
