@@ -1,13 +1,21 @@
+import json
 import os
 import random
 import time
 import ollama
 
 # -----------------------------------------------
-# 옵션: 생성할 리뷰 수 / 리뷰 작성자 수 (create_member_dummy.py 의 MEMBER_COUNT 와 맞출 것)
+# 옵션: 생성할 리뷰 수 / 리뷰 작성자 수 (create_user_dummy.py 의 MEMBER_COUNT 와 맞출 것)
 TOTAL_REVIEWS = 100
-MEMBER_COUNT  = 30
+MEMBER_COUNT  = 10000
 # -----------------------------------------------
+
+ALLOWED_TAGS = {
+    "FACILITY": {"PLUG", "TERRACE", "PET", "PARKING", "WIFI"},
+    "MENU":     {"AMERICANO", "LATTE", "COLDBREW", "BAKERY", "CAKE", "ADE", "DESSERT"},
+    "MOOD":     {"MODERN", "RETRO", "NATURE", "INDUSTRIAL", "CLASSIC"},
+    "PURPOSE":  {"STUDY", "TALK", "REST", "DATE", "PHOTO", "MEETING"},
+}
 
 REVIEWER_PERSONAS = [
     "20대 대학생의 트렌디하고 가벼운 말투 (~함, ~음, 대박 등 사용)",
@@ -65,7 +73,7 @@ def generate_review_content(cafe_name: str, rating: int, persona: str, features:
                 },
                 {'role': 'user', 'content': f"'{cafe_name}' 카페 리뷰를 작성해줘."},
             ],
-            options={'temperature': 0.85, 'top_p': 0.9, 'num_predict': 150},
+            options={'temperature': 0.85, 'top_p': 0.9, 'num_predict': 150, 'seed': random.randint(1, 999999)},
         )
         return response['message']['content'].strip()
     except Exception as e:
@@ -73,7 +81,43 @@ def generate_review_content(cafe_name: str, rating: int, persona: str, features:
         return "방문했는데 나쁘지 않았어요."
 
 
-sql_lines = ["-- Review Dummy Data", ""]
+def analyze_tags(content: str) -> dict[str, list[str]]:
+    try:
+        response = ollama.chat(
+            model='qwen2.5:7b',
+            messages=[
+                {
+                    'role': 'system',
+                    'content': (
+                        "당신은 카페 리뷰를 분석해 태그를 추출하는 AI입니다.\n"
+                        "리뷰에서 명시적으로 언급된 내용만 태그로 추출하세요. 추측 금지.\n"
+                        "부정적으로 언급된 항목은 포함하지 마세요.\n\n"
+                        "허용 태그 목록:\n"
+                        "- FACILITY: PLUG(콘센트), TERRACE(테라스), PET(반려동물), PARKING(주차), WIFI(와이파이)\n"
+                        "- MENU: AMERICANO(아메리카노), LATTE(라떼), COLDBREW(콜드브루), BAKERY(베이커리), CAKE(케이크), ADE(에이드), DESSERT(디저트)\n"
+                        "- MOOD: MODERN(모던), RETRO(레트로), NATURE(자연), INDUSTRIAL(인더스트리얼), CLASSIC(클래식)\n"
+                        "- PURPOSE: STUDY(공부), TALK(대화), REST(휴식), DATE(데이트), PHOTO(사진), MEETING(미팅)\n\n"
+                        "반드시 아래 JSON 형식으로만 출력하세요:\n"
+                        '{"FACILITY": [], "MENU": [], "MOOD": [], "PURPOSE": []}'
+                    ),
+                },
+                {'role': 'user', 'content': f"다음 리뷰를 분석해줘:\n{content}"},
+            ],
+            format='json',
+            options={'temperature': 0.1, 'top_p': 0.9, 'num_predict': 200, 'seed': random.randint(1, 999999)},
+        )
+        raw = json.loads(response['message']['content'])
+        # 허용 목록 외 태그 필터링
+        return {
+            cat: [tag for tag in raw.get(cat, []) if tag in allowed]
+            for cat, allowed in ALLOWED_TAGS.items()
+        }
+    except Exception as e:
+        print(f"  [경고] 태그 분석 실패: {e}")
+        return {cat: [] for cat in ALLOWED_TAGS}
+
+
+sql_lines = ["-- Review + ReviewTag Dummy Data", ""]
 
 print(f"\n🚀 리뷰 더미 데이터 생성 시작 ({TOTAL_REVIEWS}개)")
 
@@ -83,15 +127,17 @@ for i in range(1, TOTAL_REVIEWS + 1):
     persona  = random.choice(REVIEWER_PERSONAS)
     features = random.sample(CAFE_FEATURES, 2)
     cafe_name    = random.choice(cafe_names)
-    member_email = f"user{random.randint(1, MEMBER_COUNT):03d}@test.com"
-
+    member_email = f"user{random.randint(1, MEMBER_COUNT):05d}@test.com"
     content   = generate_review_content(cafe_name, rating, persona, features)
     sentiment = "GOOD" if rating >= 4 else "BAD" if rating <= 2 else random.choice(["GOOD", "BAD"])
     good      = 1 if sentiment == "GOOD" else 0
     bad       = 1 if sentiment == "BAD"  else 0
+    tags      = analyze_tags(content)
 
-    content_esc  = content.replace("'", "''")
+    content_esc   = content.replace("'", "''")
     cafe_name_esc = cafe_name.replace("'", "''")
+
+    # review INSERT
     sql_lines.append(
         f"INSERT INTO review (cafe_id, member_id, content, good, bad, sentiment, created_at) "
         f"VALUES ("
@@ -100,8 +146,24 @@ for i in range(1, TOTAL_REVIEWS + 1):
         f"'{content_esc}', {good}, {bad}, '{sentiment}', SYSTIMESTAMP"
         f");"
     )
-    print(f"  [{i:03d}/{TOTAL_REVIEWS}] {cafe_name} | ★{rating} {sentiment} ({time.time()-t:.2f}s)")
+
+    # review_tag INSERT
+    tag_count = 0
+    for category, codes in tags.items():
+        for code in codes:
+            sql_lines.append(
+                f"INSERT INTO review_tag (review_id, category_code, code) "
+                f"VALUES ((SELECT MAX(review_id) FROM review), '{category}', '{code}');"
+            )
+            tag_count += 1
+
+    sql_lines.append("")
+
+    elapsed = time.time() - t
+    tag_summary = {cat: codes for cat, codes in tags.items() if codes}
+    print(f"  [{i:03d}/{TOTAL_REVIEWS}] {cafe_name} | ★{rating} {sentiment} | 태그 {tag_count}개 ({elapsed:.2f}s)")
     print(f"  {content[:80]}...")
+    print(f"  태그: {tag_summary}")
     print("  " + "-" * 60)
     time.sleep(0.1)
 

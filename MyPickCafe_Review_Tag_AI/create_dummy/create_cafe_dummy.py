@@ -3,10 +3,9 @@ import time
 import ollama
 
 # -----------------------------------------------
-# 옵션: 생성할 카페 수
-TOTAL_CAFES = 20
+# 옵션: 생성할 카페 수 (create_cafeowner_dummy.py 의 CAFEOWNER_COUNT 와 반드시 동일하게 설정)
+CAFEOWNER_COUNT = 100
 # -----------------------------------------------
-OWNER_COUNT    = 10   # create_member_dummy.py 의 CAFEOWNER_COUNT 와 맞출 것
 
 CAFE_STYLES = [
     "모던하고 미니멀한 감성 카페 이름 (한글 또는 영문, 예: BLANK, 여백)",
@@ -43,15 +42,15 @@ def generate_cafe_name(style: str, idx: int) -> str:
                     'content': (
                         f"당신은 한국 카페 이름 생성기입니다.\n"
                         f"스타일: {style}\n"
-                        f"규칙: 15자 이내, 실제 유명 카페 이름 그대로 사용 금지, 카페 이름만 출력."
+                        f"규칙: 9자 이내, 실제 유명 카페 이름 그대로 사용 금지, 카페 이름만 출력."
                     ),
                 },
                 {'role': 'user', 'content': "카페 이름 하나 만들어줘."},
             ],
-            options={'temperature': 0.9, 'top_p': 0.95, 'num_predict': 20},
+            options={'temperature': 0.9, 'top_p': 0.95, 'num_predict': 20, 'seed': random.randint(1, 999999)},
         )
         raw = response['message']['content'].strip().strip('"\'').split('\n')[0]
-        return raw[:15] if raw else f"카페{idx}"
+        return raw[:9] if raw else f"카페{idx}"
     except Exception as e:
         print(f"  [경고] 카페명 생성 실패: {e}")
         return f"카페{idx}"
@@ -61,15 +60,15 @@ sql_lines  = ["-- Cafe Dummy Data", ""]
 cafe_names = []
 used_names: set = set()
 
-print(f"🚀 카페 더미 데이터 생성 시작 ({TOTAL_CAFES}개)")
+print(f"🚀 카페 더미 데이터 생성 시작 ({CAFEOWNER_COUNT}개)")
 
-for i in range(1, TOTAL_CAFES + 1):
+for i in range(1, CAFEOWNER_COUNT + 1):
     t     = time.time()
     style = random.choice(CAFE_STYLES)
     name  = generate_cafe_name(style, i)
 
     while name in used_names:
-        name = f"{name}{random.randint(1, 9)}"
+        name = f"{name[:9]}{random.randint(1, 9)}"
     used_names.add(name)
     cafe_names.append(name)
 
@@ -78,7 +77,7 @@ for i in range(1, TOTAL_CAFES + 1):
     lon     = round(base_lon + random.uniform(-0.005, 0.005), 6)
     address = f"{base_addr} {random.randint(1, 200)}-{random.randint(1, 50)}"
     phone   = f"02-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
-    owner_email = f"owner{((i-1) % OWNER_COUNT) + 1:03d}@test.com"
+    owner_email = f"owner{i:03d}@test.com"
 
     name_esc = name.replace("'", "''")
     addr_esc = address.replace("'", "''")
@@ -89,7 +88,7 @@ for i in range(1, TOTAL_CAFES + 1):
         f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
         f");"
     )
-    print(f"  [{i:02d}/{TOTAL_CAFES}] {name} | {address} ({time.time()-t:.2f}s)")
+    print(f"  [{i:03d}/{CAFEOWNER_COUNT}] {name} | {address} ({time.time()-t:.2f}s)")
     time.sleep(0.1)
 
 with open("cafe_dummy.sql", "w", encoding="utf-8") as f:
@@ -99,4 +98,4 @@ with open("cafe_dummy.sql", "w", encoding="utf-8") as f:
 with open("_cafe_names.txt", "w", encoding="utf-8") as f:
     f.write("\n".join(cafe_names))
 
-print(f"\n🎉 cafe_dummy.sql 저장 완료! (총 {len(cafe_names)}개)")
+print(f"\n🎉 cafe_dummy.sql 저장 완료! (총 {CAFEOWNER_COUNT}개)")
