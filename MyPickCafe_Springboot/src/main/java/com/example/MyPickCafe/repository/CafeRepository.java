@@ -29,4 +29,6 @@ public interface CafeRepository extends JpaRepository<Cafe, Long> {
 
     long countByStatus(CafeStatus status);
     boolean existsByAddress(String address);
+
+    List<Cafe> findByOwner_IdOrderByDateDesc(Long ownerId);
 }

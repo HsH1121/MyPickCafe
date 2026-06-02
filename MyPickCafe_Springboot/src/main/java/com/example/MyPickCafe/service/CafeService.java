@@ -215,6 +215,10 @@ public class CafeService {
         }
     }
 
+    public List<Cafe> findByOwnerId(Long ownerId) {
+        return cafeRepository.findByOwner_IdOrderByDateDesc(ownerId);
+    }
+
     @Transactional
     public void reject(Long cafeId) {
         changeStatus(cafeId, CafeStatus.REJECTED);
