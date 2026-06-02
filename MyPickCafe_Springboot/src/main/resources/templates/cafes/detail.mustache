@@ -73,13 +73,7 @@
               {{#favoriteCount}}{{favoriteCount}}명{{/favoriteCount}}{{^favoriteCount}}0명{{/favoriteCount}}
             </span>
             {{#isOwner}}
-              <button class="cg-btn-outline" type="button" id="ownerEditToggle">점주 편집</button>
-              <a class="cg-btn-outline" href="/cafes/{{id}}/edit">정보 수정</a>
-              <form method="post" action="/cafes/{{id}}/delete" style="display:inline">
-                {{#_csrf}}<input type="hidden" name="{{parameterName}}" value="{{token}}">{{/_csrf}}
-                <button class="cg-btn-outline cg-btn--danger" type="submit"
-                        onclick="return confirm('정말 삭제하시겠어요?')">삭제</button>
-              </form>
+              <a class="cg-btn-outline" href="/cafes/{{id}}/manage">카페 관리</a>
             {{/isOwner}}
           </div>
         </div>

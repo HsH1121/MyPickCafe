@@ -192,6 +192,16 @@ public class CafeController {
                 ))
                 .collect(Collectors.toList());
 
+        var cafeInfoOpt = cafeInfoService.findByCafeId(cafeId);
+        cafeInfoOpt.ifPresent(ci -> {
+            model.addAttribute("infoId",        ci.getId());
+            model.addAttribute("infoOpenTime",  ci.getOpenTime() != null  ? ci.getOpenTime()  : "");
+            model.addAttribute("infoCloseTime", ci.getCloseTime() != null ? ci.getCloseTime() : "");
+            model.addAttribute("infoHoliday",   ci.getHoliday() != null   ? ci.getHoliday()   : "");
+            model.addAttribute("infoNotice",    ci.getNotice() != null    ? ci.getNotice()    : "");
+            model.addAttribute("infoInfo",      ci.getInfo() != null      ? ci.getInfo()      : "");
+        });
+
         model.addAttribute("cafe",        cafe);
         model.addAttribute("cafePhotos",  photos);
         model.addAttribute("menus",       menus);
@@ -199,6 +209,24 @@ public class CafeController {
         model.addAttribute("isApproved",  cafe.isApproved());
         model.addAttribute("isRejected",  cafe.isRejected());
         return "cafes/manage";
+    }
+
+    /** 카페 삭제 */
+    @PreAuthorize("hasAnyRole('CAFEOWNER','ADMIN')")
+    @PostMapping("/{cafeId}/delete")
+    public String deleteCafe(@PathVariable Long cafeId, Authentication auth, RedirectAttributes ra) {
+        Cafe cafe = cafeService.findById(cafeId);
+        Member me = memberService.findByEmail(auth.getName());
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        boolean isOwner = cafe.getOwner() != null && cafe.getOwner().getId().equals(me.getId());
+        if (!isOwner && !isAdmin) {
+            ra.addFlashAttribute("flashInfo", "권한이 없습니다.");
+            return "redirect:/cafes/" + cafeId;
+        }
+        cafeService.delete(cafeId);
+        ra.addFlashAttribute("flashInfo", "카페가 삭제되었습니다.");
+        return "redirect:/member/me";
     }
 
     /** 카페 상세 */

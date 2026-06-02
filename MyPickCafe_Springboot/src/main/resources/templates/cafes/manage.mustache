@@ -43,6 +43,41 @@
       <p style="font-size:14px;color:var(--text-sub)">{{cafe.address}}</p>
     </div>
 
+    <!-- 기본 정보 편집 -->
+    <div class="cg-panel">
+      <div class="cg-panel__head">
+        <div><p class="cg-eyebrow">기본 정보</p><h2 class="cg-panel__title">소개 · 공지 · 영업 정보</h2></div>
+      </div>
+      <div class="cg-panel__body space-y">
+        <div class="cg-grid2">
+          <div class="field">
+            <div class="field__label">오픈 시간</div>
+            <input class="cg-input" id="infoOpenTime" type="time" value="{{infoOpenTime}}"/>
+          </div>
+          <div class="field">
+            <div class="field__label">마감 시간</div>
+            <input class="cg-input" id="infoCloseTime" type="time" value="{{infoCloseTime}}"/>
+          </div>
+          <div class="field">
+            <div class="field__label">휴무일</div>
+            <input class="cg-input" id="infoHoliday" maxlength="10" placeholder="예: 월요일" value="{{infoHoliday}}"/>
+          </div>
+          <div class="field">
+            <div class="field__label">공지사항</div>
+            <input class="cg-input" id="infoNotice" maxlength="20" placeholder="최대 20자" value="{{infoNotice}}"/>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field__label">카페 소개</div>
+          <textarea class="cg-input" id="infoInfo" rows="4" maxlength="500" placeholder="카페를 소개해주세요. (최대 500자)">{{infoInfo}}</textarea>
+        </div>
+        <div id="infoSaveMsg" style="font-size:13px;color:var(--accent);display:none">저장되었습니다.</div>
+        <div style="text-align:right">
+          <button type="button" id="btnSaveInfo" class="cg-btn">저장</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 카페 사진 관리 -->
     <div class="cg-panel">
       <div class="cg-panel__head">
@@ -144,7 +179,25 @@
     </div>
 
     <div class="cg-actions end">
-      <a href="/cafes/{{cafe.id}}" class="cg-btn-outline">카페 페이지로</a>
+      {{#isApproved}}<a href="/cafes/{{cafe.id}}" class="cg-btn-outline">카페 페이지로</a>{{/isApproved}}
+    </div>
+
+    <!-- 위험 구역 -->
+    <div class="cg-panel" style="border-color:#fca5a5">
+      <div class="cg-panel__head" style="border-bottom-color:#fca5a5">
+        <div><p class="cg-eyebrow" style="color:#dc2626">위험 구역</p><h2 class="cg-panel__title">카페 삭제</h2></div>
+      </div>
+      <div class="cg-panel__body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <p style="font-size:14px;color:var(--text-sub);margin:0">
+          카페를 삭제하면 사진, 메뉴, 리뷰 등 모든 데이터가 영구적으로 제거됩니다.
+        </p>
+        <form method="post" action="/cafes/{{cafe.id}}/delete">
+          {{#_csrf}}<input type="hidden" name="{{parameterName}}" value="{{token}}">{{/_csrf}}
+          <button class="cg-btn cg-btn--sm" type="submit"
+                  style="background:#dc2626;border-color:#dc2626"
+                  onclick="return confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')">카페 삭제</button>
+        </form>
+      </div>
     </div>
 
   </div>
@@ -219,6 +272,35 @@
   const CAFE_ID = {{cafe.id}};
   const token   = () => localStorage.getItem('accessToken');
   const headers = () => ({ 'Authorization': `Bearer ${token()}` });
+
+  // ── 기본 정보 저장 ──
+  document.getElementById('btnSaveInfo').addEventListener('click', async () => {
+    const payload = {
+      openTime:  document.getElementById('infoOpenTime').value,
+      closeTime: document.getElementById('infoCloseTime').value,
+      holiday:   document.getElementById('infoHoliday').value,
+      notice:    document.getElementById('infoNotice').value,
+      info:      document.getElementById('infoInfo').value,
+      cafe: { id: CAFE_ID }
+    };
+    const btn = document.getElementById('btnSaveInfo');
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/cafe-infos/upsert/${CAFE_ID}`, {
+        method: 'POST',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const msg = document.getElementById('infoSaveMsg');
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 2500);
+    } catch (e) {
+      alert('저장 실패: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   // ── 사진 업로드 ──
   const newPhotoInput  = document.getElementById('newPhotoInput');
