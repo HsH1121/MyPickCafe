@@ -29,8 +29,7 @@ public class Member {
     @Column(name = "password", nullable = false, length = 100)
     private String password;
 
-    // 닉네임 길이 8: 영문/숫자 8자 내 권장(한글은 바이트 초과 주의)
-    @Column(name = "nickname", nullable = false, unique = true, length = 8)
+    @Column(name = "nickname", nullable = false, unique = true, length = 20)
     private String nickname;
 
     @Column(name = "age")

@@ -149,6 +149,18 @@
         </a>
       </div>
 
+      {{#isMemberRole}}
+      <div class="cg-panel" style="border:1px solid var(--border)">
+        <div class="cg-panel__body" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:4px">카페 사장님이신가요?</div>
+            <div class="cg-muted" style="font-size:13px">사업자 등록증을 첨부해 카페를 등록하면 관리자 승인 후 노출됩니다.</div>
+          </div>
+          <a href="/cafes/new" class="cg-btn-outline cg-btn--sm" style="white-space:nowrap">카페 등록 신청</a>
+        </div>
+      </div>
+      {{/isMemberRole}}
+
     </section>
 
   </div>

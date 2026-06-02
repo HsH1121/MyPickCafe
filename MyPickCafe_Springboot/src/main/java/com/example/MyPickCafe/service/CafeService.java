@@ -106,13 +106,19 @@ public class CafeService {
         Member cafeOwner = memberRepository.findById(cafeOwnerId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 사용자입니다."));
 
-        // 2) 중복 방지
-        if (form.getName() != null && cafeRepository.existsByName(form.getName()))
+        // 2) 필수값 검증
+        if (form.getName() == null || form.getName().isBlank())
+            throw new IllegalArgumentException("카페명을 입력해주세요.");
+        if (form.getCode() == null || form.getCode().isBlank())
+            throw new IllegalArgumentException("카테고리를 선택해주세요.");
+
+        // 3) 중복 방지
+        if (cafeRepository.existsByName(form.getName()))
             throw new IllegalArgumentException("이미 존재하는 카페명입니다.");
         if (form.getNumber() != null && cafeRepository.existsByNumber(form.getNumber()))
             throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
 
-        // 3) 카페 엔티티 생성
+        // 4) 카페 엔티티 생성
         Cafe cafe = form.toEntity();
         cafe.setStatus(CafeStatus.PENDING);
         cafe.setOwner(cafeOwner);
@@ -200,6 +206,13 @@ public class CafeService {
     @Transactional
     public void approve(Long cafeId) {
         changeStatus(cafeId, CafeStatus.APPROVED);
+        Cafe c = cafeRepository.findById(cafeId)
+                .orElseThrow(() -> new IllegalArgumentException("Cafe not found: " + cafeId));
+        Member owner = c.getOwner();
+        if (owner != null && owner.getRoleKind() == com.example.MyPickCafe.domain.RoleKind.MEMBER) {
+            owner.setRoleKind(com.example.MyPickCafe.domain.RoleKind.CAFEOWNER);
+            memberRepository.save(owner);
+        }
     }
 
     @Transactional

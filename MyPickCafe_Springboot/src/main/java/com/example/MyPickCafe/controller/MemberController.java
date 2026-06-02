@@ -70,6 +70,7 @@ public class MemberController {
 
         // 좌측 네비 활성화
         model.addAttribute("nav_me", true);
+        model.addAttribute("isMemberRole", member.getRoleKind() == com.example.MyPickCafe.domain.RoleKind.MEMBER);
 
         return "member/mypage";
     }

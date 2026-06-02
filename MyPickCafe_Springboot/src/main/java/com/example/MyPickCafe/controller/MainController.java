@@ -1,9 +1,9 @@
 package com.example.MyPickCafe.controller;
 
 import com.example.MyPickCafe.dto.CafeCardForm;
+import com.example.MyPickCafe.dto.TagChipDto;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafePhoto;
-import com.example.MyPickCafe.entity.CafeTag;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.entity.Review;
 import com.example.MyPickCafe.service.CafePhotoService;
@@ -59,8 +59,10 @@ public class MainController {
                 })
                 .collect(Collectors.toList());
 
-        List<CafeTag> cafeTags = cafeTagService.findAll().stream()
+        List<TagChipDto> cafeTags = cafeTagService.findAll().stream()
                 .filter(Objects::nonNull)
+                .flatMap(t -> TagChipDto.fromCafeTag(t).stream())
+                .distinct()
                 .limit(24)
                 .collect(Collectors.toList());
 
@@ -96,7 +98,11 @@ public class MainController {
 
         List<Cafe> results = cafeService.searchApproved(q);
 
-        List<CafeTag> tags = cafeTagService.findAll().stream().limit(24).collect(Collectors.toList());
+        List<TagChipDto> tags = cafeTagService.findAll().stream()
+                .flatMap(t -> TagChipDto.fromCafeTag(t).stream())
+                .distinct()
+                .limit(24)
+                .collect(Collectors.toList());
         List<Review> recent = reviewService.findAll().stream()
                 .sorted(Comparator.comparing(Review::getCreatedAt,
                         Comparator.nullsLast(Comparator.naturalOrder())).reversed())

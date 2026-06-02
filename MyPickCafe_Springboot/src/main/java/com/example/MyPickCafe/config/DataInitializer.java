@@ -35,11 +35,22 @@ public class DataInitializer implements ApplicationRunner {
 
         /* ── 1. 회원 ── */
         Member admin  = save(member("admin@MyPickCafe.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "admin",   28, "M", RoleKind.ADMIN));
-        Member u1     = save(member("member1@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member1",   25, "M", RoleKind.CAFEOWNER));
-        Member u2     = save(member("member2@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member2",   30, "F", RoleKind.CAFEOWNER));
-        Member u3     = save(member("member3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member3",   22, "M", RoleKind.CAFEOWNER));
-        Member u4     = save(member("member4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member4",  27, "F", RoleKind.CAFEOWNER));
-        Member u5     = save(member("member5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member5",   35, "M", RoleKind.CAFEOWNER));
+        Member u1     = save(member("cafeowner1@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner1",   25, "M", RoleKind.CAFEOWNER));
+        Member u2     = save(member("cafeowner2@example.com",   "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner2",   30, "F", RoleKind.CAFEOWNER));
+        Member u3     = save(member("cafeowner3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner3",   22, "M", RoleKind.CAFEOWNER));
+        Member u4     = save(member("cafeowner4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner4",  27, "F", RoleKind.CAFEOWNER));
+        Member u5     = save(member("cafeowner5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "cafeowner5",   35, "M", RoleKind.CAFEOWNER));
+
+        save(member("member1@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member1",  23, "F", RoleKind.MEMBER));
+        save(member("member2@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member2",  26, "M", RoleKind.MEMBER));
+        save(member("member3@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member3",  31, "F", RoleKind.MEMBER));
+        save(member("member4@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member4",  19, "M", RoleKind.MEMBER));
+        save(member("member5@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member5",  28, "F", RoleKind.MEMBER));
+        save(member("member6@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member6",  34, "M", RoleKind.MEMBER));
+        save(member("member7@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member7",  21, "F", RoleKind.MEMBER));
+        save(member("member8@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member8",  29, "M", RoleKind.MEMBER));
+        save(member("member9@example.com",  "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member9",  24, "F", RoleKind.MEMBER));
+        save(member("member10@example.com", "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW", "member10", 32, "M", RoleKind.MEMBER));
 
         /* ── 2. 카페 (홍대·상수·합정 일대) ── */
         Cafe c1 = saveCafe(u1, "블루버드",  "서울 마포구 홍익로 5길 20",         37.5568, 126.9241, "02-333-1001", "DESSERT");

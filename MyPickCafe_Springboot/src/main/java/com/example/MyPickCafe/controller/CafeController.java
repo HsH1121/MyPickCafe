@@ -12,7 +12,6 @@ import com.example.MyPickCafe.service.*;
 import com.example.MyPickCafe.support.NotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -132,15 +131,15 @@ public class CafeController {
     }
 
     /** 신규 등록 폼 */
-    @PreAuthorize("hasAnyRole('CAFEOWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
     @GetMapping("/new")
     public String createCafeForm() {
         return "cafes/create";
     }
 
     /** 카페 등록 */
-    @PreAuthorize("hasAnyRole('CAFEOWNER','ADMIN')")
-    @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
+    @PostMapping("/create")
     public String createCafe(Authentication auth,
                              @Valid @ModelAttribute("form") CafeForm form,
                              @RequestParam(value = "cafePhotoFiles", required = false) List<MultipartFile> cafePhotoFiles,
@@ -158,8 +157,9 @@ public class CafeController {
             Long cafeId = cafeService.createCafe(me.getId(), form, cafePhotoFiles, bizDocFile);
             ra.addFlashAttribute("successMsg", "카페 등록 신청이 완료되었습니다. 사진과 메뉴를 추가해주세요.");
             return "redirect:/cafes/" + cafeId + "/manage";
-        } catch (IllegalArgumentException e) {
-            ra.addFlashAttribute("errorMsg", e.getMessage());
+        } catch (Exception e) {
+            String msg = (e.getMessage() != null) ? e.getMessage() : "카페 등록 중 오류가 발생했습니다.";
+            ra.addFlashAttribute("errorMsg", msg);
             return "redirect:/cafes/new";
         }
     }
@@ -246,6 +246,9 @@ public class CafeController {
         model.addAttribute("isOwner", isOwner);
         model.addAttribute("isAdmin", isAdmin);
         model.addAttribute("isLoggedIn", auth != null && auth.isAuthenticated());
+        model.addAttribute("cafeLat", cafe.getLat() != null ? cafe.getLat() : "");
+        model.addAttribute("cafeLon", cafe.getLon() != null ? cafe.getLon() : "");
+        model.addAttribute("hasLocation", cafe.getLat() != null && cafe.getLon() != null);
 
         // 5) CafeInfo 주입 (영업정보/소개/공지)
         var cafeInfoOpt = cafeInfoService.findByCafeId(cafeId);

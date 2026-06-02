@@ -60,8 +60,8 @@
 
           <div class="cg-actions">
             <a class="cg-btn-outline" href="tel:{{number}}">전화하기</a>
-            <a class="cg-btn-outline" target="_blank"
-               href="https://map.kakao.com/link/to/{{name}},{{lat}},{{lon}}">길찾기</a>
+            {{#hasLocation}}<a class="cg-btn-outline" target="_blank"
+               href="https://map.kakao.com/link/to/{{name}},{{cafeLat}},{{cafeLon}}">길찾기</a>{{/hasLocation}}
             <a class="cg-btn" href="#" data-review-modal data-cafe-id="{{id}}">리뷰 작성</a>
             <button type="button" id="favBtn"
                     class="cg-btn-outline"
@@ -129,7 +129,7 @@
       <div class="cg-panel__body" style="padding:0">
         {{#cafe}}
           <div id="map" class="cg-map" style="min-height:320px;border-radius:var(--r)"
-               data-lat="{{lat}}" data-lon="{{lon}}" data-name="{{name}}">
+               data-lat="{{cafeLat}}" data-lon="{{cafeLon}}" data-name="{{name}}">
             <p class="cg-muted">지도가 여기에 표시됩니다.</p>
           </div>
         {{/cafe}}
