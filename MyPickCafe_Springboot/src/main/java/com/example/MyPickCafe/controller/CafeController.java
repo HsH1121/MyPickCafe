@@ -165,7 +165,7 @@ public class CafeController {
     }
 
     /** 카페 관리 페이지 (사진/메뉴 추가) */
-    @PreAuthorize("hasAnyRole('CAFEOWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
     @GetMapping("/{cafeId}/manage")
     public String manageCafe(@PathVariable Long cafeId, Authentication auth, Model model) {
         Cafe cafe = cafeService.findById(cafeId);
@@ -212,7 +212,7 @@ public class CafeController {
     }
 
     /** 카페 삭제 */
-    @PreAuthorize("hasAnyRole('CAFEOWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
     @PostMapping("/{cafeId}/delete")
     public String deleteCafe(@PathVariable Long cafeId, Authentication auth, RedirectAttributes ra) {
         Cafe cafe = cafeService.findById(cafeId);
@@ -238,7 +238,6 @@ public class CafeController {
 
         // 0) 카페 존재 확인
         Cafe cafe = cafeService.findById(cafeId);
-        if (cafe == null) throw new NotFoundException("카페가 없습니다.");
 
         // 1) 대표 사진
         CafePhoto mainPhoto = cafePhotoService.getMainPhoto(cafeId);

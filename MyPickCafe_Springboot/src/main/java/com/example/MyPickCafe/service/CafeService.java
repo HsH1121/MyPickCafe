@@ -205,9 +205,10 @@ public class CafeService {
 
     @Transactional
     public void approve(Long cafeId) {
-        changeStatus(cafeId, CafeStatus.APPROVED);
         Cafe c = cafeRepository.findById(cafeId)
                 .orElseThrow(() -> new IllegalArgumentException("Cafe not found: " + cafeId));
+        c.setStatus(CafeStatus.APPROVED);
+        try { notificationService.notifyCafeStatus(c, CafeStatus.APPROVED); } catch (Exception ignore) {}
         Member owner = c.getOwner();
         if (owner != null && owner.getRoleKind() == com.example.MyPickCafe.domain.RoleKind.MEMBER) {
             owner.setRoleKind(com.example.MyPickCafe.domain.RoleKind.CAFEOWNER);
@@ -215,6 +216,7 @@ public class CafeService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<Cafe> findByOwnerId(Long ownerId) {
         return cafeRepository.findByOwner_IdOrderByDateDesc(ownerId);
     }
