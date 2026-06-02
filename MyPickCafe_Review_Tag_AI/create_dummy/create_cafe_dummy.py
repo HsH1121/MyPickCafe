@@ -56,14 +56,14 @@ def _generate_cafe_name(style: str, idx: int) -> str:
         return f"카페{idx}"
 
 
-def generate() -> tuple:
+def generate(count: int = CAFEOWNER_COUNT) -> tuple:
     sql_lines  = ["-- Cafe Dummy Data", ""]
     cafe_names = []
     used_names: set = set()
 
-    print(f"🚀 [2/4] 카페 더미 데이터 생성 시작 ({CAFEOWNER_COUNT}개)")
+    print(f"🚀 [2/4] 카페 더미 데이터 생성 시작 ({count}개)")
 
-    for i in range(1, CAFEOWNER_COUNT + 1):
+    for i in range(1, count + 1):
         t     = time.time()
         style = random.choice(CAFE_STYLES)
         name  = _generate_cafe_name(style, i)
@@ -89,8 +89,8 @@ def generate() -> tuple:
             f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
             f");"
         )
-        print(f"  [{i:03d}/{CAFEOWNER_COUNT}] {name} | {address} ({time.time()-t:.2f}s)")
+        print(f"  [{i:03d}/{count}] {name} | {address} ({time.time()-t:.2f}s)")
         time.sleep(0.1)
 
-    print(f"  ✅ 카페 {CAFEOWNER_COUNT}개 완료\n")
+    print(f"  ✅ 카페 {count}개 완료\n")
     return sql_lines, cafe_names

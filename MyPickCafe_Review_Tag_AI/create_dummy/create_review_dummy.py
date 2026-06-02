@@ -106,17 +106,17 @@ def _analyze_tags(content: str) -> dict:
         return {cat: [] for cat in ALLOWED_TAGS}
 
 
-def generate(cafe_names: list) -> list:
+def generate(cafe_names: list, total_reviews: int = TOTAL_REVIEWS, member_count: int = MEMBER_COUNT) -> list:
     sql_lines = ["-- Review + ReviewTag Dummy Data", ""]
-    print(f"🚀 [4/4] 리뷰 더미 데이터 생성 시작 ({TOTAL_REVIEWS}개)")
+    print(f"🚀 [4/4] 리뷰 더미 데이터 생성 시작 ({total_reviews}개)")
 
-    for i in range(1, TOTAL_REVIEWS + 1):
+    for i in range(1, total_reviews + 1):
         t            = time.time()
         rating       = random.choice([1, 2, 3, 4, 5])
         persona      = random.choice(REVIEWER_PERSONAS)
         features     = random.sample(CAFE_FEATURES, 2)
         cafe_name    = random.choice(cafe_names)
-        member_email = f"user{random.randint(1, MEMBER_COUNT):05d}@test.com"
+        member_email = f"user{random.randint(1, member_count):05d}@test.com"
 
         content   = _generate_review_content(cafe_name, rating, persona, features)
         sentiment = "GOOD" if rating >= 4 else "BAD" if rating <= 2 else random.choice(["GOOD", "BAD"])
@@ -148,11 +148,11 @@ def generate(cafe_names: list) -> list:
         sql_lines.append("")
 
         tag_summary = {cat: codes for cat, codes in tags.items() if codes}
-        print(f"  [{i:03d}/{TOTAL_REVIEWS}] {cafe_name} | ★{rating} {sentiment} | 태그 {tag_count}개 ({time.time()-t:.2f}s)")
+        print(f"  [{i:03d}/{total_reviews}] {cafe_name} | ★{rating} {sentiment} | 태그 {tag_count}개 ({time.time()-t:.2f}s)")
         print(f"  {content[:80]}...")
         print(f"  태그: {tag_summary}")
         print("  " + "-" * 60)
         time.sleep(0.1)
 
-    print(f"  ✅ 리뷰 {TOTAL_REVIEWS}개 완료\n")
+    print(f"  ✅ 리뷰 {total_reviews}개 완료\n")
     return sql_lines
