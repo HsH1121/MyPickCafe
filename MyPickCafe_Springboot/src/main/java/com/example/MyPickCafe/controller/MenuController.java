@@ -30,7 +30,7 @@ public class MenuController {
     private final FileStorageService storage;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('CAFEOWNER','ADMIN')")
+    @PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")
     public ResponseEntity<?> createWithPhoto(
             @RequestParam("cafeId") Long cafeId,
             @RequestParam("name") String name,
@@ -45,7 +45,7 @@ public class MenuController {
 
         String url = null;
         if (file != null && !file.isEmpty()) {
-            url = storage.save(file, "menus");
+            url = storage.save(file, "menus/" + cafe.getId());
         }
 
         Menu m = new Menu();
