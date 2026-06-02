@@ -1,0 +1,4 @@
+all_dummy.sql
+__pycache__/
+*.pyc
+.idea/
