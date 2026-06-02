@@ -3,7 +3,7 @@ import time
 import ollama
 
 # -----------------------------------------------
-# 옵션: 생성할 카페 수 (create_cafeowner_dummy.py 의 CAFEOWNER_COUNT 와 반드시 동일하게 설정)
+# 옵션: 생성할 카페 수 (CAFEOWNER_COUNT 와 반드시 동일하게 설정)
 CAFEOWNER_COUNT = 100
 # -----------------------------------------------
 
@@ -32,7 +32,7 @@ SEOUL_LOCATIONS = [
 ]
 
 
-def generate_cafe_name(style: str, idx: int) -> str:
+def _generate_cafe_name(style: str, idx: int) -> str:
     try:
         response = ollama.chat(
             model='qwen2.5:7b',
@@ -56,46 +56,41 @@ def generate_cafe_name(style: str, idx: int) -> str:
         return f"카페{idx}"
 
 
-sql_lines  = ["-- Cafe Dummy Data", ""]
-cafe_names = []
-used_names: set = set()
+def generate() -> tuple:
+    sql_lines  = ["-- Cafe Dummy Data", ""]
+    cafe_names = []
+    used_names: set = set()
 
-print(f"🚀 카페 더미 데이터 생성 시작 ({CAFEOWNER_COUNT}개)")
+    print(f"🚀 [2/4] 카페 더미 데이터 생성 시작 ({CAFEOWNER_COUNT}개)")
 
-for i in range(1, CAFEOWNER_COUNT + 1):
-    t     = time.time()
-    style = random.choice(CAFE_STYLES)
-    name  = generate_cafe_name(style, i)
+    for i in range(1, CAFEOWNER_COUNT + 1):
+        t     = time.time()
+        style = random.choice(CAFE_STYLES)
+        name  = _generate_cafe_name(style, i)
 
-    while name in used_names:
-        name = f"{name[:9]}{random.randint(1, 9)}"
-    used_names.add(name)
-    cafe_names.append(name)
+        while name in used_names:
+            name = f"{name[:9]}{random.randint(1, 9)}"
+        used_names.add(name)
+        cafe_names.append(name)
 
-    base_addr, base_lat, base_lon = random.choice(SEOUL_LOCATIONS)
-    lat     = round(base_lat + random.uniform(-0.005, 0.005), 6)
-    lon     = round(base_lon + random.uniform(-0.005, 0.005), 6)
-    address = f"{base_addr} {random.randint(1, 200)}-{random.randint(1, 50)}"
-    phone   = f"02-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
-    owner_email = f"owner{i:03d}@test.com"
+        base_addr, base_lat, base_lon = random.choice(SEOUL_LOCATIONS)
+        lat     = round(base_lat + random.uniform(-0.005, 0.005), 6)
+        lon     = round(base_lon + random.uniform(-0.005, 0.005), 6)
+        address = f"{base_addr} {random.randint(1, 200)}-{random.randint(1, 50)}"
+        phone   = f"02-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
+        owner_email = f"owner{i:03d}@test.com"
 
-    name_esc = name.replace("'", "''")
-    addr_esc = address.replace("'", "''")
-    sql_lines.append(
-        f"INSERT INTO cafe (owner_id, name, address, lat, lon, number, date, views, code, status) "
-        f"VALUES ("
-        f"(SELECT member_id FROM member WHERE email = '{owner_email}'), "
-        f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
-        f");"
-    )
-    print(f"  [{i:03d}/{CAFEOWNER_COUNT}] {name} | {address} ({time.time()-t:.2f}s)")
-    time.sleep(0.1)
+        name_esc = name.replace("'", "''")
+        addr_esc = address.replace("'", "''")
+        sql_lines.append(
+            f"INSERT INTO cafe (owner_id, name, address, lat, lon, number, date, views, code, status) "
+            f"VALUES ("
+            f"(SELECT member_id FROM member WHERE email = '{owner_email}'), "
+            f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
+            f");"
+        )
+        print(f"  [{i:03d}/{CAFEOWNER_COUNT}] {name} | {address} ({time.time()-t:.2f}s)")
+        time.sleep(0.1)
 
-with open("cafe_dummy.sql", "w", encoding="utf-8") as f:
-    f.write("\n".join(sql_lines))
-
-# review_dummy.py 에서 카페명 참조용
-with open("_cafe_names.txt", "w", encoding="utf-8") as f:
-    f.write("\n".join(cafe_names))
-
-print(f"\n🎉 cafe_dummy.sql 저장 완료! (총 {CAFEOWNER_COUNT}개)")
+    print(f"  ✅ 카페 {CAFEOWNER_COUNT}개 완료\n")
+    return sql_lines, cafe_names
