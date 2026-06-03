@@ -110,6 +110,7 @@ public class SecurityConfig {
                         .requestMatchers("/css/**", "/js/**", "/images/**", "/img/**", "/favicon.ico").permitAll()
                         .requestMatchers("/uploads/**", "/files/**").permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/signup").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/chatbot/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/cafes/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
 

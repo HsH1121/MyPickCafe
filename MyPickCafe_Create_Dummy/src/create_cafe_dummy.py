@@ -1,15 +1,9 @@
+import glob
+import os
 import random
-import time
-import ollama
+import re
 
-CAFE_STYLES = [
-    "모던하고 미니멀한 감성 카페 이름 (한글 또는 영문, 예: BLANK, 여백)",
-    "따뜻하고 아늑한 분위기 카페 이름 (예: 온기, 포근한오후)",
-    "레트로·빈티지 감성 카페 이름 (예: 필름현상소, 67년산커피)",
-    "자연·식물 테마 카페 이름 (예: 초록의시간, 이끼정원)",
-    "젊고 트렌디한 카페 이름 (예: BEANS CO., 플레이그라운드)",
-    "서울 골목 로컬 감성 카페 이름 (예: 연남상회, 익선다실)",
-]
+NAVER_CSV_DIR = os.path.join(os.path.dirname(__file__), 'naver')
 
 SEOUL_LOCATIONS = [
     ("서울시 마포구 연남동",     37.5650, 126.9249),
@@ -27,47 +21,24 @@ SEOUL_LOCATIONS = [
 ]
 
 
-def _generate_cafe_name(style: str, idx: int) -> str:
-    try:
-        response = ollama.chat(
-            model='qwen2.5:7b',
-            messages=[
-                {
-                    'role': 'system',
-                    'content': (
-                        f"당신은 한국 카페 이름 생성기입니다.\n"
-                        f"스타일: {style}\n"
-                        f"규칙: 9자 이내, 실제 유명 카페 이름 그대로 사용 금지, 카페 이름만 출력."
-                    ),
-                },
-                {'role': 'user', 'content': "카페 이름 하나 만들어줘."},
-            ],
-            options={'temperature': 0.9, 'top_p': 0.95, 'num_predict': 20, 'seed': random.randint(1, 999999)},
-        )
-        raw = response['message']['content'].strip().strip('"\'').split('\n')[0]
-        return raw[:9] if raw else f"카페{idx}"
-    except Exception as e:
-        print(f"  [경고] 카페명 생성 실패: {e}")
-        return f"카페{idx}"
+def _load_cafe_names() -> list:
+    csv_files = sorted(glob.glob(os.path.join(NAVER_CSV_DIR, '*.csv')))
+    names = []
+    for f in csv_files:
+        filename = os.path.basename(f)
+        name = re.sub(r'^\d+_', '', filename).replace('_리뷰.csv', '')
+        names.append(name)
+    return names
 
 
-def generate(count: int) -> tuple:
+def generate() -> tuple:
+    cafe_names = _load_cafe_names()
+    count      = len(cafe_names)
     sql_lines  = ["-- Cafe Dummy Data", ""]
-    cafe_names = []
-    used_names: set = set()
 
     print(f"🚀 [2/4] 카페 더미 데이터 생성 시작 ({count}개)")
 
-    for i in range(1, count + 1):
-        t     = time.time()
-        style = random.choice(CAFE_STYLES)
-        name  = _generate_cafe_name(style, i)
-
-        while name in used_names:
-            name = f"{name[:9]}{random.randint(1, 9)}"
-        used_names.add(name)
-        cafe_names.append(name)
-
+    for i, name in enumerate(cafe_names, 1):
         base_addr, base_lat, base_lon = random.choice(SEOUL_LOCATIONS)
         lat     = round(base_lat + random.uniform(-0.005, 0.005), 6)
         lon     = round(base_lon + random.uniform(-0.005, 0.005), 6)
@@ -84,8 +55,8 @@ def generate(count: int) -> tuple:
             f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
             f");"
         )
-        print(f"  [{i:03d}/{count}] {name} | {address} ({time.time()-t:.2f}s)")
-        time.sleep(0.1)
+        if i % 10 == 0 or i == count:
+            print(f"  [{i:03d}/{count}] {name} | {address}")
 
-    print(f"  ✅ 카페 {count}개 완료\n")
+    print(f"  ✅ cafe {count}건 완료\n")
     return sql_lines, cafe_names

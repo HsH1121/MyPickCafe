@@ -14,7 +14,8 @@ def generate(count: int) -> list:
             f"INSERT INTO member (email, password, nickname, age, gender, role_kind, created_at, token_version) "
             f"VALUES ('user{i:05d}@test.com', '{TEST_PASSWORD_HASH}', 'user{i:05d}', {age}, '{gender}', 'MEMBER', SYSTIMESTAMP, 0);"
         )
-        print(f"  [{i:05d}/{count}] user{i:05d}")
+        if i % 10 == 0 or i == count:
+            print(f"  [{i:05d}/{count}] user{i:05d}")
 
-    print(f"  ✅ 리뷰 작성자 {count}명 완료\n")
+    print(f"  ✅ member(MEMBER) {count}건 완료\n")
     return sql_lines

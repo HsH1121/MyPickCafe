@@ -9,7 +9,7 @@ from schemas import ReviewRequest
 # 허용 태그 목록
 # ---------------------------------------------------------------------------
 ALLOWED_FACILITY_TAGS: frozenset[str] = frozenset({
-    "WIFI", "PLUG", "CHAIR", "TERRACE", "PET", "PARKING",
+    "WIFI", "PLUG", "TERRACE", "PET", "PARKING",
 })
 ALLOWED_MENU_TAGS: frozenset[str] = frozenset({
     "AMERICANO", "LATTE", "COLDBREW", "BAKERY", "CAKE", "ADE", "DESSERT",
@@ -30,7 +30,7 @@ SYSTEM_PROMPT: str = """당신은 한국 카페 리뷰를 분석하는 전문 AI
 리뷰 텍스트에서 카페 특징을 4개 카테고리 태그로 분류하고 전체 감성을 JSON으로 반환합니다.
 
 ## 반환 가능한 태그 목록 (이 목록 외의 태그는 절대 사용 금지)
-- facilityTags: WIFI(와이파이), PLUG(콘센트/충전), CHAIR(좌석 여유), TERRACE(야외/테라스), PET(반려동물 동반), PARKING(주차)
+- facilityTags: WIFI(와이파이), PLUG(콘센트/충전), TERRACE(야외/테라스), PET(반려동물 동반), PARKING(주차)
 - menuTags:     AMERICANO(아메리카노), LATTE(라떼), COLDBREW(콜드브루), BAKERY(베이커리/빵), CAKE(케이크), ADE(에이드), DESSERT(디저트)
 - purposeTags:  STUDY(공부/작업), TALK(대화/수다), REST(휴식/혼자), DATE(데이트/연인), PHOTO(사진/인스타), MEETING(비즈니스/모임)
 - moodTags:     MODERN(모던/미니멀), RETRO(레트로/빈티지), NATURE(자연/식물/우드), INDUSTRIAL(인더스트리얼), CLASSIC(클래식/고급스러운)
@@ -66,7 +66,7 @@ SYSTEM_PROMPT: str = """당신은 한국 카페 리뷰를 분석하는 전문 AI
 
 ### 예시 4
 입력: 리뷰="주차도 편하고 넓어서 미팅하기 좋았어요. 빵도 맛있어요."
-출력: {{"facilityTags": ["PARKING", "CHAIR"], "menuTags": ["BAKERY"], "purposeTags": ["MEETING"], "moodTags": [], "sentiment": "GOOD"}}
+출력: {{"facilityTags": ["PARKING"], "menuTags": ["BAKERY"], "purposeTags": ["MEETING"], "moodTags": [], "sentiment": "GOOD"}}
 
 
 ### 예시 5
@@ -87,7 +87,8 @@ SYSTEM_PROMPT: str = """당신은 한국 카페 리뷰를 분석하는 전문 AI
 
 ## 출력 규칙 (엄격 준수)
 - 반드시 유효한 JSON 객체 하나만 반환하세요. 설명·부연 텍스트 절대 금지.
-- facilityTags / menuTags / purposeTags / moodTags 키를 모두 포함하세요. 해당 없으면 빈 배열 [].
+- facilityTags / menuTags / purposeTags / moodTags 키를 모두 포함하세요.
+- 각 카테고리의 태그는 0개(빈 배열 [])일 수도 있고, 1개 또는 여러 개일 수도 있습니다. 리뷰에서 언급된 만큼만 포함하세요.
 - 각 태그는 반드시 위 목록에 있는 값만 사용하세요.
 - "sentiment": "GOOD" | "BAD" | null (중립·혼재일 때만 null, 그 외에는 반드시 "GOOD" 또는 "BAD")
 """

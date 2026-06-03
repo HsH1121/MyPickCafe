@@ -1,0 +1,13 @@
+{
+  "btns": [],
+  "spans": [
+    {
+      "cls": "place_blind",
+      "text": "이전 페이지"
+    },
+    {
+      "cls": "place_blind",
+      "text": "페이지 닫기"
+    }
+  ]
+}
