@@ -13,3 +13,15 @@ class ReviewAnalyzeResponse(BaseModel):
     menuTags:     list[str] = []
     purposeTags:  list[str] = []
     moodTags:     list[str] = []
+
+
+class ChatbotRequest(BaseModel):
+    query: str
+
+
+class ChatbotResult(BaseModel):
+    cafeId:   int
+    cafeName: str
+    address:  str
+    snippet:  str
+    score:    float

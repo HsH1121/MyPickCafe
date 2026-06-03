@@ -3,20 +3,23 @@ MyPickCafe Review Tag AI — FastAPI 중계 서버
 Spring Boot 백엔드 ↔ 로컬 AI 모델 서버 사이를 중계합니다.
 
 엔드포인트:
-  POST /review/analyze  — 리뷰 분석 (태그 + 감성 추출)
-  GET  /health          — 헬스체크
+  POST /review/analyze     — 리뷰 분석 (태그 + 감성 추출)
+  POST /chatbot/recommend  — AI 카페 추천 (RAG)
+  POST /chatbot/reindex    — ChromaDB 재인덱싱
+  GET  /health             — 헬스체크
 """
 
 from __future__ import annotations
 import logging
 
-import httpx
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from config import Settings
-from schemas import ReviewRequest, ReviewAnalyzeResponse
+from schemas import ReviewRequest, ReviewAnalyzeResponse, ChatbotRequest, ChatbotResult
 from ollama_client import call_ollama
+from chatbot_rag import CafeRAG
 from prompt_builder import (
     SYSTEM_PROMPT,
     build_user_message,
@@ -33,10 +36,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 settings = Settings()
+cafe_rag: CafeRAG | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global cafe_rag
+    cafe_rag = CafeRAG(settings)
+    if cafe_rag.indexed_count == 0:
+        logger.info("ChromaDB가 비어 있어 초기 인덱싱을 시작합니다.")
+        try:
+            n = cafe_rag.index_from_db()
+            logger.info("초기 인덱싱 완료: %d건", n)
+        except Exception as e:
+            logger.error("초기 인덱싱 실패 (챗봇 비활성): %s", e)
+    else:
+        logger.info("ChromaDB 기존 인덱스 로드: %d건", cafe_rag.indexed_count)
+    yield
+
+
 app = FastAPI(
     title="MyPickCafe Review Tag AI",
     description="카페 리뷰 분석 중계 서버 (Spring Boot ↔ AI 모델 서버)",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 _VALID_SENTIMENTS: frozenset[str] = frozenset({"GOOD", "BAD"})
@@ -119,8 +142,40 @@ async def analyze_review(request: ReviewRequest) -> ReviewAnalyzeResponse:
 
 
 # ---------------------------------------------------------------------------
+# 챗봇 추천 (RAG)
+# ---------------------------------------------------------------------------
+@app.post(
+    "/chatbot/recommend",
+    response_model=list[ChatbotResult],
+    summary="AI 카페 추천 — RAG (임베딩 검색 + Qwen 생성)",
+)
+async def chatbot_recommend(request: ChatbotRequest) -> list[ChatbotResult]:
+    if cafe_rag is None:
+        raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
+    results = await cafe_rag.recommend(request.query)
+    return [ChatbotResult(**r) for r in results]
+
+
+@app.post("/chatbot/reindex", summary="ChromaDB 재인덱싱 (DB 변경 시 수동 갱신)")
+async def chatbot_reindex() -> JSONResponse:
+    if cafe_rag is None:
+        raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
+    try:
+        n = cafe_rag.index_from_db()
+        return JSONResponse({"indexed": n})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
 # 헬스체크
 # ---------------------------------------------------------------------------
 @app.get("/health", summary="헬스체크")
 async def health_check() -> JSONResponse:
-    return JSONResponse({"status": "ok", "model": settings.ollama_model})
+    indexed = cafe_rag.indexed_count if cafe_rag else 0
+    return JSONResponse({
+        "status":  "ok",
+        "model":   settings.ollama_model,
+        "embed":   settings.embed_model,
+        "indexed": indexed,
+    })

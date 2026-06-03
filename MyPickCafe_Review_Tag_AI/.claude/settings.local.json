@@ -2,7 +2,27 @@
   "permissions": {
     "allow": [
       "PowerShell(cd \"D:\\\\GoCafe\\\\GoCafe_Review_Tag_AI\"; Get-ChildItem -File | Where-Object { $_.Name -notlike \".gitignore\" } | Select-Object Name, Length | Format-Table -AutoSize)",
-      "PowerShell(Rename-Item *)"
+      "PowerShell(Rename-Item *)",
+      "Bash(pip show *)",
+      "Bash(.venv\\\\Scripts\\\\pip show *)",
+      "PowerShell(.venv\\\\Scripts\\\\pip.exe show ollama 2>&1)",
+      "PowerShell(ollama *)",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" -c \"import ollama; print\\('ollama imported ok'\\)\" 2>&1)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(nvidia-smi *)",
+      "PowerShell(& \"D:\\\\MyPickCafe\\\\MyPickCafe_Review_Tag_AI\\\\.venv\\\\Scripts\\\\pip.exe\" list)",
+      "Read(//mnt/d/MyPickCafe/**)",
+      "Bash(.venv/Scripts/pip list *)",
+      "Read(//mnt/**)",
+      "Read(//d//**)",
+      "PowerShell(java *)",
+      "PowerShell(& \"D:\\\\MyPickCafe\\\\MyPickCafe_Review_Tag_AI\\\\.venv\\\\Scripts\\\\pip.exe\" install \"ollama>=0.4.0\")",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(python -m pip install \"ollama>=0.4.0\")",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git rm *)"
     ]
   }
 }
