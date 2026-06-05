@@ -149,6 +149,8 @@ for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
 
     with open(CHECKPOINT_CAFE, 'a', encoding='utf-8') as f:
         f.write(owner_sql + "\n" + cafe_sql + "\n\n")
+    print(f"  [{idx:03d}/{cafe_count}] ✅ [2/3] {cafe_name} 카페 저장 완료")
+
     with open(CHECKPOINT_REVIEW, 'a', encoding='utf-8') as f:
         f.write("\n".join(review_sql) + "\n")
         f.write(f"-- DONE:{filename}\n\n")
@@ -157,8 +159,5 @@ for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
     done_cafes.add(filename)
 
     _elapsed = time.time() - _start
-    print(f"  [{idx:03d}/{cafe_count}] {cafe_name} 완료 ({_elapsed:.1f}s)")
-
-print(f"  ✅ [2/3] 카페사장 + 카페 완료: {cafe_count}개")
-print(f"  ✅ [3/3] 리뷰 완료: {total_review:,}건\n")
+    print(f"  [{idx:03d}/{cafe_count}] ✅ [3/3] {cafe_name} 리뷰 저장 완료 ({_elapsed:.1f}s)")
 print(f"🎉 생성 완료 → {CHECKPOINT_MEMBER}, {CHECKPOINT_CAFE}, {CHECKPOINT_REVIEW}")
