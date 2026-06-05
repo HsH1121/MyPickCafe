@@ -11,3 +11,15 @@ class ChatbotResult(BaseModel):
     address:  str
     snippet:  str
     score:    float
+
+
+class IndexOneRequest(BaseModel):
+    reviewId:   int
+    cafeId:     int
+    cafeName:   str
+    address:    str
+    reviewText: str
+
+
+class DeleteOneRequest(BaseModel):
+    reviewId: int

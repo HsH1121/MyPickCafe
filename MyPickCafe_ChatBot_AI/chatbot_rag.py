@@ -78,6 +78,24 @@ class CafeRAG:
         logger.info("ChromaDB 인덱싱 완료: %d건", total)
         return total
 
+    def index_one(self, review_id: int, cafe_id: int, cafe_name: str, address: str, review: str) -> None:
+        """단일 리뷰를 ChromaDB에 upsert."""
+        doc = f"{cafe_name} | {address} | {review}"
+        self._col.upsert(
+            documents=[doc],
+            metadatas=[{
+                "cafe_id":   str(cafe_id),
+                "cafe_name": cafe_name,
+                "address":   address,
+                "review":    review[:500],
+            }],
+            ids=[f"review_{review_id}"],
+        )
+
+    def delete_one(self, review_id: int) -> None:
+        """단일 리뷰를 ChromaDB에서 삭제."""
+        self._col.delete(ids=[f"review_{review_id}"])
+
     @property
     def indexed_count(self) -> int:
         return self._col.count()

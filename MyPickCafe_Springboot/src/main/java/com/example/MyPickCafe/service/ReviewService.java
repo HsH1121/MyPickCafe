@@ -5,6 +5,7 @@ import com.example.MyPickCafe.domain.FacilityTag;
 import com.example.MyPickCafe.domain.MenuTag;
 import com.example.MyPickCafe.domain.MoodTag;
 import com.example.MyPickCafe.domain.PurposeTag;
+import com.example.MyPickCafe.dto.ChatbotIndexRequest;
 import com.example.MyPickCafe.dto.MyReviewItem;
 import com.example.MyPickCafe.dto.PythonTagRequest;
 import com.example.MyPickCafe.dto.PythonTagResponse;
@@ -49,6 +50,7 @@ public class ReviewService {
     private final CafeTagRepository cafeTagRepository;
     private final MemberRepository memberRepository;
     private final PythonTagClient pythonTagClient;
+    private final ChatbotClient chatbotClient;
 
     @Transactional(readOnly = true)
     public List<Review> findAll() {
@@ -86,6 +88,7 @@ public class ReviewService {
         Review review = reviewRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Review not found: " + id));
         Long cafeId = review.getCafe().getId();
+        chatbotClient.deleteOneAsync(id);
         reviewRepository.deleteById(id);
         syncCafeTopTags(cafeId);
     }
@@ -187,6 +190,14 @@ public class ReviewService {
             }
         });
 
+        chatbotClient.indexOneAsync(ChatbotIndexRequest.builder()
+                .reviewId(saved.getId())
+                .cafeId(saved.getCafe().getId())
+                .cafeName(saved.getCafe().getName())
+                .address(saved.getCafe().getAddress())
+                .reviewText(saved.getContent())
+                .build());
+
         return saved;
     }
 
@@ -224,6 +235,14 @@ public class ReviewService {
                 }
             }
         });
+
+        chatbotClient.indexOneAsync(ChatbotIndexRequest.builder()
+                .reviewId(saved.getId())
+                .cafeId(saved.getCafe().getId())
+                .cafeName(saved.getCafe().getName())
+                .address(saved.getCafe().getAddress())
+                .reviewText(saved.getContent())
+                .build());
 
         return saved;
     }

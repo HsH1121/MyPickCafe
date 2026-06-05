@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.dto.ChatbotIndexRequest;
 import com.example.MyPickCafe.dto.ChatbotResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
@@ -20,13 +22,9 @@ public class ChatbotClient {
 
     private final RestTemplate restTemplate;
 
-    @Value("${python.api.base-url}")
+    @Value("${chatbot.api.base-url}")
     private String baseUrl;
 
-    /**
-     * FastAPI POST /chatbot/recommend 를 호출해 추천 카페 목록을 반환한다.
-     * 호출 실패 시 빈 리스트를 반환한다.
-     */
     public List<ChatbotResult> recommend(String query) {
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -43,8 +41,30 @@ public class ChatbotClient {
                 return res.getBody();
             }
         } catch (Exception e) {
-            log.warn("챗봇 API 호출 실패: {}", e.getMessage());
+            log.warn("챗봇 추천 API 호출 실패 (무시됨): {}", e.getMessage());
         }
         return Collections.emptyList();
+    }
+
+    /** 리뷰 1건을 ChromaDB에 비동기 upsert — 리뷰 작성/수정 시 호출 */
+    public void indexOneAsync(ChatbotIndexRequest req) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                restTemplate.postForEntity(baseUrl + "/chatbot/index-one", req, Void.class);
+            } catch (Exception e) {
+                log.warn("Chatbot index-one 호출 실패 (무시됨): {}", e.getMessage());
+            }
+        });
+    }
+
+    /** 리뷰 1건을 ChromaDB에서 비동기 삭제 — 리뷰 삭제 시 호출 */
+    public void deleteOneAsync(Long reviewId) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                restTemplate.postForEntity(baseUrl + "/chatbot/delete-one", Map.of("reviewId", reviewId), Void.class);
+            } catch (Exception e) {
+                log.warn("Chatbot delete-one 호출 실패 (무시됨): {}", e.getMessage());
+            }
+        });
     }
 }
