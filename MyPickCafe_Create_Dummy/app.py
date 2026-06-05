@@ -23,9 +23,11 @@ CHECKPOINT_MEMBER = "member_dummy.sql"
 CHECKPOINT_CAFE   = "cafe_dummy.sql"
 CHECKPOINT_REVIEW = "review_dummy.sql"
 
-# --- Ollama 연결 확인 ---
+# --- [1/4] Ollama 연결 확인 ---
+print("🚀 [1/4] Ollama 연결 확인 중...")
 try:
     ollama.list()
+    print("  ✅ Ollama 연결 확인\n")
 except Exception:
     print("❌ Ollama가 실행되지 않았습니다.")
     print("   'ollama serve' 명령어 또는 Ollama 앱을 실행한 뒤 다시 시도하세요.")
@@ -94,9 +96,9 @@ print("  더미 데이터 생성기 설정")
 print(f"  · 리뷰 작성자 수    : {MEMBER_COUNT}명")
 print(f"  · 리뷰 최소 글자 수 : {MIN_REVIEW_LENGTH}자")
 print()
-print("  리뷰 집계 중...", end="", flush=True)
+print("🚀 [2/4] 리뷰 집계 중...", end="", flush=True)
 _review_total, _cafe_total = create_review_dummy.count_reviews(MIN_REVIEW_LENGTH)
-print(f"\r  · {MIN_REVIEW_LENGTH}자 이상 리뷰    : 총 {_review_total:,}건 / {_cafe_total}개 카페")
+print(f"\r  ✅ [2/4] {MIN_REVIEW_LENGTH}자 이상 리뷰 : 총 {_review_total:,}건 / {_cafe_total}개 카페\n")
 if done_cafes:
     print(f"  · 체크포인트        : {len(done_cafes)}/{cafe_count} 완료, {new_count}개 남음")
 print("=" * 50)
@@ -127,7 +129,7 @@ if done_cafes and os.path.exists(CHECKPOINT_REVIEW):
         total_review = sum(1 for line in f if line.startswith("INSERT INTO review "))
 
 mode = "이어서" if done_cafes else "시작"
-print(f"🚀 [2/2] 카페 + 리뷰 생성 {mode} ({new_count}개 카페 남음 / 최소 {MIN_REVIEW_LENGTH}자)")
+print(f"🚀 [4/4] 카페 + 리뷰 생성 {mode} ({new_count}개 카페 남음 / 최소 {MIN_REVIEW_LENGTH}자)")
 
 for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
     if filename in done_cafes:
