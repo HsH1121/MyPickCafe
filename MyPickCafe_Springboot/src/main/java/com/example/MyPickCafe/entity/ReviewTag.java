@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;
@@ -21,6 +22,7 @@ public class ReviewTag {
     @Column(name = "review_tag_id", nullable = false, unique = true)
     private Long id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "review_id", nullable = false)
     @OnDelete(action = OnDeleteAction.CASCADE)

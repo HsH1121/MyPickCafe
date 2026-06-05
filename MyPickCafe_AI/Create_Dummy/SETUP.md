@@ -37,7 +37,7 @@
 ## Python 가상환경 (.venv)
 
 ```
-위치: D:\MyPickCafe\MyPickCafe_Review_Tag_AI\.venv
+위치: D:\MyPickCafe\MyPickCafe_AI\Create_Dummy\.venv
 베이스: C:\Users\eju20\AppData\Local\Programs\Python\Python311\python.exe
 ```
 
