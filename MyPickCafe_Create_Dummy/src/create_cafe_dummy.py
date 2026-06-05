@@ -21,42 +21,28 @@ SEOUL_LOCATIONS = [
 ]
 
 
-def _load_cafe_names() -> list:
+def list_cafes() -> list[tuple[str, str]]:
+    """(csv_filename, cafe_name) 목록 반환 (정렬 순서 고정)"""
     csv_files = sorted(glob.glob(os.path.join(NAVER_CSV_DIR, '*.csv')))
-    names = []
-    for f in csv_files:
-        filename = os.path.basename(f)
-        name = re.sub(r'^\d+_', '', filename).replace('_리뷰.csv', '')
-        names.append(name)
-    return names
+    return [
+        (os.path.basename(f), re.sub(r'^\d+_', '', os.path.basename(f)).replace('_리뷰.csv', ''))
+        for f in csv_files
+    ]
 
 
-def generate() -> tuple:
-    cafe_names = _load_cafe_names()
-    count      = len(cafe_names)
-    sql_lines  = ["-- Cafe Dummy Data", ""]
-
-    print(f"🚀 [2/4] 카페 더미 데이터 생성 시작 ({count}개)")
-
-    for i, name in enumerate(cafe_names, 1):
-        base_addr, base_lat, base_lon = random.choice(SEOUL_LOCATIONS)
-        lat     = round(base_lat + random.uniform(-0.005, 0.005), 6)
-        lon     = round(base_lon + random.uniform(-0.005, 0.005), 6)
-        address = f"{base_addr} {random.randint(1, 200)}-{random.randint(1, 50)}"
-        phone   = f"02-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
-        owner_email = f"owner{i:03d}@test.com"
-
-        name_esc = name.replace("'", "''")
-        addr_esc = address.replace("'", "''")
-        sql_lines.append(
-            f"INSERT INTO cafe (owner_id, name, address, lat, lon, number, date, views, code, status) "
-            f"VALUES ("
-            f"(SELECT member_id FROM member WHERE email = '{owner_email}'), "
-            f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
-            f");"
-        )
-        if i % 10 == 0 or i == count:
-            print(f"  [{i:03d}/{count}] {name} | {address}")
-
-    print(f"  ✅ cafe {count}건 완료\n")
-    return sql_lines, cafe_names
+def generate_one(cafe_name: str, owner_num: int) -> str:
+    """단일 카페 INSERT SQL 반환"""
+    base_addr, base_lat, base_lon = random.choice(SEOUL_LOCATIONS)
+    lat     = round(base_lat + random.uniform(-0.005, 0.005), 6)
+    lon     = round(base_lon + random.uniform(-0.005, 0.005), 6)
+    address = f"{base_addr} {random.randint(1, 200)}-{random.randint(1, 50)}"
+    phone   = f"02-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
+    name_esc = cafe_name.replace("'", "''")
+    addr_esc = address.replace("'", "''")
+    return (
+        f"INSERT INTO cafe (owner_id, name, address, lat, lon, number, date, views, code, status) "
+        f"VALUES ("
+        f"(SELECT member_id FROM member WHERE email = 'owner{owner_num:03d}@test.com'), "
+        f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
+        f");"
+    )
