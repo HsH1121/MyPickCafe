@@ -5,7 +5,7 @@ TEST_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lN
 
 def generate(count: int) -> list:
     sql_lines = ["-- Member Dummy Data (공통 비밀번호: test1234)", ""]
-    print(f"🚀 멤버 더미 데이터 생성 시작 ({count}명)")
+    print(f"🚀 [1/2] 멤버 더미 데이터 생성 시작 ({count}명)")
 
     for i in range(1, count + 1):
         age    = random.randint(15, 49)
