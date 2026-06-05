@@ -2,6 +2,8 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
 import os
+import glob
+import re
 import time
 
 from src import create_cafe_dummy
@@ -15,21 +17,33 @@ MEMBER_COUNT      = 200  # 리뷰 작성자 수 (카페 수는 naver CSV 파일 
 MIN_REVIEW_LENGTH = 70   # 포함할 리뷰 최소 글자 수
 # -----------------------------------------------
 
-CHECKPOINT_DONE   = "review_checkpoint.txt"
+CHECKPOINT_DIR    = "checkpoints"
 CHECKPOINT_MEMBER = "member_partial.sql"
-CHECKPOINT_CAFE   = "cafe_partial.sql"
-CHECKPOINT_REVIEW = "review_partial.sql"
 OUTPUT_FILE       = "all_dummy.sql"
 
-# --- 체크포인트 상태 로드 ---
-done_cafes: set[str] = set()
-if os.path.exists(CHECKPOINT_DONE):
-    with open(CHECKPOINT_DONE, 'r', encoding='utf-8') as f:
-        done_cafes = {line.strip() for line in f if line.strip()}
+os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
+# 이전 실행에서 중단된 임시 파일 정리
+for _tmp in glob.glob(os.path.join(CHECKPOINT_DIR, "*.tmp")):
+    os.remove(_tmp)
+    print(f"  [정리] 불완전한 임시 파일 삭제: {os.path.basename(_tmp)}")
+
+
+def _checkpoint_path(filename: str) -> str:
+    return os.path.join(CHECKPOINT_DIR, filename.replace('.csv', '') + ".sql")
+
+
+def _owner_num(filename: str) -> int:
+    """파일명 숫자 접두사를 owner_num으로 사용 — 정렬 순서 변경에도 안정적"""
+    m = re.match(r'^(\d+)_', filename)
+    return int(m.group(1)) if m else 0
+
+
+# 완료 여부를 체크포인트 파일 존재 여부로 판단
 all_cafes  = create_cafe_dummy.list_cafes()   # [(filename, cafe_name), ...]
 cafe_count = len(all_cafes)
-new_count  = sum(1 for fn, _ in all_cafes if fn not in done_cafes)
+done_cafes = {fn for fn, _ in all_cafes if os.path.exists(_checkpoint_path(fn))}
+new_count  = cafe_count - len(done_cafes)
 
 # --- 설정 출력 ---
 print("=" * 50)
@@ -54,19 +68,12 @@ else:
         f.write("-- Member Dummy Data (공통 비밀번호: test1234)\n\n")
         f.write("\n".join(member_sql[2:]))  # 헤더 2줄 제외하고 저장
 
-# --- 체크포인트 파일 초기화 (최초 시작 시만) ---
-if not os.path.exists(CHECKPOINT_CAFE):
-    with open(CHECKPOINT_CAFE, 'w', encoding='utf-8') as f:
-        f.write("-- CafeOwner + Cafe Dummy Data\n\n")
-if not os.path.exists(CHECKPOINT_REVIEW):
-    with open(CHECKPOINT_REVIEW, 'w', encoding='utf-8') as f:
-        f.write("-- Review + ReviewTag Dummy Data\n\n")
-
-# --- 2. 카페 + 리뷰 통합 루프 (카페 단위 체크포인트) ---
-total_review = 0
-if done_cafes and os.path.exists(CHECKPOINT_REVIEW):
-    with open(CHECKPOINT_REVIEW, 'r', encoding='utf-8') as f:
-        total_review = sum(1 for line in f if line.startswith("INSERT INTO review "))
+# --- 2. 카페 + 리뷰 통합 루프 ---
+total_review = sum(
+    sum(1 for line in open(_checkpoint_path(fn), encoding='utf-8')
+        if line.startswith("INSERT INTO review "))
+    for fn, _ in all_cafes if fn in done_cafes
+)
 
 mode = "이어서" if done_cafes else "시작"
 print(f"🚀 카페 + 리뷰 생성 {mode} ({new_count}개 카페 남음 / 최소 {MIN_REVIEW_LENGTH}자)")
@@ -76,27 +83,24 @@ for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
         print(f"  [{idx:03d}/{cafe_count}] {cafe_name} 스킵 (완료됨)")
         continue
 
-    owner_num = idx
+    owner_num = _owner_num(filename)
     _start    = time.time()
 
-    # 카페 사장 + 카페 SQL 생성
-    owner_sql = create_cafeowner_dummy.generate_one(owner_num)
-    cafe_sql  = create_cafe_dummy.generate_one(cafe_name, owner_num)
-
-    # 리뷰 SQL 생성 (AI 태그 추출)
+    owner_sql  = create_cafeowner_dummy.generate_one(owner_num)
+    cafe_sql   = create_cafe_dummy.generate_one(cafe_name, owner_num)
     csv_path   = os.path.join(create_review_dummy.NAVER_CSV_DIR, filename)
     review_sql = create_review_dummy.generate_for_cafe(
         csv_path, cafe_name, MEMBER_COUNT, MIN_REVIEW_LENGTH
     )
     total_review += sum(1 for line in review_sql if line.startswith("INSERT INTO review "))
 
-    # 체크포인트에 즉시 저장
-    with open(CHECKPOINT_CAFE, 'a', encoding='utf-8') as f:
+    # 임시 파일에 모두 쓴 뒤 rename — 중단돼도 중복 없음
+    done_path = _checkpoint_path(filename)
+    tmp_path  = done_path + ".tmp"
+    with open(tmp_path, 'w', encoding='utf-8') as f:
         f.write(owner_sql + "\n" + cafe_sql + "\n\n")
-    with open(CHECKPOINT_REVIEW, 'a', encoding='utf-8') as f:
         f.write("\n".join(review_sql) + "\n")
-    with open(CHECKPOINT_DONE, 'a', encoding='utf-8') as f:
-        f.write(filename + "\n")
+    os.replace(tmp_path, done_path)  # 원자적 저장
     done_cafes.add(filename)
 
     _elapsed = time.time() - _start
@@ -114,10 +118,14 @@ all_sql = [
     "",
 ]
 
-for checkpoint_file in [CHECKPOINT_MEMBER, CHECKPOINT_CAFE, CHECKPOINT_REVIEW]:
-    with open(checkpoint_file, 'r', encoding='utf-8') as f:
+with open(CHECKPOINT_MEMBER, 'r', encoding='utf-8') as f:
+    all_sql += f.read().splitlines()
+all_sql.append("")
+
+for fn, _ in all_cafes:
+    with open(_checkpoint_path(fn), 'r', encoding='utf-8') as f:
         all_sql += f.read().splitlines()
-    all_sql.append("")
+all_sql.append("")
 
 all_sql += ["", "COMMIT;"]
 
