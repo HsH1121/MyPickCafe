@@ -8,7 +8,7 @@ def generate_one(owner_num: int) -> str:
     age    = random.randint(35, 55)
     gender = random.choice(['M', 'F'])
     return (
-        f"INSERT INTO member (email, password, nickname, age, gender, role_kind, created_at, token_version) "
+        f'INSERT INTO "member" (email, password, nickname, age, gender, role_kind, created_at, token_version) '
         f"VALUES ('owner{owner_num:03d}@test.com', '{TEST_PASSWORD_HASH}', 'owner{owner_num:03d}', "
         f"{age}, '{gender}', 'CAFEOWNER', SYSTIMESTAMP, 0);"
     )
