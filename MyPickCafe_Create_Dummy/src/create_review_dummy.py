@@ -187,20 +187,20 @@ def generate_for_cafe(
             bad_val       = 1 if sentiment == 'BAD'  else 0
 
             sql_lines.append(
-                f'INSERT INTO "review" (cafe_id, member_id, content, good, bad, sentiment, created_at) '
-                f'VALUES ('
-                f'(SELECT cafe_id FROM "cafe" WHERE name = \'{cafe_name_esc}\'), '
-                f'(SELECT member_id FROM "member" WHERE email = \'{member_email}\'), '
-                f'\'{content_esc}\', {good_val}, {bad_val}, {sentiment_val}, SYSTIMESTAMP'
-                f');'
+                f"INSERT INTO review (cafe_id, member_id, content, good, bad, sentiment, created_at) "
+                f"VALUES ("
+                f"(SELECT cafe_id FROM cafe WHERE name = '{cafe_name_esc}'), "
+                f"(SELECT member_id FROM member WHERE email = '{member_email}'), "
+                f"'{content_esc}', {good_val}, {bad_val}, {sentiment_val}, SYSTIMESTAMP"
+                f");"
             )
             for category, codes in tags.items():
                 if category not in ALLOWED_TAGS or not codes:
                     continue
                 for code in codes:
                     sql_lines.append(
-                        f'INSERT INTO "review_tag" (review_id, category_code, code) '
-                        f'VALUES ((SELECT MAX(review_id) FROM "review"), \'{category}\', \'{code}\');'
+                        f"INSERT INTO review_tag (review_id, category_code, code) "
+                        f"VALUES ((SELECT MAX(review_id) FROM review), '{category}', '{code}');"
                     )
             sql_lines.append("")
 
