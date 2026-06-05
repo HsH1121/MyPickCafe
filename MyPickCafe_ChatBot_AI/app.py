@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 from config import Settings
-from schemas import ChatbotRequest, ChatbotResult
+from schemas import ChatbotRequest, ChatbotResult, IndexOneRequest, DeleteOneRequest
 from chatbot_rag import CafeRAG
 
 logging.basicConfig(
@@ -63,6 +63,34 @@ async def chatbot_recommend(request: ChatbotRequest) -> list[ChatbotResult]:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
     results = await cafe_rag.recommend(request.query)
     return [ChatbotResult(**r) for r in results]
+
+
+@app.post("/chatbot/index-one", summary="단일 리뷰 ChromaDB upsert")
+async def chatbot_index_one(request: IndexOneRequest) -> JSONResponse:
+    if cafe_rag is None:
+        raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
+    try:
+        cafe_rag.index_one(
+            review_id=request.reviewId,
+            cafe_id=request.cafeId,
+            cafe_name=request.cafeName,
+            address=request.address,
+            review=request.reviewText,
+        )
+        return JSONResponse({"indexed": request.reviewId})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chatbot/delete-one", summary="단일 리뷰 ChromaDB 삭제")
+async def chatbot_delete_one(request: DeleteOneRequest) -> JSONResponse:
+    if cafe_rag is None:
+        raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
+    try:
+        cafe_rag.delete_one(request.reviewId)
+        return JSONResponse({"deleted": request.reviewId})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/chatbot/reindex", summary="ChromaDB 재인덱싱 (DB 변경 시 수동 갱신)")
