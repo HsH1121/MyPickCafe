@@ -14,14 +14,14 @@ from src import create_review_dummy
 
 # -----------------------------------------------
 # 옵션: 생성 횟수 설정
-MEMBER_COUNT      = 200  # 리뷰 작성자 수 (카페 수는 naver CSV 파일 수로 자동 결정)
+MEMBER_COUNT      = 100  # 리뷰 작성자 수 (카페 수는 naver CSV 파일 수로 자동 결정)
 MIN_REVIEW_LENGTH = 70   # 포함할 리뷰 최소 글자 수
 # -----------------------------------------------
 
 CHECKPOINT_DONE   = "review_checkpoint.txt"
-CHECKPOINT_MEMBER = "member_partial.sql"
-CHECKPOINT_CAFE   = "cafe_partial.sql"
-CHECKPOINT_REVIEW = "review_partial.sql"
+CHECKPOINT_MEMBER = "member_dummy.sql"
+CHECKPOINT_CAFE   = "cafe_dummy.sql"
+CHECKPOINT_REVIEW = "review_dummy.sql"
 
 # --- Ollama 연결 확인 ---
 try:
