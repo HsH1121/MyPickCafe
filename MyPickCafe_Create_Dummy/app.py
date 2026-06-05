@@ -127,7 +127,7 @@ if done_cafes and os.path.exists(CHECKPOINT_REVIEW):
         total_review = sum(1 for line in f if line.startswith("INSERT INTO review "))
 
 mode = "이어서" if done_cafes else "시작"
-print(f"🚀 카페 + 리뷰 생성 {mode} ({new_count}개 카페 남음 / 최소 {MIN_REVIEW_LENGTH}자)")
+print(f"🚀 [2/2] 카페 + 리뷰 생성 {mode} ({new_count}개 카페 남음 / 최소 {MIN_REVIEW_LENGTH}자)")
 
 for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
     if filename in done_cafes:
