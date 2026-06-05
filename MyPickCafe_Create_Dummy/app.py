@@ -6,6 +6,8 @@ import glob
 import re
 import time
 
+import ollama
+
 from src import create_cafe_dummy
 from src import create_cafeowner_dummy
 from src import create_user_dummy
@@ -22,6 +24,14 @@ CHECKPOINT_MEMBER = "member_partial.sql"
 OUTPUT_FILE       = "all_dummy.sql"
 
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+
+# --- Ollama 연결 확인 ---
+try:
+    ollama.list()
+except Exception:
+    print("❌ Ollama가 실행되지 않았습니다.")
+    print("   'ollama serve' 명령어 또는 Ollama 앱을 실행한 뒤 다시 시도하세요.")
+    sys.exit(1)
 
 # 이전 실행에서 중단된 임시 파일 정리
 for _tmp in glob.glob(os.path.join(CHECKPOINT_DIR, "*.tmp")):
