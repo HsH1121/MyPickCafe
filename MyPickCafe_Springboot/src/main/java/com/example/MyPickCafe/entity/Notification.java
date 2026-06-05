@@ -6,7 +6,7 @@ import lombok.Getter; import lombok.Setter; import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity @Getter @Setter @NoArgsConstructor
-@Table(name="notification", indexes=@Index(columnList="recipient_id,createdAt"))
+@Table(name="notification", indexes=@Index(columnList="recipient_id,created_at"))
 public class Notification {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

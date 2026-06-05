@@ -43,10 +43,10 @@
         @Column(name = "lon")
         private Double lon;
 
-        @Column(name = "number", nullable = false, unique = true, length = 15)
+        @Column(name = "phone", nullable = false, unique = true, length = 15)
         private String number;
 
-        @Column(name = "date", nullable = false)
+        @Column(name = "registered_at", nullable = false)
         private LocalDateTime date;
 
         @Column(name = "views", nullable = false)
