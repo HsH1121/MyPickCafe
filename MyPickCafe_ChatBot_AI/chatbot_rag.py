@@ -48,35 +48,42 @@ class CafeRAG:
     # 인덱싱
     # ------------------------------------------------------------------
     def index_from_db(self) -> int:
-        """DB 리뷰를 ChromaDB에 upsert. 기존 데이터는 덮어씀."""
+        """DB 리뷰 중 아직 ChromaDB에 없는 것만 임베딩+저장."""
         rows = fetch_reviews_for_index(self.settings)
         if not rows:
             logger.warning("인덱싱할 리뷰가 없습니다.")
             return 0
 
+        existing_ids = set(self._col.get(include=[])["ids"])
+
         documents, metadatas, ids = [], [], []
         for r in rows:
-            doc = f"{r['cafe_name']} | {r['address']} | {r['review']}"
-            documents.append(doc)
+            rid = f"review_{r['review_id']}"
+            if rid in existing_ids:
+                continue
+            documents.append(f"{r['cafe_name']} | {r['address']} | {r['review']}")
             metadatas.append({
                 "cafe_id":   str(r["cafe_id"]),
                 "cafe_name": r["cafe_name"],
                 "address":   r["address"],
-                "review":    r["review"][:500],  # ChromaDB 메타 값 길이 제한
+                "review":    r["review"][:500],
             })
-            ids.append(f"review_{r['review_id']}")
+            ids.append(rid)
+
+        if not ids:
+            logger.info("새로 인덱싱할 리뷰가 없습니다. (기존 %d건)", len(existing_ids))
+            return 0
 
         batch = 500
-        for i in range(0, len(documents), batch):
-            self._col.upsert(
+        for i in range(0, len(ids), batch):
+            self._col.add(
                 documents=documents[i : i + batch],
                 metadatas=metadatas[i : i + batch],
                 ids=ids[i : i + batch],
             )
 
-        total = len(documents)
-        logger.info("ChromaDB 인덱싱 완료: %d건", total)
-        return total
+        logger.info("ChromaDB 인덱싱 완료: 신규 %d건 추가 (기존 %d건)", len(ids), len(existing_ids))
+        return len(ids)
 
     def index_one(self, review_id: int, cafe_id: int, cafe_name: str, address: str, review: str) -> None:
         """단일 리뷰를 ChromaDB에 upsert."""
