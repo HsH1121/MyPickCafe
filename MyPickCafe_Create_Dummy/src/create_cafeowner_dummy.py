@@ -1,6 +1,6 @@
 import random
 
-TEST_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lN07"
+TEST_PASSWORD_HASH = "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW"
 
 
 def generate_one(owner_num: int) -> str:

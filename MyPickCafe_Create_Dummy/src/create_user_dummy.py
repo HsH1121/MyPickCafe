@@ -1,11 +1,10 @@
 import random
 
-TEST_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lN07"
+TEST_PASSWORD_HASH = "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW"
 
 
 def generate(count: int) -> list:
-    sql_lines = ["-- Member Dummy Data (공통 비밀번호: test1234)", ""]
-    print(f"  멤버 더미 데이터 생성 중 ({count}명)...")
+    sql_lines = []
 
     for i in range(1, count + 1):
         age    = random.randint(15, 49)
@@ -15,5 +14,4 @@ def generate(count: int) -> list:
             f"VALUES ('user{i:05d}@test.com', '{TEST_PASSWORD_HASH}', 'user{i:05d}', {age}, '{gender}', 'MEMBER', SYSTIMESTAMP, 0);"
         )
 
-    print(f"  ✅ [1/3] 멤버 {count}건 완료\n")
     return sql_lines
