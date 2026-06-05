@@ -114,10 +114,10 @@ async def analyze_review(request: ReviewRequest) -> ReviewAnalyzeResponse:
             logger.warning("%s 허용 목록 외 태그 제외: %s", key, excluded)
         return filtered
 
-    facility_tags = _extract_tags("facilityTags", ALLOWED_FACILITY_TAGS)
-    menu_tags     = _extract_tags("menuTags",     ALLOWED_MENU_TAGS)
-    purpose_tags  = _extract_tags("purposeTags",  ALLOWED_PURPOSE_TAGS)
-    mood_tags     = _extract_tags("moodTags",     ALLOWED_MOOD_TAGS)
+    facility_tags = _extract_tags("FACILITY", ALLOWED_FACILITY_TAGS)
+    menu_tags     = _extract_tags("MENU",     ALLOWED_MENU_TAGS)
+    purpose_tags  = _extract_tags("PURPOSE",  ALLOWED_PURPOSE_TAGS)
+    mood_tags     = _extract_tags("MOOD",     ALLOWED_MOOD_TAGS)
 
     # ── 4. sentiment 검증 ──────────────────────────────────────────────────
     ai_sentiment = raw.get("sentiment")
@@ -129,15 +129,15 @@ async def analyze_review(request: ReviewRequest) -> ReviewAnalyzeResponse:
         final_sentiment = ai_sentiment
 
     logger.info(
-        "분석 완료 — reviewId=%d, facility=%s, menu=%s, purpose=%s, mood=%s, sentiment=%s",
+        "분석 완료 — reviewId=%d, FACILITY=%s, MENU=%s, PURPOSE=%s, MOOD=%s, sentiment=%s",
         request.reviewId, facility_tags, menu_tags, purpose_tags, mood_tags, final_sentiment,
     )
     return ReviewAnalyzeResponse(
         sentiment=final_sentiment,
-        facilityTags=facility_tags,
-        menuTags=menu_tags,
-        purposeTags=purpose_tags,
-        moodTags=mood_tags,
+        FACILITY=facility_tags,
+        MENU=menu_tags,
+        PURPOSE=purpose_tags,
+        MOOD=mood_tags,
     )
 
 

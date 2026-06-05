@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     model_api_url:  str = "http://localhost:11434"
-    ollama_model:   str = "qwen2.5:7b"
+    ollama_model:   str = "qwen2.5:14b"
     ollama_timeout: int = 60
     embed_model:    str = "nomic-embed-text"
 

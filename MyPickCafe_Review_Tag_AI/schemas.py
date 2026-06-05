@@ -8,11 +8,11 @@ class ReviewRequest(BaseModel):
 
 
 class ReviewAnalyzeResponse(BaseModel):
-    sentiment:    Optional[str] = None  # "GOOD" | "BAD" | null
-    facilityTags: list[str] = []
-    menuTags:     list[str] = []
-    purposeTags:  list[str] = []
-    moodTags:     list[str] = []
+    sentiment: Optional[str] = None  # "GOOD" | "BAD" | null
+    FACILITY:  list[str] = []
+    MENU:      list[str] = []
+    PURPOSE:   list[str] = []
+    MOOD:      list[str] = []
 
 
 class ChatbotRequest(BaseModel):
