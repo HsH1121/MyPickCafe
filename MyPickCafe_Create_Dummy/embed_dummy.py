@@ -20,8 +20,6 @@ print()
 try:
     res = requests.get(f"{CHATBOT_URL}/health", timeout=5)
     res.raise_for_status()
-    data = res.json()
-    print(f"  ✅ 챗봇 서버 연결 확인 (현재 인덱스: {data.get('indexed', 0):,}건)")
 except Exception:
     print(f"❌ 챗봇 서버({CHATBOT_URL})에 연결할 수 없습니다.")
     print("   MyPickCafe_ChatBot_AI 디렉터리에서 아래 명령어를 실행하세요:")
@@ -34,8 +32,7 @@ print("🚀 Oracle DB → ChromaDB 임베딩 시작... (시간이 걸릴 수 있
 try:
     res = requests.post(f"{CHATBOT_URL}/chatbot/reindex", timeout=1800)
     res.raise_for_status()
-    indexed = res.json().get("indexed", "?")
-    print(f"🎉 임베딩 완료: {indexed:,}건")
+    pass
 except Exception as e:
     print(f"❌ 임베딩 실패: {e}")
     sys.exit(1)
