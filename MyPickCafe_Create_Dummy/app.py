@@ -66,7 +66,7 @@ def _load_done_cafes() -> set[str]:
                     cafe_lines = f.readlines()
                 done_count = len(done)
                 # 완료된 카페 수만큼의 INSERT 블록만 유지
-                cafe_block_count = sum(1 for l in cafe_lines if l.startswith('INSERT INTO "member"') and 'owner' in l)
+                cafe_block_count = sum(1 for l in cafe_lines if l.startswith('INSERT INTO member') and 'owner' in l)
                 if cafe_block_count > done_count:
                     # 초과분 제거: done_count 번째 owner INSERT 이후 잘라냄
                     kept, count = [], 0
@@ -163,10 +163,10 @@ print(f"  ✅ 전체 완료: 카페 {cafe_count}개, 리뷰 {total_review:,}건\
 # --- 3. 최종 SQL 조합 ---
 all_sql = [
     "-- 기존 데이터 초기화 (FK 순서 역순)",
-    'DELETE FROM "review_tag";',
-    'DELETE FROM "review";',
-    'DELETE FROM "cafe";',
-    'DELETE FROM "member";',
+    "DELETE FROM review_tag;",
+    "DELETE FROM review;",
+    "DELETE FROM cafe;",
+    "DELETE FROM member;",
     "",
 ]
 
