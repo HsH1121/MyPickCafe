@@ -22,7 +22,6 @@ CHECKPOINT_DONE   = "review_checkpoint.txt"
 CHECKPOINT_MEMBER = "member_partial.sql"
 CHECKPOINT_CAFE   = "cafe_partial.sql"
 CHECKPOINT_REVIEW = "review_partial.sql"
-OUTPUT_FILE       = "all_dummy.sql"
 
 # --- Ollama 연결 확인 ---
 try:
@@ -159,26 +158,4 @@ for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
     print(f"  [{idx:03d}/{cafe_count}] {cafe_name} 완료 ({_elapsed:.1f}s)")
 
 print(f"  ✅ 전체 완료: 카페 {cafe_count}개, 리뷰 {total_review:,}건\n")
-
-# --- 3. 최종 SQL 조합 ---
-all_sql = [
-    "-- 기존 데이터 초기화 (FK 순서 역순)",
-    "DELETE FROM review_tag;",
-    "DELETE FROM review;",
-    "DELETE FROM cafe;",
-    "DELETE FROM member;",
-    "",
-]
-
-for checkpoint_file in [CHECKPOINT_MEMBER, CHECKPOINT_CAFE, CHECKPOINT_REVIEW]:
-    with open(checkpoint_file, 'r', encoding='utf-8') as f:
-        content = re.sub(r'-- DONE:.*\n', '', f.read())
-        all_sql += content.splitlines()
-    all_sql.append("")
-
-all_sql += ["", "COMMIT;"]
-
-with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-    f.write("\n".join(all_sql))
-
-print(f"🎉 전체 더미 데이터 생성 완료 → {OUTPUT_FILE}")
+print(f"🎉 생성 완료 → {CHECKPOINT_MEMBER}, {CHECKPOINT_CAFE}, {CHECKPOINT_REVIEW}")
