@@ -129,7 +129,7 @@ if done_cafes and os.path.exists(CHECKPOINT_REVIEW):
         total_review = sum(1 for line in f if line.startswith("INSERT INTO review "))
 
 mode = "이어서" if done_cafes else "시작"
-print(f"🚀 [2/3] 카페사장 + 카페 생성 / [3/3] 리뷰 생성 {mode} ({new_count}개 카페 남음 / 최소 {MIN_REVIEW_LENGTH}자)")
+print(f"  카페사장 + 카페 + 리뷰 생성 {mode} ({new_count}개 카페 남음 / 최소 {MIN_REVIEW_LENGTH}자)")
 
 for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
     if filename in done_cafes:
@@ -159,5 +159,6 @@ for idx, (filename, cafe_name) in enumerate(all_cafes, 1):
     _elapsed = time.time() - _start
     print(f"  [{idx:03d}/{cafe_count}] {cafe_name} 완료 ({_elapsed:.1f}s)")
 
-print(f"  ✅ 전체 완료: 카페 {cafe_count}개, 리뷰 {total_review:,}건\n")
+print(f"  ✅ [2/3] 카페사장 + 카페 완료: {cafe_count}개")
+print(f"  ✅ [3/3] 리뷰 완료: {total_review:,}건\n")
 print(f"🎉 생성 완료 → {CHECKPOINT_MEMBER}, {CHECKPOINT_CAFE}, {CHECKPOINT_REVIEW}")
