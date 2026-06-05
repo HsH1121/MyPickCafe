@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -10,9 +11,17 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 public class PythonTagResponse {
-    private String       sentiment;    // "GOOD" | "BAD" | null
-    private List<String> facilityTags; // e.g. ["WIFI", "PLUG"]
-    private List<String> menuTags;     // e.g. ["AMERICANO", "CAKE"]
-    private List<String> purposeTags;  // e.g. ["STUDY"]
-    private List<String> moodTags;     // e.g. ["MODERN"]
+    private String       sentiment;
+
+    @JsonProperty("FACILITY")
+    private List<String> facilityTags;
+
+    @JsonProperty("MENU")
+    private List<String> menuTags;
+
+    @JsonProperty("PURPOSE")
+    private List<String> purposeTags;
+
+    @JsonProperty("MOOD")
+    private List<String> moodTags;
 }

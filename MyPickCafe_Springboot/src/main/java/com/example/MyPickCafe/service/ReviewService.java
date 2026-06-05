@@ -26,6 +26,7 @@ import com.example.MyPickCafe.support.NotFoundException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -274,18 +275,16 @@ public class ReviewService {
     }
 
     private void saveEnumTags(Review saved, PythonTagResponse res) {
-        if (res.getFacilityTags() != null)
-            for (String val : res.getFacilityTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "FACILITY", val.trim().toUpperCase()));
-        if (res.getMenuTags() != null)
-            for (String val : res.getMenuTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "MENU", val.trim().toUpperCase()));
-        if (res.getPurposeTags() != null)
-            for (String val : res.getPurposeTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "PURPOSE", val.trim().toUpperCase()));
-        if (res.getMoodTags() != null)
-            for (String val : res.getMoodTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "MOOD", val.trim().toUpperCase()));
+        Map.of(
+            "FACILITY", res.getFacilityTags() != null ? res.getFacilityTags() : List.of(),
+            "MENU",     res.getMenuTags()     != null ? res.getMenuTags()     : List.of(),
+            "PURPOSE",  res.getPurposeTags()  != null ? res.getPurposeTags()  : List.of(),
+            "MOOD",     res.getMoodTags()     != null ? res.getMoodTags()     : List.of()
+        ).forEach((category, codes) ->
+            codes.forEach(val ->
+                reviewTagRepository.save(new ReviewTag(null, saved, category, val.trim().toUpperCase()))
+            )
+        );
     }
 
 }
