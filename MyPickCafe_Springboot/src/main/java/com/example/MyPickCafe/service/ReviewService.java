@@ -36,7 +36,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -119,18 +118,10 @@ public class ReviewService {
         Long cafeId = (cafe != null ? cafe.getId() : null);
         String cafeName = (cafe != null ? cafe.getName() : "(알 수 없음)");
 
-        // 카페 사진 url
-        String cafeMainPhotoUrl = cafePhotoRepository.findMainPhoto(cafe.getId()).getUrl();
-        try {
-            // 예시: c.getCafeThumb() 가 있으면 /images/cafe/{file} 로 만든다
-            var method = Cafe.class.getMethod("getCafeThumb");
-            Object v = (cafe != null ? method.invoke(cafe) : null);
-            if (v != null) {
-                String s = String.valueOf(v);
-                if (!s.isBlank()) cafeMainPhotoUrl = "/images/cafe/" + s;
-            }
-        } catch (Exception ignore) {
-            // 필드가 없으면 null -> 템플릿에서 NO IMG
+        String cafeMainPhotoUrl = null;
+        if (cafe != null) {
+            var photo = cafePhotoRepository.findMainPhoto(cafe.getId());
+            cafeMainPhotoUrl = (photo != null) ? photo.getUrl() : null;
         }
 
         return new MyReviewItem(
@@ -294,12 +285,12 @@ public class ReviewService {
     }
 
     private void saveEnumTags(Review saved, PythonTagResponse res) {
-        Map.of(
-            "FACILITY", res.getFacilityTags() != null ? res.getFacilityTags() : List.of(),
-            "MENU",     res.getMenuTags()     != null ? res.getMenuTags()     : List.of(),
-            "PURPOSE",  res.getPurposeTags()  != null ? res.getPurposeTags()  : List.of(),
-            "MOOD",     res.getMoodTags()     != null ? res.getMoodTags()     : List.of()
-        ).forEach((category, codes) ->
+        Map<String, List<String>> tagMap = new LinkedHashMap<>();
+        tagMap.put("FACILITY", res.getFacilityTags() != null ? res.getFacilityTags() : List.of());
+        tagMap.put("MENU",     res.getMenuTags()     != null ? res.getMenuTags()     : List.of());
+        tagMap.put("PURPOSE",  res.getPurposeTags()  != null ? res.getPurposeTags()  : List.of());
+        tagMap.put("MOOD",     res.getMoodTags()     != null ? res.getMoodTags()     : List.of());
+        tagMap.forEach((category, codes) ->
             codes.forEach(val ->
                 reviewTagRepository.save(new ReviewTag(null, saved, category, val.trim().toUpperCase()))
             )
