@@ -8,20 +8,8 @@ class ReviewRequest(BaseModel):
 
 
 class ReviewAnalyzeResponse(BaseModel):
-    sentiment: Optional[str] = None  # "GOOD" | "BAD" | null
+    sentiment: Optional[str] = None
     FACILITY:  list[str] = []
     MENU:      list[str] = []
     PURPOSE:   list[str] = []
     MOOD:      list[str] = []
-
-
-class ChatbotRequest(BaseModel):
-    query: str
-
-
-class ChatbotResult(BaseModel):
-    cafeId:   int
-    cafeName: str
-    address:  str
-    snippet:  str
-    score:    float

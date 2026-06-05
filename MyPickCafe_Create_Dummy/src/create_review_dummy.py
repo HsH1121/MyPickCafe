@@ -126,21 +126,14 @@ def _extract_tags_batch(contents: list[str], attempt: int = 0) -> list[dict]:
         return [{**{cat: [] for cat in ALLOWED_TAGS}, 'sentiment': None} for _ in contents]
 
 
-def generate(member_count: int) -> list:
+def count_reviews(min_length: int = MIN_LENGTH) -> tuple[int, int]:
+    """min_length 이상인 리뷰 수와 대상 카페 수를 반환합니다."""
     csv_files = sorted(glob.glob(os.path.join(NAVER_CSV_DIR, '*.csv')))
-    sql_lines = ["-- Review + ReviewTag Dummy Data", ""]
-    total     = 0
-
-    print(f"🚀 [4/4] 리뷰 더미 데이터 생성 시작")
-
-    for idx, csv_file in enumerate(csv_files, 1):
-        filename      = os.path.basename(csv_file)
-        cafe_name     = re.sub(r'^\d+_', '', filename).replace('_리뷰.csv', '')
-        cafe_name_esc = cafe_name.replace("'", "''")
-
+    total_reviews = 0
+    cafe_count = 0
+    for csv_file in csv_files:
         try:
-            # 30자 이상 리뷰만 수집
-            reviews = []
+            file_count = 0
             with open(csv_file, 'r', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 next(reader)
@@ -149,46 +142,66 @@ def generate(member_count: int) -> list:
                         continue
                     content = row[0].strip()
                     content = re.sub(r'\n?접기$', '', content).strip()
-                    content = content.replace('\n', ' ')
-                    if len(content) >= MIN_LENGTH:
-                        reviews.append(content)
+                    if len(content) >= min_length:
+                        file_count += 1
+            total_reviews += file_count
+            cafe_count += 1
+        except Exception:
+            pass
+    return total_reviews, cafe_count
 
-            # 10개씩 배치 처리
-            for i in range(0, len(reviews), BATCH_SIZE):
-                batch     = reviews[i:i + BATCH_SIZE]
-                tags_list = _extract_tags_batch([c[:500] for c in batch])
 
-                for content, tags in zip(batch, tags_list):
-                    member_email = f"user{random.randint(1, member_count):05d}@test.com"
-                    content_esc  = content[:1000].replace("'", "''")
-                    sentiment     = tags.get('sentiment')
-                    sentiment_val = f"'{sentiment}'" if sentiment else "NULL"
-                    good_val      = 1 if sentiment == 'GOOD' else 0
-                    bad_val       = 1 if sentiment == 'BAD'  else 0
+def generate_for_cafe(
+    csv_file: str,
+    cafe_name: str,
+    member_count: int,
+    min_length: int = MIN_LENGTH,
+) -> list[str]:
+    """단일 카페 CSV에서 리뷰 INSERT SQL 목록 반환"""
+    cafe_name_esc = cafe_name.replace("'", "''")
+    sql_lines: list[str] = []
 
+    reviews = []
+    with open(csv_file, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        next(reader)
+        for row in reader:
+            if not row:
+                continue
+            content = row[0].strip()
+            content = re.sub(r'\n?접기$', '', content).strip()
+            content = content.replace('\n', ' ')
+            if len(content) >= min_length:
+                reviews.append(content)
+
+    for i in range(0, len(reviews), BATCH_SIZE):
+        batch     = reviews[i:i + BATCH_SIZE]
+        tags_list = _extract_tags_batch([c[:500] for c in batch])
+
+        for content, tags in zip(batch, tags_list):
+            member_email  = f"user{random.randint(1, member_count):05d}@test.com"
+            content_esc   = content[:1000].replace("'", "''")
+            sentiment     = tags.get('sentiment')
+            sentiment_val = f"'{sentiment}'" if sentiment else "NULL"
+            good_val      = 1 if sentiment == 'GOOD' else 0
+            bad_val       = 1 if sentiment == 'BAD'  else 0
+
+            sql_lines.append(
+                f"INSERT INTO review (cafe_id, member_id, content, good, bad, sentiment, created_at) "
+                f"VALUES ("
+                f"(SELECT cafe_id FROM cafe WHERE name = '{cafe_name_esc}'), "
+                f"(SELECT member_id FROM member WHERE email = '{member_email}'), "
+                f"'{content_esc}', {good_val}, {bad_val}, {sentiment_val}, SYSTIMESTAMP"
+                f");"
+            )
+            for category, codes in tags.items():
+                if category not in ALLOWED_TAGS or not codes:
+                    continue
+                for code in codes:
                     sql_lines.append(
-                        f"INSERT INTO review (cafe_id, member_id, content, good, bad, sentiment, created_at) "
-                        f"VALUES ("
-                        f"(SELECT cafe_id FROM cafe WHERE name = '{cafe_name_esc}'), "
-                        f"(SELECT member_id FROM member WHERE email = '{member_email}'), "
-                        f"'{content_esc}', {good_val}, {bad_val}, {sentiment_val}, SYSTIMESTAMP"
-                        f");"
+                        f"INSERT INTO review_tag (review_id, category_code, code) "
+                        f"VALUES ((SELECT MAX(review_id) FROM review), '{category}', '{code}');"
                     )
-                    for category, codes in tags.items():
-                        if category not in ALLOWED_TAGS or not codes:
-                            continue
-                        for code in codes:
-                            sql_lines.append(
-                                f"INSERT INTO review_tag (review_id, category_code, code) "
-                                f"VALUES ((SELECT MAX(review_id) FROM review), '{category}', '{code}');"
-                            )
-                    sql_lines.append("")
-                    total += 1
+            sql_lines.append("")
 
-        except Exception as e:
-            print(f"  [경고] {filename} 읽기 실패: {e}")
-
-        print(f"  [{idx:03d}/{len(csv_files)}] {cafe_name} 완료")
-
-    print(f"  ✅ review {total}건 완료\n")
     return sql_lines
