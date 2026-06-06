@@ -6,17 +6,58 @@
 """
 
 from __future__ import annotations
+import asyncio
 import json
 import logging
+import os
 
 import chromadb
-from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
+from chromadb import Documents, EmbeddingFunction, Embeddings
+import httpx
 
 from config import Settings
 from chatbot_db import fetch_reviews_for_index
 from ollama_client import call_ollama
 
+
+class _OllamaEmbeddingFunction(EmbeddingFunction):
+    """Ollama /api/embed 엔드포인트용 범용 임베딩 함수."""
+
+    def __init__(self, base_url: str, model: str) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+
+    def _embed(self, texts: list[str]) -> Embeddings:
+        with httpx.Client(timeout=60) as client:
+            resp = client.post(
+                f"{self._base_url}/api/embed",
+                json={"model": self._model, "input": texts},
+            )
+            resp.raise_for_status()
+        return resp.json()["embeddings"]
+
+    def __call__(self, input: Documents) -> Embeddings:
+        return self._embed(list(input))
+
+    def embed_query(self, query: str) -> list[float]:
+        return self._embed([query])[0]
+
 logger = logging.getLogger(__name__)
+
+# --- RAG 선택 전용 파일 로거 ---
+_LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(_LOG_DIR, exist_ok=True)
+
+_rag_logger = logging.getLogger("rag_selection")
+_rag_logger.setLevel(logging.DEBUG)
+_rag_logger.propagate = False  # 루트 로거로 전파 차단
+
+_fh = logging.FileHandler(
+    os.path.join(_LOG_DIR, "rag_selection.log"),
+    encoding="utf-8",
+)
+_fh.setFormatter(logging.Formatter("%(asctime)s\n%(message)s"))
+_rag_logger.addHandler(_fh)
 
 _COLLECTION = "cafe_reviews"
 
@@ -33,9 +74,9 @@ _SYSTEM_PROMPT = """당신은 카페 추천 전문 AI입니다.
 class CafeRAG:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._emb_fn = OllamaEmbeddingFunction(
-            url=f"{settings.model_api_url}/api/embeddings",
-            model_name=settings.embed_model,
+        self._emb_fn = _OllamaEmbeddingFunction(
+            base_url=settings.model_api_url,
+            model=settings.embed_model,
         )
         self._client = chromadb.PersistentClient(path=settings.chroma_path)
         self._col = self._client.get_or_create_collection(
@@ -103,6 +144,15 @@ class CafeRAG:
         """단일 리뷰를 ChromaDB에서 삭제."""
         self._col.delete(ids=[f"review_{review_id}"])
 
+    def reset_index(self) -> None:
+        """ChromaDB 컬렉션을 전체 초기화합니다."""
+        self._client.delete_collection(self._col.name)
+        self._col = self._client.get_or_create_collection(
+            name=_COLLECTION,
+            embedding_function=self._emb_fn,
+            metadata={"hnsw:space": "cosine"},
+        )
+
     @property
     def indexed_count(self) -> int:
         return self._col.count()
@@ -117,12 +167,16 @@ class CafeRAG:
             return []
 
         # 1. 벡터 검색 (top_n * 3개 가져와서 Qwen이 선별)
-        fetch_k = min(top_n * 3, 15)
-        results = self._col.query(query_texts=[query], n_results=fetch_k)
+        fetch_k = min(top_n * 3, 15, self._col.count())
+        query_emb = await asyncio.to_thread(self._emb_fn.embed_query, query)
+        results = self._col.query(query_embeddings=[query_emb], n_results=fetch_k)
 
         docs      = results["documents"][0]
         metas     = results["metadatas"][0]
         distances = results["distances"][0]
+
+        # --- 벡터 검색 결과 로그 (최대 15개 리뷰) ---
+        _log_retrieved_reviews(query, metas, distances)
 
         # 2. 카페별 최고 유사도 점수로 그룹핑
         cafe_map: dict[str, dict] = {}
@@ -139,6 +193,9 @@ class CafeRAG:
                 }
 
         top_cafes = sorted(cafe_map.values(), key=lambda x: x["score"], reverse=True)[:top_n]
+
+        # --- 최종 선별 카페 로그 (최대 5개) ---
+        _log_top_cafes(query, top_cafes)
 
         # 3. Qwen 컨텍스트 구성
         context = "\n\n".join(
@@ -194,3 +251,42 @@ class CafeRAG:
                 logger.warning("Qwen 응답 항목 파싱 오류: %s — %r", e, item)
 
         return output
+
+
+# ---------------------------------------------------------------------------
+# 내부 로깅 헬퍼
+# ---------------------------------------------------------------------------
+
+def _log_retrieved_reviews(query: str, metas: list[dict], distances: list[float]) -> None:
+    """벡터 검색으로 뽑힌 리뷰 목록을 rag_selection.log에 기록."""
+    lines = [
+        f"[벡터 검색 결과] 쿼리: {query!r}  |  검색 건수: {len(metas)}",
+        "-" * 70,
+    ]
+    for i, (meta, dist) in enumerate(zip(metas, distances), 1):
+        similarity = round(1.0 - dist, 4)
+        review_preview = meta.get("review", "")[:80].replace("\n", " ")
+        lines.append(
+            f"  [{i:02d}] cafe_id={meta.get('cafe_id')}  sim={similarity:.4f}\n"
+            f"        카페명: {meta.get('cafe_name')}  |  주소: {meta.get('address')}\n"
+            f"        리뷰: {review_preview}{'...' if len(meta.get('review','')) > 80 else ''}"
+        )
+    lines.append("=" * 70)
+    _rag_logger.debug("\n".join(lines))
+
+
+def _log_top_cafes(query: str, top_cafes: list[dict]) -> None:
+    """카페별 그룹핑 후 최종 선별된 카페 목록을 rag_selection.log에 기록."""
+    lines = [
+        f"[최종 선별 카페] 쿼리: {query!r}  |  선별 건수: {len(top_cafes)}",
+        "-" * 70,
+    ]
+    for i, cafe in enumerate(top_cafes, 1):
+        review_preview = cafe.get("review", "")[:80].replace("\n", " ")
+        lines.append(
+            f"  [{i}] cafe_id={cafe['cafe_id']}  score={cafe['score']:.4f}\n"
+            f"      카페명: {cafe['cafe_name']}  |  주소: {cafe['address']}\n"
+            f"      대표리뷰: {review_preview}{'...' if len(cafe.get('review','')) > 80 else ''}"
+        )
+    lines.append("=" * 70)
+    _rag_logger.debug("\n".join(lines))

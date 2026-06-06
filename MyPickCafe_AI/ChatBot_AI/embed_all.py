@@ -5,7 +5,7 @@ FastAPI 서버 없이 독립 실행 가능.
 실행 전 확인사항:
   1. Oracle DB 실행 중 (SQL을 통해 리뷰 데이터 INSERT 완료)
   2. Ollama 실행 중 (ollama serve)
-  3. nomic-embed-text 모델 다운로드 완료 (ollama pull nomic-embed-text)
+  3. bge-m3 모델 다운로드 완료 (ollama pull bge-m3)
 
 사용법:
   python embed_all.py          # 신규 리뷰만 추가
@@ -56,12 +56,7 @@ def main() -> None:
 
     if (RESET_CHROMA or args.reset) and before > 0:
         print(f"  기존 인덱스 {before:,}건 초기화 중...")
-        rag._client.delete_collection(rag._col.name)
-        rag._col = rag._client.get_or_create_collection(
-            name=rag._col.name,
-            embedding_function=rag._emb_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
+        rag.reset_index()
         print("  초기화 완료\n")
 
     print(f"  현재 인덱스: {rag.indexed_count:,}건")
