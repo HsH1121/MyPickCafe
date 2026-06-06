@@ -183,8 +183,19 @@ def generate_for_cafe(
             content_esc   = content[:1000].replace("'", "''")
             sentiment     = tags.get('sentiment')
             sentiment_val = f"'{sentiment}'" if sentiment else "NULL"
-            good_val      = 1 if sentiment == 'GOOD' else 0
-            bad_val       = 1 if sentiment == 'BAD'  else 0
+            _r = random.random()
+            if _r < 0.70:
+                good_val = random.randint(0, 50)
+                bad_val  = random.randint(0, 10)
+            elif _r < 0.90:
+                good_val = random.randint(51, 90)
+                bad_val  = random.randint(11, 18)
+            elif _r < 0.98:
+                good_val = random.randint(91, 130)
+                bad_val  = random.randint(19, 26)
+            else:
+                good_val = random.randint(131, 500)
+                bad_val  = random.randint(27, 100)
 
             sql_lines.append(
                 f"INSERT INTO review (cafe_id, member_id, content, good, bad, sentiment, created_at) "
