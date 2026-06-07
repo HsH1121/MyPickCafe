@@ -166,16 +166,54 @@ class CafeRAG:
             logger.warning("ChromaDB가 비어 있습니다. 먼저 /chatbot/reindex를 호출하세요.")
             return []
 
-        # 1. 벡터 검색 (top_n * 3개 가져와서 Qwen이 선별)
-        fetch_k = min(top_n * 3, 15, self._col.count())
+        # 1. 벡터 검색 — 카페 다양성 보장을 위해 필요한 만큼만 추가 조회
+        # 캡: 1번째 카페 max 5, 2번째 max 4, …, 5번째 이후 max 1
+        # 슬롯이 가득 찬 카페는 where 필터로 제외하고 부족분만 재조회
+        target = top_n * 3  # 최종 목표 리뷰 수 (15)
         query_emb = await asyncio.to_thread(self._emb_fn.embed_query, query)
-        results = self._col.query(query_embeddings=[query_emb], n_results=fetch_k)
 
-        docs      = results["documents"][0]
-        metas     = results["metadatas"][0]
-        distances = results["distances"][0]
+        cafe_order: list[str] = []
+        cafe_counts: dict[str, int] = {}
+        excluded: set[str] = set()
+        sel_docs, sel_metas, sel_distances = [], [], []
 
-        # --- 벡터 검색 결과 로그 (최대 15개 리뷰) ---
+        while len(sel_docs) < target:
+            need = target - len(sel_docs)
+            where = {"cafe_id": {"$nin": list(excluded)}} if excluded else None
+            batch = self._col.query(
+                query_embeddings=[query_emb],
+                n_results=min(need, self._col.count()),
+                where=where,
+            )
+            batch_docs      = batch["documents"][0]
+            batch_metas     = batch["metadatas"][0]
+            batch_distances = batch["distances"][0]
+
+            if not batch_docs:
+                break
+
+            added = 0
+            for doc, meta, dist in zip(batch_docs, batch_metas, batch_distances):
+                cid = meta["cafe_id"]
+                if cid not in cafe_counts:
+                    cafe_order.append(cid)
+                    cafe_counts[cid] = 0
+                cap = max(1, top_n - cafe_order.index(cid))  # 1등:5, 2등:4, …
+                if cafe_counts[cid] < cap:
+                    cafe_counts[cid] += 1
+                    sel_docs.append(doc)
+                    sel_metas.append(meta)
+                    sel_distances.append(dist)
+                    added += 1
+                if cafe_counts[cid] >= cap:
+                    excluded.add(cid)
+
+            if added == 0:
+                break  # 더 이상 추가 가능한 카페 없음
+
+        docs, metas, distances = sel_docs, sel_metas, sel_distances
+
+        # --- 벡터 검색 결과 로그 ---
         _log_retrieved_reviews(query, metas, distances)
 
         # 2. 카페별 최고 유사도 점수로 그룹핑
