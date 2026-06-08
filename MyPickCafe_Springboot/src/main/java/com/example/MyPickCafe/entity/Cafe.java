@@ -31,10 +31,10 @@
         @OnDelete(action = OnDeleteAction.CASCADE)
         private Member owner;
 
-        @Column(name = "name", nullable = false, unique = true, length = 10)
+        @Column(name = "name", nullable = false, unique = true, length = 30)
         private String name;
 
-        @Column(name = "address", nullable = false, length = 60)
+        @Column(name = "address", nullable = false, length = 100)
         private String address;
 
         @Column(name = "lat")

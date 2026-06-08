@@ -35,7 +35,7 @@ public class Review {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Member member;
 
-    @Column(name = "content", nullable = false, length = 1000)
+    @Column(name = "content", nullable = false, length = 1500)
     private String content;
 
     @Builder.Default

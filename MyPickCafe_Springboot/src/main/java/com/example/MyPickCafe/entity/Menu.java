@@ -28,7 +28,7 @@ public class Menu {
     @JoinColumn(name = "category_id", nullable = true)
     private MenuCategory menuCategory;
 
-    @Column(name = "name", nullable = false, length = 12)
+    @Column(name = "name", nullable = false, length = 30)
     private String name;
 
     @Column(name = "price", nullable = false)

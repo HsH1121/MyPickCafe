@@ -25,19 +25,19 @@ public class CafeInfo {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private Cafe cafe;
 
-    @Column(name = "notice", length = 20)
+    @Column(name = "notice", length = 100)
     private String notice;
 
     @Column(name = "info", length = 500)
     private String info;
 
-    @Column(name = "open_time", length = 7)
+    @Column(name = "open_time", length = 10)
     private String openTime;
 
-    @Column(name = "close_time", length = 7)
+    @Column(name = "close_time", length = 10)
     private String closeTime;
 
-    @Column(name = "holiday", length = 7)
+    @Column(name = "holiday", length = 20)
     private String holiday;
 
 }
