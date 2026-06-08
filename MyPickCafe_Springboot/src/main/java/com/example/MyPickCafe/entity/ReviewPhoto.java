@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -24,6 +25,7 @@ public class ReviewPhoto {
     @Column(name = "review_photo_id", nullable = false, unique = true)
     private Long id; // 기존: reviewPhotoId
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false) // 반드시 리뷰에 속함
     @JoinColumn(name = "review_id", nullable = false)    // FK 컬럼
     @OnDelete(action = OnDeleteAction.CASCADE)           // 리뷰 삭제 시 사진도 삭제

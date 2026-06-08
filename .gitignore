@@ -10,5 +10,12 @@
 **/__pycache__/
 **/*.pyc
 
+# VS Code
+**/.vscode/
+
 # 설정 및 비밀번호 파일 (필요시)
 **/.env
+
+# ChromaDB 벡터 데이터 및 로그
+**/chroma_db/
+**/logs/

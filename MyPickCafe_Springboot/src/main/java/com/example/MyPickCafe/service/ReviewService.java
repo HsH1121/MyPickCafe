@@ -5,6 +5,7 @@ import com.example.MyPickCafe.domain.FacilityTag;
 import com.example.MyPickCafe.domain.MenuTag;
 import com.example.MyPickCafe.domain.MoodTag;
 import com.example.MyPickCafe.domain.PurposeTag;
+import com.example.MyPickCafe.dto.ChatbotIndexRequest;
 import com.example.MyPickCafe.dto.MyReviewItem;
 import com.example.MyPickCafe.dto.PythonTagRequest;
 import com.example.MyPickCafe.dto.PythonTagResponse;
@@ -26,6 +27,7 @@ import com.example.MyPickCafe.support.NotFoundException;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -34,7 +36,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +49,7 @@ public class ReviewService {
     private final CafeTagRepository cafeTagRepository;
     private final MemberRepository memberRepository;
     private final PythonTagClient pythonTagClient;
+    private final ChatbotClient chatbotClient;
 
     @Transactional(readOnly = true)
     public List<Review> findAll() {
@@ -85,6 +87,7 @@ public class ReviewService {
         Review review = reviewRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Review not found: " + id));
         Long cafeId = review.getCafe().getId();
+        chatbotClient.deleteOneAsync(id);
         reviewRepository.deleteById(id);
         syncCafeTopTags(cafeId);
     }
@@ -115,18 +118,10 @@ public class ReviewService {
         Long cafeId = (cafe != null ? cafe.getId() : null);
         String cafeName = (cafe != null ? cafe.getName() : "(알 수 없음)");
 
-        // 카페 사진 url
-        String cafeMainPhotoUrl = cafePhotoRepository.findMainPhoto(cafe.getId()).getUrl();
-        try {
-            // 예시: c.getCafeThumb() 가 있으면 /images/cafe/{file} 로 만든다
-            var method = Cafe.class.getMethod("getCafeThumb");
-            Object v = (cafe != null ? method.invoke(cafe) : null);
-            if (v != null) {
-                String s = String.valueOf(v);
-                if (!s.isBlank()) cafeMainPhotoUrl = "/images/cafe/" + s;
-            }
-        } catch (Exception ignore) {
-            // 필드가 없으면 null -> 템플릿에서 NO IMG
+        String cafeMainPhotoUrl = null;
+        if (cafe != null) {
+            var photo = cafePhotoRepository.findMainPhoto(cafe.getId());
+            cafeMainPhotoUrl = (photo != null) ? photo.getUrl() : null;
         }
 
         return new MyReviewItem(
@@ -186,6 +181,14 @@ public class ReviewService {
             }
         });
 
+        chatbotClient.indexOneAsync(ChatbotIndexRequest.builder()
+                .reviewId(saved.getId())
+                .cafeId(saved.getCafe().getId())
+                .cafeName(saved.getCafe().getName())
+                .address(saved.getCafe().getAddress())
+                .reviewText(saved.getContent())
+                .build());
+
         return saved;
     }
 
@@ -223,6 +226,14 @@ public class ReviewService {
                 }
             }
         });
+
+        chatbotClient.indexOneAsync(ChatbotIndexRequest.builder()
+                .reviewId(saved.getId())
+                .cafeId(saved.getCafe().getId())
+                .cafeName(saved.getCafe().getName())
+                .address(saved.getCafe().getAddress())
+                .reviewText(saved.getContent())
+                .build());
 
         return saved;
     }
@@ -274,18 +285,16 @@ public class ReviewService {
     }
 
     private void saveEnumTags(Review saved, PythonTagResponse res) {
-        if (res.getFacilityTags() != null)
-            for (String val : res.getFacilityTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "FACILITY", val.trim().toUpperCase()));
-        if (res.getMenuTags() != null)
-            for (String val : res.getMenuTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "MENU", val.trim().toUpperCase()));
-        if (res.getPurposeTags() != null)
-            for (String val : res.getPurposeTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "PURPOSE", val.trim().toUpperCase()));
-        if (res.getMoodTags() != null)
-            for (String val : res.getMoodTags())
-                reviewTagRepository.save(new ReviewTag(null, saved, "MOOD", val.trim().toUpperCase()));
+        Map<String, List<String>> tagMap = new LinkedHashMap<>();
+        tagMap.put("FACILITY", res.getFacilityTags() != null ? res.getFacilityTags() : List.of());
+        tagMap.put("MENU",     res.getMenuTags()     != null ? res.getMenuTags()     : List.of());
+        tagMap.put("PURPOSE",  res.getPurposeTags()  != null ? res.getPurposeTags()  : List.of());
+        tagMap.put("MOOD",     res.getMoodTags()     != null ? res.getMoodTags()     : List.of());
+        tagMap.forEach((category, codes) ->
+            codes.forEach(val ->
+                reviewTagRepository.save(new ReviewTag(null, saved, category, val.trim().toUpperCase()))
+            )
+        );
     }
 
 }
