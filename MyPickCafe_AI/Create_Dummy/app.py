@@ -115,6 +115,7 @@ if os.path.exists(CHECKPOINT_MEMBER):
 else:
     member_sql = create_user_dummy.generate(MEMBER_COUNT)
     with open(CHECKPOINT_MEMBER, 'w', encoding='utf-8') as f:
+        f.write("-- Reviewer Dummy Data\nSET DEFINE OFF;\n\n")
         f.write("\n".join(member_sql))
     print(f"  ✅ 멤버 {MEMBER_COUNT}명 생성 완료\n")
 
@@ -122,13 +123,13 @@ else:
 # --- 카페/리뷰 파일 초기화 (최초 시작 시만) ---
 if not os.path.exists(CHECKPOINT_CAFEOWNER):
     with open(CHECKPOINT_CAFEOWNER, 'w', encoding='utf-8') as f:
-        f.write("-- CafeOwner Dummy Data\n\n")
+        f.write("-- CafeOwner Dummy Data\nSET DEFINE OFF;\n\n")
 if not os.path.exists(CHECKPOINT_CAFE):
     with open(CHECKPOINT_CAFE, 'w', encoding='utf-8') as f:
-        f.write("-- Cafe Dummy Data\n\n")
+        f.write("-- Cafe Dummy Data\nSET DEFINE OFF;\n\n")
 if not os.path.exists(CHECKPOINT_REVIEW):
     with open(CHECKPOINT_REVIEW, 'w', encoding='utf-8') as f:
-        f.write("-- Review + ReviewTag Dummy Data\n\n")
+        f.write("-- Review + ReviewTag Dummy Data\nSET DEFINE OFF;\n\n")
 
 # --- 2. 카페 + 리뷰 통합 루프 ---
 total_review = 0
