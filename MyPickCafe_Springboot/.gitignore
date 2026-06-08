@@ -39,5 +39,8 @@ out/
 ### Uploads ###
 uploads/
 
+### Secrets ###
+secret.properties
+
 ### Claude ###
 .claude/settings.local.json

@@ -55,9 +55,9 @@ public interface CafePhotoRepository extends JpaRepository<CafePhoto, Long> {
         SELECT p.*
           FROM cafe_photo p
          WHERE p.cafe_id = :cafeId
-         ORDER BY CASE WHEN p.is_main = TRUE THEN 0 ELSE 1 END,
+         ORDER BY CASE WHEN p.is_main = 1 THEN 0 ELSE 1 END,
                   p.sort_index ASC
-         LIMIT 1
+         FETCH FIRST 1 ROWS ONLY
     """, nativeQuery = true)
     CafePhoto findMainPhoto(@Param("cafeId") Long cafeId);
 
