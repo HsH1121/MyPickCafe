@@ -1,12 +1,11 @@
 """
-Oracle DB에서 카페+리뷰 데이터를 조회합니다. (RAG 인덱싱용)
-oracledb thin 모드 사용 — Oracle Instant Client 불필요
+PostgreSQL에서 카페+리뷰 데이터를 조회합니다. (RAG 인덱싱용)
 """
 
 from __future__ import annotations
 import logging
 
-import oracledb
+import psycopg
 
 from config import Settings
 
@@ -30,10 +29,12 @@ ORDER BY c.cafe_id, r.review_id
 def fetch_reviews_for_index(settings: Settings) -> list[dict]:
     """APPROVED 카페의 리뷰를 전체 조회하여 dict 목록으로 반환합니다."""
     try:
-        with oracledb.connect(
+        with psycopg.connect(
+            host=settings.db_host,
+            port=settings.db_port,
+            dbname=settings.db_name,
             user=settings.db_user,
             password=settings.db_password,
-            dsn=settings.db_dsn,
         ) as conn:
             with conn.cursor() as cur:
                 cur.execute(_SQL)

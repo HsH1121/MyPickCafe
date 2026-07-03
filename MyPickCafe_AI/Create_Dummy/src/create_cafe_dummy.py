@@ -43,6 +43,6 @@ def generate_one(cafe_name: str, owner_num: int) -> str:
         f'INSERT INTO cafe (owner_id, name, address, lat, lon, phone, registered_at, views, code, status) '
         f"VALUES ("
         f"(SELECT member_id FROM member WHERE email = 'owner{owner_num:03d}@test.com'), "
-        f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', SYSTIMESTAMP, 0, '02', 'APPROVED'"
+        f"'{name_esc}', '{addr_esc}', {lat}, {lon}, '{phone}', CURRENT_TIMESTAMP, 0, '02', 'APPROVED'"
         f");"
     )

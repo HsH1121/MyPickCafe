@@ -1,0 +1,110 @@
+================================================================
+  MyPickCafe 프로젝트 설명
+================================================================
+
+[ 개요 ]
+카페 정보 제공 및 AI 기반 추천 서비스입니다.
+Spring Boot 백엔드와 Python AI 서버로 구성된 모노레포 구조입니다.
+
+----------------------------------------------------------------
+  디렉토리 구조
+----------------------------------------------------------------
+
+D:/MyPickCafe/
+├── MyPickCafe_Springboot/   # Java 백엔드
+└── MyPickCafe_AI/
+    ├── ChatBot_AI/          # RAG 추천 챗봇
+    ├── Review_Tag_AI/       # 리뷰 태그/감성 분석
+    └── app.py               # 통합 FastAPI 서버
+
+----------------------------------------------------------------
+  기술 스택
+----------------------------------------------------------------
+
+[ Backend — Spring Boot ]
+
+  언어          : Java 17
+  프레임워크    : Spring Boot 3.5.5
+  빌드          : Gradle
+  DB            : PostgreSQL 16 (Docker, localhost:5432)
+  ORM           : Spring Data JPA / Hibernate (ddl-auto: update)
+  템플릿        : Mustache
+  인증          : Spring Security + JWT (jjwt 0.11.5) + BCrypt
+  보안          : XSS 필터(jsoup), CSP 헤더, HSTS, Stateless 세션
+  외부 API      : Kakao Maps (JS/REST Key)
+  유틸          : Lombok, Bean Validation
+
+[ AI Server — Python FastAPI ]
+
+  언어          : Python 3.11
+  프레임워크    : FastAPI + Uvicorn
+  LLM           : Ollama — qwen2.5:7b (로컬, VRAM ~4.7GB)
+  벡터 DB       : ChromaDB (Persistent, cosine similarity, HNSW)
+  임베딩        : Ollama /api/embed 엔드포인트
+  DB 연결       : psycopg (PostgreSQL 드라이버)
+  HTTP          : httpx (비동기 통신)
+
+----------------------------------------------------------------
+  주요 기능
+----------------------------------------------------------------
+
+1. 카페 추천 챗봇 (RAG)
+   - 사용자 자연어 질문 → Ollama 임베딩 → ChromaDB 코사인 유사도 검색
+   - 카페 다양성 보장 로직: 동일 카페 리뷰가 결과를 독점하지 않도록
+     카페별 리뷰 cap 적용 (1등 최대 5개, 2등 4개, …)
+   - 검색된 컨텍스트를 qwen2.5:7b에 전달 → JSON 형태 추천 결과 생성
+   - Spring Boot → POST /chatbot/recommend 호출
+
+2. 리뷰 태그/감성 분석 AI
+   - 리뷰 작성 시 자동으로 태그 추출 및 감성 판별
+   - 4개 카테고리 태그:
+       FACILITY : WIFI, PLUG, TERRACE, PET, PARKING
+       MENU     : AMERICANO, LATTE, COLDBREW, BAKERY, CAKE, ADE, DESSERT
+       PURPOSE  : STUDY, TALK, REST, DATE, PHOTO, MEETING
+       MOOD     : MODERN, RETRO, NATURE, INDUSTRIAL, CLASSIC
+   - 감성: GOOD / BAD / null
+   - Few-shot 프롬프트로 정확도 확보
+   - Spring Boot → POST /review/analyze 호출
+
+3. 카페 서비스 (Spring Boot)
+   - 회원 역할: MEMBER / CAFEOWNER / ADMIN 3단계 권한
+   - 카페 등록·승인(ADMIN), 카페 정보/사진/메뉴 관리(CAFEOWNER)
+   - Kakao Maps 연동 지도 뷰, 카페 검색
+   - 리뷰 작성·사진 업로드
+   - 찜(Favorites), 알림(Notification)
+
+----------------------------------------------------------------
+  서버 포트 구성
+----------------------------------------------------------------
+
+  Spring Boot   :8080  (메인 웹서버)
+  FastAPI AI    :8000  (Review Tag AI  → /review/analyze)
+  FastAPI AI    :8001  (ChatBot AI     → /chatbot/recommend)
+  Ollama        :11434 (LLM 로컬 서버)
+  PostgreSQL    :5432  (Docker, docker-compose.yml)
+
+  ※ application.properties에 8000(review)과 8001(chatbot)이 분리
+     설정되어 있으나, app.py는 두 기능을 단일 서버로 통합한 상태입니다.
+
+----------------------------------------------------------------
+  더미 데이터
+----------------------------------------------------------------
+
+  - 카페 225개, 카페 오너, 리뷰 대량 더미 데이터를 SQL로 생성 (PostgreSQL 문법)
+  - Ollama(qwen2.5:7b)로 리뷰 텍스트 자동 생성
+  - ChromaDB에 리뷰 임베딩 인덱싱까지 포함
+
+----------------------------------------------------------------
+  개발 환경 (SETUP.md 기준)
+----------------------------------------------------------------
+
+  CPU           : AMD Ryzen 5 5600X (6코어 12스레드)
+  RAM           : 32GB
+  GPU           : NVIDIA GeForce RTX 4070 SUPER (VRAM 12GB)
+  OS            : Windows 11 Pro
+  Java          : 21.0.10 LTS
+  Python        : 3.11.9
+  Ollama        : 0.24.0
+  NVIDIA 드라이버: 596.49
+
+================================================================

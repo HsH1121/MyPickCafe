@@ -12,6 +12,7 @@ ChatBot_AI + Review_Tag_AI 엔드포인트를 단일 서버에서 제공합니�
 """
 
 from __future__ import annotations
+import asyncio
 import sys
 import os
 import logging
@@ -67,7 +68,7 @@ async def lifespan(app: FastAPI):
     if cafe_rag.indexed_count == 0:
         logger.info("ChromaDB가 비어 있어 초기 인덱싱을 시작합니다.")
         try:
-            n = cafe_rag.index_from_db()
+            n = await asyncio.to_thread(cafe_rag.index_from_db)
             logger.info("초기 인덱싱 완료: %d건", n)
         except Exception as e:
             logger.error("초기 인덱싱 실패 (챗봇 비활성): %s", e)
@@ -105,7 +106,8 @@ async def chatbot_index_one(request: IndexOneRequest) -> JSONResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
     try:
-        cafe_rag.index_one(
+        await asyncio.to_thread(
+            cafe_rag.index_one,
             review_id=request.reviewId,
             cafe_id=request.cafeId,
             cafe_name=request.cafeName,
@@ -122,7 +124,7 @@ async def chatbot_delete_one(request: DeleteOneRequest) -> JSONResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
     try:
-        cafe_rag.delete_one(request.reviewId)
+        await asyncio.to_thread(cafe_rag.delete_one, request.reviewId)
         return JSONResponse({"deleted": request.reviewId})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -133,7 +135,7 @@ async def chatbot_reindex() -> JSONResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
     try:
-        n = cafe_rag.index_from_db()
+        n = await asyncio.to_thread(cafe_rag.index_from_db)
         return JSONResponse({"indexed": n})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
