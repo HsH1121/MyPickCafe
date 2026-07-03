@@ -50,7 +50,7 @@ httpx>=0.25.0
 pydantic>=2.4.0
 pydantic-settings>=2.0.0
 chromadb>=0.5.0
-oracledb>=2.0.0
+psycopg[binary]>=3.1.0
 ollama>=0.4.0       # embed_all.py 실행 시 필요
 ```
 
@@ -71,7 +71,7 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 | 임베딩 모델 | `nomic-embed-text` |
 | 타임아웃 | 60초 |
 | ChromaDB 경로 | `./chroma_db` |
-| Oracle DB DSN | `localhost:1521/XE` |
+| PostgreSQL 접속 | `localhost:5432/mypickcafe` (Docker, `docker-compose.yml`) |
 | 환경변수 파일 | `.env` (없으면 기본값 사용) |
 
 ### 서버 실행 명령
@@ -100,7 +100,7 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 
 ## 임베딩 실행 (embed_all.py)
 
-Oracle DB의 리뷰 전체를 ChromaDB에 임베딩합니다. FastAPI 서버 없이 독립 실행 가능.
+PostgreSQL의 리뷰 전체를 ChromaDB에 임베딩합니다. FastAPI 서버 없이 독립 실행 가능.
 
 ```powershell
 # 신규 리뷰만 추가
@@ -114,7 +114,7 @@ Oracle DB의 리뷰 전체를 ChromaDB에 임베딩합니다. FastAPI 서버 없
 
 ## 실행 전 체크리스트
 
-- [ ] Oracle DB 실행 중 확인 (리뷰 데이터 INSERT 완료)
+- [ ] PostgreSQL(Docker) 실행 중 확인 (`docker compose up -d`, 리뷰 데이터 INSERT 완료)
 - [ ] Ollama 서비스 실행 중 확인 (`ollama list` 로 확인)
 - [ ] `qwen2.5:14b` 모델 로드 확인
 - [ ] `nomic-embed-text` 모델 다운로드 확인 (`ollama pull nomic-embed-text`)

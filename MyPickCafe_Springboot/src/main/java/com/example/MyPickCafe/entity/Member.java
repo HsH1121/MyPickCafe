@@ -19,7 +19,7 @@ import java.util.List;
 public class Member {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Oracle 12c+ IDENTITY 가정
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // PostgreSQL IDENTITY 가정
     @Column(name = "member_id", nullable = false, unique = true)
     private Long id;
 

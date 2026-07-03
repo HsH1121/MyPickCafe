@@ -141,7 +141,7 @@ def generate_for_cafe(
                 f"VALUES ("
                 f"(SELECT cafe_id FROM cafe WHERE name = '{cafe_name_esc}'), "
                 f"(SELECT member_id FROM member WHERE email = '{member_email}'), "
-                f"'{content_esc}', {good_val}, {bad_val}, {sentiment_val}, SYSTIMESTAMP"
+                f"'{content_esc}', {good_val}, {bad_val}, {sentiment_val}, CURRENT_TIMESTAMP"
                 f");"
             )
             for category, codes in tags.items():
