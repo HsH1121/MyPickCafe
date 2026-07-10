@@ -18,21 +18,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CafeApiController {
 
-    private final CafeService service;
+    private final CafeService cafeService;
 
     @GetMapping
     public List<Cafe> getAll() {
-        return service.findAll();
+        return cafeService.findAll();
     }
 
     @GetMapping("/{id}")
     public Cafe getOne(@PathVariable Long id) {
-        return service.findById(id);
+        return cafeService.findById(id);
     }
 
     @PostMapping
     public ResponseEntity<Cafe> create(@RequestBody @Valid Cafe body, UriComponentsBuilder uriBuilder) {
-        Cafe saved = service.create(body);
+        Cafe saved = cafeService.create(body);
         Object id = EntityIdUtil.getId(saved);
         URI location = uriBuilder.path("/api/cafes/{id}").buildAndExpand(id).toUri();
         return ResponseEntity.created(location).body(saved);
@@ -40,12 +40,12 @@ public class CafeApiController {
 
     @PutMapping("/{id}")
     public Cafe update(@PathVariable Long id, @RequestBody @Valid Cafe body) {
-        return service.update(id, body);
+        return cafeService.update(id, body);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
-        service.delete(id);
+        cafeService.delete(id);
     }
 }
