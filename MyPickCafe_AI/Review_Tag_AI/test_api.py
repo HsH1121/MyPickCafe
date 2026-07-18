@@ -1,5 +1,5 @@
 """
-FastAPI 모델 세팅 심층 테스트 — 서버/Oracle 없이 직접 호출
+FastAPI 모델 세팅 심층 테스트 — 서버 없이 직접 호출
 - ollama_client.call_ollama() + prompt_builder 직접 사용
 - temperature=0.0, top_p=0.9, num_predict=1000, LLM 키: FACILITY/MENU/PURPOSE/MOOD
 - test_deep.py 와 동일 15개 케이스로 성능 비교

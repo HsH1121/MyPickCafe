@@ -1,7 +1,7 @@
 """
 카페 추천 RAG 파이프라인
 
-1. index_from_db()  — Oracle DB 리뷰를 ChromaDB에 임베딩+저장
+1. index_from_db()  — PostgreSQL 리뷰를 ChromaDB에 임베딩+저장
 2. recommend()      — 쿼리 임베딩 → 유사도 검색 → Qwen 추천 생성
 """
 

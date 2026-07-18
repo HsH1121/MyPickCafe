@@ -15,11 +15,11 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "MEMBER")
+@Table(name = "member")
 public class Member {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Oracle 12c+ IDENTITY 가정
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "member_id", nullable = false, unique = true)
     private Long id;
 
