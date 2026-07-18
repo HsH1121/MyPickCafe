@@ -11,7 +11,7 @@ def generate(count: int) -> list:
         gender = random.choice(['M', 'F'])
         sql_lines.append(
             f'INSERT INTO member (email, password, nickname, age, gender, role_kind, created_at, token_version) '
-            f"VALUES ('user{i:05d}@test.com', '{TEST_PASSWORD_HASH}', 'user{i:05d}', {age}, '{gender}', 'MEMBER', SYSTIMESTAMP, 0);"
+            f"VALUES ('user{i:05d}@test.com', '{TEST_PASSWORD_HASH}', 'user{i:05d}', {age}, '{gender}', 'MEMBER', CURRENT_TIMESTAMP, 0);"
         )
 
     return sql_lines
