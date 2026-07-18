@@ -1,7 +1,6 @@
 package com.example.MyPickCafe.entity;
 
 import jakarta.persistence.*;
-import jakarta.persistence.Lob;
 import lombok.*;
 
 @Getter
@@ -27,7 +26,6 @@ public class TagDictionary {
     @Column(name = "tag_label", nullable = false, length = 20)
     private String tagLabel;      // e.g. 와이파이
 
-    @Lob
-    @Column(name = "embedding")
+    @Column(name = "embedding", columnDefinition = "text")
     private String embedding;     // JSON float array, populated by FastAPI
 }

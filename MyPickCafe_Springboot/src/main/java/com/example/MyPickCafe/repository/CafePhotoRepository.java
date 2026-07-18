@@ -34,7 +34,7 @@ public interface CafePhotoRepository extends JpaRepository<CafePhoto, Long> {
           SELECT cp.*,
                  ROW_NUMBER() OVER (
                    PARTITION BY cp.cafe_id
-                   ORDER BY CASE WHEN cp.is_main = 1 THEN 0 ELSE 1 END,
+                   ORDER BY CASE WHEN cp.is_main = true THEN 0 ELSE 1 END,
                             cp.sort_index ASC,
                             cp.cafe_photo_id ASC
                  ) AS rn
@@ -55,7 +55,7 @@ public interface CafePhotoRepository extends JpaRepository<CafePhoto, Long> {
         SELECT p.*
           FROM cafe_photo p
          WHERE p.cafe_id = :cafeId
-         ORDER BY CASE WHEN p.is_main = 1 THEN 0 ELSE 1 END,
+         ORDER BY CASE WHEN p.is_main = true THEN 0 ELSE 1 END,
                   p.sort_index ASC
          FETCH FIRST 1 ROWS ONLY
     """, nativeQuery = true)
