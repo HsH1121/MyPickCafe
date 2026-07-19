@@ -2,6 +2,7 @@ package com.example.MyPickCafe.entity;
 
 import com.example.MyPickCafe.domain.RoleKind;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -26,6 +27,12 @@ public class Member {
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
+    /**
+     * BCrypt 해시. 어떤 경우에도 JSON 응답에 실려서는 안 되므로
+     * DTO 분리와 별개로 엔티티 레벨에서도 직렬화를 차단한다(다중 방어).
+     * 역직렬화는 허용해야 로그인/가입 폼 바인딩이 동작한다.
+     */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "password", nullable = false, length = 100)
     private String password;
 
