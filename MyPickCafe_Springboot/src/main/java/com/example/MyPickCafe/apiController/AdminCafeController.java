@@ -2,7 +2,7 @@
 package com.example.MyPickCafe.apiController;
 
 import com.example.MyPickCafe.domain.CafeStatus;
-import com.example.MyPickCafe.entity.Cafe;
+import com.example.MyPickCafe.dto.CafeResponse;
 import com.example.MyPickCafe.service.CafeService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -33,8 +33,8 @@ public class AdminCafeController {
     private final CafeService cafeService;
 
     @GetMapping("/pending")
-    public List<Cafe> pending() {
-        return cafeService.findByStatus(CafeStatus.PENDING);
+    public List<CafeResponse> pending() {
+        return cafeService.findByStatusForApi(CafeStatus.PENDING);
     }
 
     @PostMapping("/{id}/approve")
