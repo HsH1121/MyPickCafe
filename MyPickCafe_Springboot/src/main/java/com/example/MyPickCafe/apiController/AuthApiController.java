@@ -5,6 +5,7 @@ import com.example.MyPickCafe.dto.MemberForm;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.MemberService;
 import com.example.MyPickCafe.security.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -25,6 +26,10 @@ public class AuthApiController {
     private final MemberService memberService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+
+    /** 인증 쿠키에 Secure 속성을 붙일지 여부. dev=false(HTTP), prod=true(HTTPS 전용). */
+    @Value("${app.cookie.secure}")
+    private boolean cookieSecure;
 
     public AuthApiController(MemberService memberService,
                              PasswordEncoder passwordEncoder,
@@ -97,7 +102,7 @@ public class AuthApiController {
 
         ResponseCookie cookie = ResponseCookie.from("AT", token)
                 .httpOnly(true)
-                .secure(false)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(Duration.ofDays(7))
@@ -112,7 +117,7 @@ public class AuthApiController {
     public ResponseEntity<?> logout(Authentication auth) {
         ResponseCookie del = ResponseCookie.from("AT", "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(0)
