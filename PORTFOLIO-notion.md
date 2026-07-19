@@ -6,61 +6,119 @@
 
 ## 📌 한 줄 요약
 
-> 팀 프로젝트를 인수했더니 **main 브랜치가 컴파일조차 되지 않았습니다.** 원인을 추적해 타입 체계를 정리하고, 그 과정에서 **인증 없이 전 회원의 비밀번호 해시를 덤프할 수 있는 취약점**을 발견해 차단했으며, 문자열 CSV로 관리되던 태그 도메인을 정규화하고 AI 기반으로 재설계했습니다.
+> 팀 프로젝트를 인수해 보니 **JWT 서명 키가 저장소에 커밋돼 있어 인증 체계가 무력화된 상태**였고, **인증 없이 전 회원의 비밀번호 해시를 덤프**할 수 있었습니다. 이런 결함이 살아남은 근본 원인이 **회귀를 잡을 검증 수단이 없었던 것**이라 판단해, 고치는 것과 테스트로 고정하는 것을 한 세트로 진행했습니다.
+
+### 구조적 결함 (설계·프로세스 차원)
 
 | 구분 | GoCafe (팀) | MyPickCafe (개인) |
 | --- | --- | --- |
-| **빌드** | **컴파일 실패 (에러 16개)** | clean build + 테스트 21개 통과 |
-| **자격증명** | **DB 비밀번호·JWT 시크릿 저장소에 커밋** | 외부 파일 분리 + 템플릿 제공 |
-| **회원정보 노출** | **전 회원 해시 덤프 가능** | DTO + 직렬화 차단 + 인가 |
-| 인가 | API 전체가 사실상 permitAll | URL 패턴별 RBAC + 리소스 소유권 검증 |
+| **토큰 보안** | **JWT 서명 키가 저장소에 커밋 → 토큰 위조 가능** | 시크릿 외부화 + 환경변수 주입 |
+| **인증 우회** | **평문 비밀번호 폴백 + 인코딩 없는 회원 생성 API** | 해시 검증 단일화, 인코딩을 서비스 계층으로 |
+| **인가** | **읽기·쓰기 전부 permitAll, 컨트롤러에 분산** | URL 패턴별 RBAC + 리소스 소유권 검증 |
+| **API 경계** | **JPA 엔티티 직접 노출 → 자격증명 유출** | Request/Response DTO + 직렬화 차단 |
+| **검증 수단** | **테스트 1개, 그마저 로컬 Oracle 필수** | 21개 / 실패 0, Docker 없이 실행 |
+| **환경 분리** | 단일 파일 (개발용 설정이 운영에 그대로) | dev / prod 프로파일 분리 |
+
+### 도메인·데이터 모델
+
+| 구분 | GoCafe (팀) | MyPickCafe (개인) |
+| --- | --- | --- |
+| 태그 저장 | `liked_tag_csv` 문자열 컬럼, 태그 목록은 `@Transient` | 정규화 테이블 + 4종 enum |
 | 타입 안전성 | 리플렉션으로 getter 이름 추측 | 타입 안전 enum |
-| 태그 저장 | `liked_tag_csv` 문자열 컬럼 | 정규화 테이블 + 4종 enum |
 | 태그 생성 | 수기 등록 | 리뷰 기반 AI 추출 + 자동 재집계 |
+| 권한 승격 | 카페 *등록만* 해도 점주 (승인 절차 무력화) | 관리자 승인 시점에만 승격 |
 | DB | Oracle + H2 병행 | PostgreSQL 16 (Docker) |
-| 환경 설정 | 단일 파일 (개발용 그대로) | dev / prod 프로파일 분리 |
-| 테스트 | `contextLoads()` 1개 | 21개 / 실패 0 |
 
 ---
 
-## 1️⃣ 인수 시점: 빌드가 되지 않았다
+## 1️⃣ 인수 시점의 구조적 결함
 
-`./gradlew compileJava` 결과:
+버그 몇 개가 아니라 **설계 차원에서 빠져 있던 것들**입니다. 네 가지가 서로 맞물려 있었습니다.
 
-```
-16 errors
-BUILD FAILED
-```
+### 1-1. 인증 체계가 사실상 무력화돼 있었다
 
-에러 16개가 9개 파일에 흩어져 있었지만 **원인은 하나**였습니다. `RoleKind`를 `String`에서 enum으로 바꾸는 리팩토링이 진행되다 중단돼, 호출부가 옛 시그니처를 그대로 쓰고 있었습니다.
+JWT 구현 자체는 멀쩡합니다. HS256 서명 검증, 만료 처리, `tokenVersion` 기반 서버측 무효화까지 갖춰져 있습니다. 문제는 **서명 키가 저장소에 커밋돼 있었다**는 것입니다.
 
-```
-AuthApiController.java:162  incompatible types: RoleKind cannot be converted to String
-AuthController.java:119     incompatible types: String cannot be converted to RoleKind
-CafeService.java:141        incompatible types: RoleKind cannot be converted to String
-CafeService.java:143        incompatible types: String cannot be converted to RoleKind
-MemberForm.java:54          incompatible types: String cannot be converted to RoleKind
-MissionController.java:48   incompatible types: RoleKind cannot be converted to String
-ProGateService.java:34      incompatible types: String cannot be converted to RoleKind
-... (총 16건)
+```properties
+# GoCafe application.properties — Git에 그대로
+app.jwt.secret=b+QWlwcbxeaY...(생략)...U3A=
+spring.datasource.password=jsp2025
 ```
 
-**조치** — 경계마다 명시적 변환을 넣어 타입을 일관되게 정리했습니다.
+| 확인 항목 | 결과 |
+| --- | --- |
+| 최초 커밋 | 2025-08-29 (`API & Login`) |
+| 시크릿이 포함된 커밋 | 3건 |
+| `.gitignore`의 시크릿 항목 | **없음** |
+
+서명 키가 공개되면 **누구나 임의의 사용자로 토큰을 위조**할 수 있습니다. 검증 로직이 아무리 정확해도 의미가 없습니다. 저장소를 본 사람은 ADMIN 권한 토큰을 직접 만들어 넣을 수 있습니다.
+
+인증 우회 경로도 두 개 더 있었습니다.
 
 ```java
-// Before (GoCafe MemberForm.java:54) — 컴파일 에러
-m.setRoleKind(roleKind);        // roleKind는 String, 세터는 RoleKind
+// (a) 로그인: 해시가 안 맞으면 평문 비교로 폴백
+if (!matches) matches = pw.equals(member.getPassword()); // dev only
 
-// After (MyPickCafe)
-RoleKind rk = RoleKind.MEMBER;
-if (roleKind != null && !roleKind.isBlank()) {
-    try { rk = RoleKind.valueOf(roleKind.toUpperCase()); } catch (IllegalArgumentException ignored) {}
-}
-m.setRoleKind(rk);
+// (b) 회원 생성 API: 비밀번호를 인코딩 없이 그대로 저장
+public ResponseEntity<Member> create(@RequestBody @Valid Member body, ...) {
+    Member saved = service.create(body);   // 평문이 그대로 들어감
 ```
 
-> 💬 **"인수받은 코드가 안 돌아가면 어떻게 접근하나요?"**
-> 에러 16개를 하나씩 고치는 대신 공통 원인부터 찾았습니다. 전부 `RoleKind` 타입 전환이 미완료된 탓이라, 도메인 타입을 먼저 확정하고 경계(폼 → 엔티티, 엔티티 → 뷰)마다 변환 지점을 명시하는 순서로 정리했습니다.
+(b)로 평문 계정을 만들면 (a)를 통해 그대로 로그인됩니다. **두 결함이 결합해야 완성되는 우회 경로**라, 각각만 보면 놓치기 쉽습니다.
+
+### 1-2. 인가 계층이 없었다
+
+```java
+.requestMatchers(HttpMethod.GET,  "/api/**").permitAll()
+.requestMatchers(HttpMethod.POST, "/api/**").permitAll()
+```
+
+읽기뿐 아니라 **쓰기까지 전부 열려** 있었습니다. 인가 판단이 각 컨트롤러 내부로 흩어져, 신규 엔드포인트를 추가하며 체크를 빠뜨리면 그대로 구멍이 됩니다. "막는 게 기본이고 여는 게 예외"가 아니라 그 반대인 구조였습니다.
+
+리소스 단위 소유권 검증도 없어, 점주 A가 점주 B의 메뉴를 수정할 수 있었습니다.
+
+### 1-3. API 계층 분리 원칙이 없었다 → 자격증명 유출
+
+컨트롤러가 JPA 엔티티를 그대로 주고받았습니다. `Member.password`에 직렬화 차단이 없어, 1-2와 겹치면 **인증 없이 전 회원의 이메일과 BCrypt 해시를 덤프**할 수 있었습니다.
+
+| 경로 | 유출 경로 | 인증 |
+| --- | --- | --- |
+| `GET /api/members` | `Member.password` 직접 | 불필요 |
+| `GET /api/cafes` | `Cafe.owner` → `password` | 불필요 |
+| `GET /api/menus/by-cafe/{id}` | `Menu.cafe` → `owner` → `password` | 불필요 |
+
+주목할 점은 **아무도 이 세 곳을 "노출하려고" 만들지 않았다**는 것입니다. 엔티티를 반환하니 연관관계를 타고 따라 나갔을 뿐입니다. 개별 실수가 아니라 경계 설계가 없어서 생긴 구조적 결과입니다.
+
+### 1-4. 회귀를 잡을 수단이 없었다 ← 위 셋의 근본 원인
+
+```java
+@SpringBootTest
+class GoCafeApplicationTests {
+    @Test
+    void contextLoads() { }
+}
+```
+
+테스트는 이것 하나였고, `@SpringBootTest`라 **로컬에 Oracle이 떠 있어야만** 돌아갑니다. 사실상 아무도 실행할 수 없는 테스트입니다.
+
+이게 핵심입니다. **1-1~1-3이 존재할 수 있었던 이유가 1-4**입니다. 인가 규칙이 열려 있는지, 응답에 해시가 섞여 나가는지는 코드를 눈으로 봐서는 확신할 수 없습니다. 검증 수단이 없으니 결함이 들어와도 아무도 모르는 상태로 쌓였습니다.
+
+### 조치 요약
+
+| 결함 | 조치 | 상세 |
+| --- | --- | --- |
+| 시크릿 커밋 | 외부 파일 분리 + 환경변수 주입 + 템플릿 제공 | 4️⃣ |
+| 인증 우회 | 평문 폴백 제거, 인코딩을 서비스 계층으로 이동 | 5️⃣ |
+| 인가 부재 | URL 패턴별 RBAC + 리소스 소유권 검증 | 6️⃣ |
+| 엔티티 노출 | Request/Response DTO 분리 + 직렬화 차단 | 5️⃣ |
+| 검증 부재 | 인가·자격증명 회귀 테스트로 고정 (21개) | 1️⃣2️⃣ |
+
+> 💬 **"인수받은 프로젝트에서 뭘 가장 먼저 봤나요?"**
+> 개별 버그보다 "이 결함이 왜 여기까지 살아남았나"를 봤습니다. 시크릿 노출·인가 부재·자격증명 유출이 전부 자동 검증 대상이 아니었다는 공통점이 있었습니다. 그래서 고치는 것과 테스트로 고정하는 것을 한 세트로 진행했습니다.
+
+### 참고: 빌드 실패 (구조적 결함은 아님)
+
+인수 시점 `main`은 컴파일되지 않았습니다(에러 16건). 다만 이건 구조적 문제가 아니라 **마지막 커밋 하나**의 문제였습니다. 직전 커밋(`b66952a`)은 정상 빌드되고, 마지막 커밋(`cfd21eb`, 메시지 `"mi"`)이 `RoleKind`를 `String`에서 enum으로 바꾸는 작업을 5개 파일까지 하다가 나머지 호출부 16곳을 남긴 채 중단된 상태였습니다. 경계마다 명시적 변환을 넣어 정리했습니다.
 
 ---
 
@@ -496,7 +554,8 @@ assertThat(client.analyze(request)).isEmpty();
 | 질문 | 핵심 답변 | 섹션 |
 | --- | --- | --- |
 | **가장 임팩트 있었던 작업은?** | **인증 없이 비밀번호 해시가 노출되던 취약점 발견·차단** | 5️⃣ |
-| 인수받은 코드 상태는? | main이 컴파일 실패(16 에러), 원인은 단일 리팩토링 미완료 | 1️⃣ |
+| **인수받은 프로젝트에서 뭘 먼저 봤나?** | 개별 버그보다 "이 결함이 왜 살아남았나" — 검증 수단 부재가 공통 원인 | 1️⃣ |
+| 토큰 보안 이슈는? | JWT 서명 키가 저장소에 커밋돼 인증 체계 자체가 무력화 | 1️⃣ |
 | 리팩토링 중 발견한 버그는? | 점주 승격이 승인 절차를 우회 / 복합 유니크 제약 오류 | 7️⃣, 3️⃣ |
 | 엔티티를 API에 쓰면 왜 안 되나? | 연관관계를 타고 자격증명이 실제로 유출됨 | 5️⃣ |
 | 데이터 모델링 개선 사례는? | CSV 컬럼 → 정규화 테이블 + 타입 안전 enum | 3️⃣ |
