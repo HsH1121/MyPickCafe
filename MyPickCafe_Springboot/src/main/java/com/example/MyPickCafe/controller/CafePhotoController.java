@@ -3,10 +3,9 @@ package com.example.MyPickCafe.controller;
 
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafePhoto;
-import com.example.MyPickCafe.entity.Member;
+import com.example.MyPickCafe.security.CafeOwnershipGuard;
 import com.example.MyPickCafe.service.CafePhotoService;
 import com.example.MyPickCafe.service.CafeService;
-import com.example.MyPickCafe.service.MemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,8 +21,8 @@ import java.util.List;
 public class CafePhotoController {
 
     private final CafeService cafeService;
-    private final MemberService memberService;
     private final CafePhotoService cafePhotoService;
+    private final CafeOwnershipGuard cafeOwnershipGuard;
 
     @PostMapping("/{cafeId}/photos")
     @PreAuthorize("isAuthenticated()")
@@ -58,16 +57,6 @@ public class CafePhotoController {
     }
 
     private void ensureOwner(Authentication auth, Cafe cafe) {
-        if (auth == null || !auth.isAuthenticated()) {
-            throw new org.springframework.security.access.AccessDeniedException("로그인이 필요합니다.");
-        }
-        Member me = memberService.findByEmailOptional(auth.getName()).orElse(null);
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
-        boolean isOwner = me != null && cafe.getOwner() != null
-                && cafe.getOwner().getId().equals(me.getId());
-        if (!(isOwner || isAdmin)) {
-            throw new org.springframework.security.access.AccessDeniedException("점주만 가능합니다.");
-        }
+        cafeOwnershipGuard.ensureOwner(auth, cafe);
     }
 }

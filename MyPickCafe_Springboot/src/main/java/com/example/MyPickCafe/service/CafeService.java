@@ -3,7 +3,10 @@ package com.example.MyPickCafe.service;
 
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.dto.CafeCardForm;
+import com.example.MyPickCafe.dto.CafeCreateRequest;
 import com.example.MyPickCafe.dto.CafeForm;
+import com.example.MyPickCafe.dto.CafeResponse;
+import com.example.MyPickCafe.dto.CafeUpdateRequest;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafeInfo;
 import com.example.MyPickCafe.entity.CafePhoto;
@@ -14,7 +17,6 @@ import com.example.MyPickCafe.repository.CafeRepository;
 import com.example.MyPickCafe.repository.CafeTagRepository;
 import com.example.MyPickCafe.repository.MemberRepository;
 import com.example.MyPickCafe.repository.ReviewRepository;
-import com.example.MyPickCafe.support.EntityIdUtil;
 import com.example.MyPickCafe.support.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -62,30 +65,67 @@ public class CafeService {
         return cafeRepository.findByStatus(status);
     }
 
+    // ===== REST API용 조회 (엔티티 대신 DTO 반환) =====
+    // 매핑을 트랜잭션 안에서 끝내므로 open-in-view에 의존하지 않는다.
+
+    @Transactional(readOnly = true)
+    public List<CafeResponse> findAllForApi() {
+        return cafeRepository.findAll().stream().map(CafeResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public CafeResponse findByIdForApi(Long id) {
+        return CafeResponse.from(findById(id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<CafeResponse> findByStatusForApi(CafeStatus status) {
+        return cafeRepository.findByStatus(status).stream().map(CafeResponse::from).toList();
+    }
+
     // 생성/수정/삭제
     @Transactional
-    public Cafe create(Cafe entity) {
-        EntityIdUtil.setId(entity, null);              // 신규는 id null
-        if (entity.getStatus() == null) entity.setStatus(CafeStatus.PENDING);
-        return cafeRepository.save(entity);
+    public CafeResponse createFromRequest(CafeCreateRequest req, Long ownerId) {
+        Member owner = memberRepository.findById(ownerId)
+                .orElseThrow(() -> new NotFoundException("Member not found: " + ownerId));
+
+        if (cafeRepository.existsByName(req.name())) {
+            throw new IllegalArgumentException("이미 존재하는 카페명입니다.");
+        }
+        if (cafeRepository.existsByNumber(req.phone())) {
+            throw new IllegalArgumentException("이미 등록된 전화번호입니다.");
+        }
+
+        Cafe c = new Cafe();
+        c.setOwner(owner);                  // 소유자는 인증 주체에서 가져온다
+        c.setName(req.name());
+        c.setAddress(req.address());
+        c.setLat(req.lat());
+        c.setLon(req.lon());
+        c.setNumber(req.phone());
+        c.setCode(req.code());
+        c.setDate(LocalDateTime.now());
+        c.setViews(0L);
+        c.setStatus(CafeStatus.PENDING);    // 승인 상태는 항상 서버가 결정
+
+        Cafe saved = cafeRepository.save(c);
+        try { notificationService.notifyAdminCafeRegistered(saved); } catch (Exception ignore) {}
+        return CafeResponse.from(saved);
     }
 
     @Transactional
-    public Cafe update(Long id, Cafe patch) {
+    public CafeResponse updateFromRequest(Long id, CafeUpdateRequest req) {
         Cafe c = cafeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Cafe not found: " + id));
 
-        if (patch.getName() != null) c.setName(patch.getName());
-        if (patch.getAddress() != null) c.setAddress(patch.getAddress());
-        if (patch.getLat() != null) c.setLat(patch.getLat());
-        if (patch.getLon() != null) c.setLon(patch.getLon());
-        if (patch.getNumber() != null) c.setNumber(patch.getNumber());
-        if (patch.getCode() != null) c.setCode(patch.getCode());
-        try {
-            if (patch.getBizDoc() != null) c.setBizDoc(patch.getBizDoc());
-        } catch (Exception ignored) {
-        }
-        return c;
+        if (req.name() != null && !req.name().isBlank())       c.setName(req.name());
+        if (req.address() != null && !req.address().isBlank()) c.setAddress(req.address());
+        if (req.lat() != null)                                 c.setLat(req.lat());
+        if (req.lon() != null)                                 c.setLon(req.lon());
+        if (req.phone() != null && !req.phone().isBlank())     c.setNumber(req.phone());
+        if (req.code() != null && !req.code().isBlank())        c.setCode(req.code());
+
+        return CafeResponse.from(c);        // 더티 체킹으로 반영
     }
 
     @Transactional
