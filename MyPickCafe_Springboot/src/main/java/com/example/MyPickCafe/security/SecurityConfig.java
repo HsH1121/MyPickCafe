@@ -116,6 +116,11 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**", "/files/**").permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/signup").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/chatbot/**").permitAll()
+
+                        // ⚠️ 개인정보는 아래 "GET /api/** permitAll"보다 반드시 먼저
+                        //    선언해야 한다 (Security는 최초 매칭 규칙이 이김).
+                        .requestMatchers("/api/members/**").hasRole("ADMIN")
+
                         .requestMatchers(HttpMethod.GET, "/api/cafes/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
 

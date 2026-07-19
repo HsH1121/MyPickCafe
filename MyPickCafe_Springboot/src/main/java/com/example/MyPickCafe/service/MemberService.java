@@ -1,8 +1,10 @@
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.domain.RoleKind;
+import com.example.MyPickCafe.dto.MemberCreateRequest;
+import com.example.MyPickCafe.dto.MemberUpdateRequest;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.MemberRepository;
-import com.example.MyPickCafe.support.EntityIdUtil;
 import com.example.MyPickCafe.support.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,19 +32,63 @@ public class MemberService {
                 .orElseThrow(() -> new NotFoundException("User not found: " + id));
     }
 
+    /**
+     * 관리자용 회원 생성.
+     * 비밀번호는 반드시 이 계층에서 인코딩한다 — 평문이 저장되면
+     * 로그인 검증을 우회할 수 있는 경로가 생긴다.
+     */
     @Transactional
-    public Member create(Member entity) {
-        EntityIdUtil.setId(entity, null);
-        return repository.save(entity);
+    public Member createMember(MemberCreateRequest req) {
+        if (repository.findByEmail(req.email()).isPresent()) {
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+        }
+        if (repository.existsByNickname(req.nickname())) {
+            throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
+        }
+
+        Member m = new Member();
+        m.setEmail(req.email());
+        m.setPassword(passwordEncoder.encode(req.password()));
+        m.setNickname(req.nickname());
+        m.setAge(req.age());
+        m.setGender(req.gender());
+        m.setRoleKind(parseRole(req.roleKind()));
+        m.setPhoto(req.photo());
+        m.setTokenVersion(0L);
+        return repository.save(m);
     }
 
+    /**
+     * 관리자용 회원 정보 수정.
+     * 더티 체킹으로 변경분만 반영하므로, 요청에 없는 필드(비밀번호 등)가
+     * null로 덮어써질 위험이 없다.
+     */
     @Transactional
-    public Member update(Long id, Member entity) {
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("User not found: " + id);
+    public Member updateMember(Long id, MemberUpdateRequest req) {
+        Member m = findById(id);
+
+        if (req.nickname() != null && !req.nickname().isBlank()
+                && !req.nickname().equals(m.getNickname())) {
+            if (repository.existsByNickname(req.nickname())) {
+                throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
+            }
+            m.setNickname(req.nickname());
         }
-        EntityIdUtil.setId(entity, id);
-        return repository.save(entity);
+        if (req.age() != null) m.setAge(req.age());
+        if (req.gender() != null && !req.gender().isBlank()) m.setGender(req.gender());
+        if (req.photo() != null) m.setPhoto(req.photo());
+        if (req.roleKind() != null && !req.roleKind().isBlank()) m.setRoleKind(parseRole(req.roleKind()));
+
+        return m;
+    }
+
+    private RoleKind parseRole(String raw) {
+        if (raw == null || raw.isBlank()) return RoleKind.MEMBER;
+        try {
+            return RoleKind.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("알 수 없는 권한입니다: " + raw);
+        }
     }
 
     @Transactional
