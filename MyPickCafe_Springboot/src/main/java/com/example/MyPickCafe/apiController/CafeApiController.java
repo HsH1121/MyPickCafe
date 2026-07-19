@@ -1,49 +1,66 @@
 package com.example.MyPickCafe.apiController;
 
-import com.example.MyPickCafe.entity.Cafe;
+import com.example.MyPickCafe.dto.CafeCreateRequest;
+import com.example.MyPickCafe.dto.CafeResponse;
+import com.example.MyPickCafe.dto.CafeUpdateRequest;
 import com.example.MyPickCafe.service.CafeService;
-import com.example.MyPickCafe.support.EntityIdUtil;
+import com.example.MyPickCafe.service.MemberService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.util.List;
 
+/**
+ * 카페 REST API.
+ *
+ * <p>조회는 공개, 등록/수정/삭제는 점주 또는 관리자만 가능하다.
+ * 응답은 항상 {@link CafeResponse}로 내려 점주 개인정보와
+ * 사업자 증빙 문서 경로가 노출되지 않도록 한다.
+ */
 @RestController
 @RequestMapping("/api/cafes")
 @RequiredArgsConstructor
 public class CafeApiController {
 
     private final CafeService cafeService;
+    private final MemberService memberService;
 
     @GetMapping
-    public List<Cafe> getAll() {
-        return cafeService.findAll();
+    public List<CafeResponse> getAll() {
+        return cafeService.findAllForApi();
     }
 
     @GetMapping("/{id}")
-    public Cafe getOne(@PathVariable Long id) {
-        return cafeService.findById(id);
+    public CafeResponse getOne(@PathVariable Long id) {
+        return cafeService.findByIdForApi(id);
     }
 
     @PostMapping
-    public ResponseEntity<Cafe> create(@RequestBody @Valid Cafe body, UriComponentsBuilder uriBuilder) {
-        Cafe saved = cafeService.create(body);
-        Object id = EntityIdUtil.getId(saved);
-        URI location = uriBuilder.path("/api/cafes/{id}").buildAndExpand(id).toUri();
+    @PreAuthorize("hasAnyRole('CAFEOWNER', 'ADMIN')")
+    public ResponseEntity<CafeResponse> create(@RequestBody @Valid CafeCreateRequest body,
+                                               Authentication auth,
+                                               UriComponentsBuilder uriBuilder) {
+        Long ownerId = memberService.findByEmail(auth.getName()).getId();
+        CafeResponse saved = cafeService.createFromRequest(body, ownerId);
+        URI location = uriBuilder.path("/api/cafes/{id}").buildAndExpand(saved.id()).toUri();
         return ResponseEntity.created(location).body(saved);
     }
 
     @PutMapping("/{id}")
-    public Cafe update(@PathVariable Long id, @RequestBody @Valid Cafe body) {
-        return cafeService.update(id, body);
+    @PreAuthorize("hasAnyRole('CAFEOWNER', 'ADMIN')")
+    public CafeResponse update(@PathVariable Long id, @RequestBody @Valid CafeUpdateRequest body) {
+        return cafeService.updateFromRequest(id, body);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CAFEOWNER', 'ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         cafeService.delete(id);
