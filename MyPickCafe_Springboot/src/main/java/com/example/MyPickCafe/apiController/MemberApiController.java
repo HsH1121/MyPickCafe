@@ -5,6 +5,8 @@ import com.example.MyPickCafe.dto.MemberResponse;
 import com.example.MyPickCafe.dto.MemberUpdateRequest;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.MemberService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,11 +29,14 @@ import java.util.List;
 @RequestMapping("/api/members")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
+@Tag(name = "Member (Admin)", description = "회원 관리 — 관리자 전용")
 public class MemberApiController {
 
     private final MemberService service;
 
     @GetMapping
+    @Operation(summary = "회원 전체 조회",
+            description = "비밀번호 해시는 응답에 포함되지 않는다(MemberResponse).")
     public List<MemberResponse> getAll() {
         return service.findAll().stream()
                 .map(MemberResponse::from)
