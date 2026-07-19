@@ -2,42 +2,48 @@ package com.example.MyPickCafe.service;
 
 import com.example.MyPickCafe.dto.PythonTagRequest;
 import com.example.MyPickCafe.dto.PythonTagResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Optional;
 
+/**
+ * 리뷰 태그·감성 분석 AI 서버(FastAPI) 클라이언트.
+ *
+ * <p>태그 분석은 <b>부가 기능</b>이다. 서버가 죽었거나 느리더라도
+ * 리뷰 작성 자체는 성공해야 하므로, 실패를 예외로 전파하지 않고
+ * {@link Optional#empty()}로 돌려 호출부가 태그 없이 진행하게 한다.
+ */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PythonTagClient {
 
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
 
-    @Value("${python.api.base-url}")
-    private String baseUrl;
+    public PythonTagClient(@Qualifier("pythonTagWebClient") WebClient webClient) {
+        this.webClient = webClient;
+    }
 
     /**
-     * FastAPI POST /review/analyze 를 호출해 태그·감성 분석 결과를 반환한다.
-     * 호출 실패(서버 다운, 타임아웃 등) 시 Optional.empty() 를 반환해 호출부에서 무시한다.
+     * {@code POST /review/analyze} 호출.
+     *
+     * <p>서블릿 스택이므로 결과를 {@code block()}으로 받는다.
+     * 무한 대기를 막는 타임아웃은 {@code AiClientConfig}에서 커넥터에 걸어 두었다.
      */
     public Optional<PythonTagResponse> analyze(PythonTagRequest req) {
         try {
-            ResponseEntity<PythonTagResponse> res = restTemplate.postForEntity(
-                    baseUrl + "/review/analyze",
-                    req,
-                    PythonTagResponse.class
-            );
-            if (res.getStatusCode().is2xxSuccessful() && res.getBody() != null) {
-                return Optional.of(res.getBody());
-            }
+            PythonTagResponse res = webClient.post()
+                    .uri("/review/analyze")
+                    .bodyValue(req)
+                    .retrieve()
+                    .bodyToMono(PythonTagResponse.class)
+                    .block();
+            return Optional.ofNullable(res);
         } catch (Exception e) {
-            log.warn("Python tag API 호출 실패 (무시됨): {}", e.getMessage());
+            log.warn("Python tag API 호출 실패 (무시하고 태그 없이 진행): {}", e.getMessage());
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 }
