@@ -117,6 +117,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login", "/api/auth/signup").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/chatbot/**").permitAll()
 
+                        // Swagger UI / OpenAPI 문서 (prod 프로파일에서는 springdoc 자체가 비활성)
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+
                         // ⚠️ 개인정보는 아래 "GET /api/** permitAll"보다 반드시 먼저
                         //    선언해야 한다 (Security는 최초 매칭 규칙이 이김).
                         .requestMatchers("/api/members/**").hasRole("ADMIN")
