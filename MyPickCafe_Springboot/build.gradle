@@ -32,6 +32,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-mustache'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	// WebClient (외부 AI 서버 호출용). starter-web이 함께 있으므로 앱은 서블릿 스택으로 기동된다.
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	//runtimeOnly 'com.h2database:h2'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
