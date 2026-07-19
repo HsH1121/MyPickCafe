@@ -82,10 +82,17 @@ public class AuthApiController {
         }
         Member member = memberOpt.get();
 
+        // 저장된 해시와만 비교한다.
+        // (과거에는 해시 불일치 시 평문 비교로 폴백했는데, 평문 비밀번호가 저장된
+        //  계정이 하나라도 생기면 그대로 로그인이 뚫리므로 제거했다.)
         boolean matches = false;
         if (member.getPassword() != null) {
-            try { matches = passwordEncoder.matches(pw, member.getPassword()); } catch (Exception ignored) {}
-            if (!matches) matches = pw.equals(member.getPassword()); // dev only
+            try {
+                matches = passwordEncoder.matches(pw, member.getPassword());
+            } catch (IllegalArgumentException e) {
+                // 해시 형식이 아닌 값이 저장된 경우 — 인증 실패로 처리
+                matches = false;
+            }
         }
         if (!matches) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid credentials"));
