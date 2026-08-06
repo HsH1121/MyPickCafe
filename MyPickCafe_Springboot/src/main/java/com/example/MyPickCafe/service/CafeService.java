@@ -165,17 +165,19 @@ public class CafeService {
         Cafe saved = cafeRepository.save(cafe);
 
         // 4) 카페 사진 다중 업로드
+        //    대표 여부/정렬값은 루프 밖에서 한 번만 조회하고 이후 메모리에서 증가시킨다
         if (cafePhotoFiles != null) {
+            boolean hasMain = cafePhotoRepository.existsByCafe_IdAndMainTrue(saved.getId());
+            int nextOrder   = (int) cafePhotoRepository.countByCafe_Id(saved.getId());
             for (MultipartFile file : cafePhotoFiles) {
                 if (file == null || file.isEmpty()) continue;
                 String photoUrl = fileStorageService.save(file, "cafes/" + saved.getId());
-                boolean hasMain = cafePhotoRepository.existsByCafe_IdAndMainTrue(saved.getId());
-                int nextOrder  = (int) cafePhotoRepository.countByCafe_Id(saved.getId());
                 CafePhoto photo = new CafePhoto();
                 photo.setCafe(saved);
                 photo.setUrl(photoUrl);
-                photo.setSortIndex(nextOrder);
+                photo.setSortIndex(nextOrder++);
                 photo.setMain(!hasMain);
+                hasMain = true;
                 cafePhotoRepository.save(photo);
             }
         }
