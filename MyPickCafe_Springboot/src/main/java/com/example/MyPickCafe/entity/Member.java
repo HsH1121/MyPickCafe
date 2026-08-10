@@ -1,15 +1,12 @@
 package com.example.MyPickCafe.entity;
 
 import com.example.MyPickCafe.domain.RoleKind;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -59,26 +56,6 @@ public class Member {
 
     @Column(name = "token_version", nullable = false)
     private Long tokenVersion = 0L;
-
-    @JsonIgnore
-    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Favorite> favorites = new ArrayList<>();
-
-    @JsonIgnore
-    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Cafe> cafes = new ArrayList<>();
-
-    @JsonIgnore
-    @OneToMany(mappedBy = "member", fetch = FetchType.LAZY)
-    private List<Review> reviews = new ArrayList<>();
-
-    @JsonIgnore
-    @OneToMany(mappedBy = "recipient", fetch = FetchType.LAZY)
-    private List<Notification> notifications = new ArrayList<>();
-
-    @JsonIgnore
-    @OneToMany(mappedBy = "member", fetch = FetchType.LAZY)
-    private List<UserNeeds> userNeeds = new ArrayList<>();
 
     @PrePersist
     public void prePersist() {

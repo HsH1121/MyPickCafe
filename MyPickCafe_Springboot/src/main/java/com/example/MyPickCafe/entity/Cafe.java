@@ -1,7 +1,6 @@
     package com.example.MyPickCafe.entity;
 
     import com.example.MyPickCafe.domain.CafeStatus;
-    import com.fasterxml.jackson.annotation.JsonIgnore;
     import jakarta.persistence.*;
     import lombok.AllArgsConstructor;
     import lombok.Getter;
@@ -11,8 +10,6 @@
     import org.hibernate.annotations.OnDeleteAction;
 
     import java.time.LocalDateTime;
-    import java.util.ArrayList;
-    import java.util.List;
 
     @NoArgsConstructor
     @Entity
@@ -73,32 +70,4 @@
         public boolean isRejected() {
             return status == CafeStatus.REJECTED;
         }
-
-        @JsonIgnore
-        @OneToMany(mappedBy = "cafe", cascade = CascadeType.ALL, orphanRemoval = true)
-        private List<Favorite> favorites = new ArrayList<>();
-
-        @JsonIgnore
-        @OneToOne(mappedBy = "cafe", fetch = FetchType.LAZY)
-        private CafeInfo cafeInfo;
-
-        @JsonIgnore
-        @OneToMany(mappedBy = "cafe", fetch = FetchType.LAZY)
-        private List<CafePhoto> photos = new ArrayList<>();
-
-        @JsonIgnore
-        @OneToMany(mappedBy = "cafe", fetch = FetchType.LAZY)
-        private List<CafeTag> tags = new ArrayList<>();
-
-        @JsonIgnore
-        @OneToMany(mappedBy = "cafe", fetch = FetchType.LAZY)
-        private List<MenuCategory> menuCategories = new ArrayList<>();
-
-        @JsonIgnore
-        @OneToMany(mappedBy = "cafe", fetch = FetchType.LAZY)
-        private List<Menu> menus = new ArrayList<>();
-
-        @JsonIgnore
-        @OneToMany(mappedBy = "cafe", fetch = FetchType.LAZY)
-        private List<Review> reviews = new ArrayList<>();
     }
