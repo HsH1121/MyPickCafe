@@ -53,10 +53,6 @@ public class Review {
     private LocalDateTime createdAt;
 
     @Builder.Default
-    @OneToMany(mappedBy = "review", fetch = FetchType.LAZY)
-    private List<ReviewTag> tags = new ArrayList<>();
-
-    @Builder.Default
     @OneToMany(mappedBy = "review", cascade=ALL, orphanRemoval=true)
     @OrderBy("sortIndex ASC")
     private List<ReviewPhoto> photos = new ArrayList<>();

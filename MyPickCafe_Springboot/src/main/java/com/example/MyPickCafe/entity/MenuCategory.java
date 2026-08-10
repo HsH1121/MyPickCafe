@@ -1,6 +1,5 @@
 package com.example.MyPickCafe.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -8,9 +7,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @NoArgsConstructor
 @Entity
@@ -32,8 +28,4 @@ public class MenuCategory {
 
     @Column(name = "category", nullable = false, length = 12)
     private String category;
-
-    @JsonIgnore
-    @OneToMany(mappedBy = "menuCategory", fetch = FetchType.LAZY)
-    private List<Menu> menus = new ArrayList<>();
 }
