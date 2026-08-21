@@ -59,12 +59,7 @@ public class MainController {
                 })
                 .collect(Collectors.toList());
 
-        List<TagChipDto> cafeTags = cafeTagService.findAll().stream()
-                .filter(Objects::nonNull)
-                .flatMap(t -> TagChipDto.fromCafeTag(t).stream())
-                .distinct()
-                .limit(24)
-                .collect(Collectors.toList());
+        List<TagChipDto> cafeTags = cafeTagService.findDistinctChips(24);
 
         List<Review> recentReviews = reviewService.findAll().stream()
                 .sorted(Comparator.comparing(Review::getCreatedAt,
@@ -98,11 +93,7 @@ public class MainController {
 
         List<Cafe> results = cafeService.searchApproved(q);
 
-        List<TagChipDto> tags = cafeTagService.findAll().stream()
-                .flatMap(t -> TagChipDto.fromCafeTag(t).stream())
-                .distinct()
-                .limit(24)
-                .collect(Collectors.toList());
+        List<TagChipDto> tags = cafeTagService.findDistinctChips(24);
         List<Review> recent = reviewService.findAll().stream()
                 .sorted(Comparator.comparing(Review::getCreatedAt,
                         Comparator.nullsLast(Comparator.naturalOrder())).reversed())
