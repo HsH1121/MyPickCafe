@@ -1,13 +1,12 @@
 package com.example.MyPickCafe.service;
 
-import com.example.MyPickCafe.entity.CafeTag;
+import com.example.MyPickCafe.dto.TagChipDto;
 import com.example.MyPickCafe.repository.CafeTagRepository;
-import com.example.MyPickCafe.support.EntityIdUtil;
-import com.example.MyPickCafe.support.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -16,37 +15,14 @@ public class CafeTagService {
 
     private final CafeTagRepository repository;
 
+    /** 화면 상단 태그 칩 목록 — 실제로 카페에 붙어 있는 태그 종류만 최대 {@code limit}개. */
     @Transactional(readOnly = true)
-    public List<CafeTag> findAll() {
-        return repository.findAll();
-    }
-
-    @Transactional(readOnly = true)
-    public CafeTag findById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new NotFoundException("CafeTag not found: " + id));
-    }
-
-    @Transactional
-    public CafeTag create(CafeTag entity) {
-        EntityIdUtil.setId(entity, null);
-        return repository.save(entity);
-    }
-
-    @Transactional
-    public CafeTag update(Long id, CafeTag entity) {
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("CafeTag not found: " + id);
+    public List<TagChipDto> findDistinctChips(int limit) {
+        List<TagChipDto> chips = new ArrayList<>();
+        for (Object[] row : repository.findDistinctTagChips()) {
+            if (chips.size() >= limit) break;
+            chips.add(new TagChipDto((String) row[0], (String) row[1]));
         }
-        EntityIdUtil.setId(entity, id);
-        return repository.save(entity);
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("CafeTag not found: " + id);
-        }
-        repository.deleteById(id);
+        return chips;
     }
 }
