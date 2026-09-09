@@ -1,6 +1,5 @@
 package com.example.MyPickCafe.apiController;
 
-import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.dto.MemberForm;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.MemberService;
@@ -37,35 +36,6 @@ public class AuthApiController {
         this.memberService = memberService;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
-    }
-
-    @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody MemberForm body) {
-        String email = body.getEmail();
-        String pw = body.getPassword();
-        if (email == null || email.isBlank() || pw == null || pw.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "email/password required"));
-        }
-        if (memberService.existsByEmail(email)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "Email already exists"));
-        }
-
-        Member m = new Member();
-        m.setEmail(email);
-        m.setPassword(passwordEncoder.encode(pw));
-        m.setNickname(body.getNickname());
-        m.setAge(body.getAge());
-        m.setGender(body.getGender());
-        RoleKind rk = RoleKind.MEMBER;
-        if (body.getRoleKind() != null && !body.getRoleKind().isBlank()) {
-            try { rk = RoleKind.valueOf(body.getRoleKind().toUpperCase()); } catch (IllegalArgumentException ignored) {}
-        }
-        m.setRoleKind(rk);
-        m.setPhoto(body.getPhoto());
-        m.setTokenVersion(0L);
-
-        memberService.save(m);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @PostMapping("/login")

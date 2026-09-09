@@ -6,7 +6,6 @@ import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.CafeInfoService;
 import com.example.MyPickCafe.service.CafeService;
 import com.example.MyPickCafe.service.MemberService;
-import com.example.MyPickCafe.support.NotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

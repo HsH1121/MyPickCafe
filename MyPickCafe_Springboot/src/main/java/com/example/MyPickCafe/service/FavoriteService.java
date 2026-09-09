@@ -53,13 +53,6 @@ public class FavoriteService {
     }
 
     @Transactional(readOnly = true)
-    public boolean isFavoritedByMemberId(Long memberId, Long cafeId) {
-        Member m = memberRepository.getReferenceById(memberId);
-        Cafe c = cafeRepository.getReferenceById(cafeId);
-        return favoriteRepository.existsByMemberAndCafe(m, c);
-    }
-
-    @Transactional(readOnly = true)
     public boolean isFavoritedByEmail(String memberEmail, Long cafeId) {
         return memberRepository.findByEmail(memberEmail)
                 .map(me -> {
