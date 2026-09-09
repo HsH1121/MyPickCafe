@@ -13,7 +13,6 @@ import java.util.Optional;
 
 public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
 
-    Optional<Favorite> findByMemberAndCafe(Member member, Cafe cafe);
 
     boolean existsByMemberAndCafe(Member member, Cafe cafe);
 

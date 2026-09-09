@@ -50,11 +50,6 @@ public class CafeService {
     }
 
     @Transactional(readOnly = true)
-    public List<Cafe> findTop8ByViews() {
-        return cafeRepository.findTop8ByOrderByViewsDesc(); // DB에서 정렬+TOP8
-    }
-
-    @Transactional(readOnly = true)
     public Cafe findById(Long id) {
         return cafeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Cafe not found: " + id));
@@ -204,37 +199,6 @@ public class CafeService {
         return saved.getId();
     }
 
-    // 대표 사진 교체(새 URL을 대표로 추가)
-    @Transactional
-    public void updateCafePhoto(Long cafeId, String photoUrl) {
-        Cafe c = cafeRepository.findById(cafeId)
-                .orElseThrow(() -> new NotFoundException("Cafe not found: " + cafeId));
-
-        // 기존 메인 해제
-        List<CafePhoto> all = cafePhotoRepository.findByCafe_Id(cafeId);
-        for (CafePhoto p : all) p.setMain(false);
-
-        // 새 엔티티 생성 → 메인 지정
-        CafePhoto photo = new CafePhoto();
-        photo.setCafe(c);
-        photo.setUrl(photoUrl);
-        photo.setMain(true);
-        photo.setSortIndex(all.size());           // // 마지막 뒤에 정렬
-
-        cafePhotoRepository.save(photo);             // // 컬렉션 카스케이드에 의존하지 않고 명시 저장
-    }
-
-    @Transactional
-    public void updateCafeBizDoc(Long cafeId, String docUrl) {
-        Cafe c = cafeRepository.findById(cafeId)
-                .orElseThrow(() -> new NotFoundException("Cafe not found: " + cafeId));
-        try {
-            c.setBizDoc(docUrl);
-        } catch (Throwable e) {
-            throw new IllegalStateException("Cafe 엔티티에 setBizDoc(String)이 없습니다.", e);
-        }
-    }
-
     // 상태 변경
     @Transactional
     public void changeStatus(Long cafeId, CafeStatus status) {
@@ -274,11 +238,6 @@ public class CafeService {
                 CafeStatus.APPROVED, PageRequest.of(0, limit));
     }
 
-    @Transactional(readOnly = true)
-    public Cafe getOrThrow(Long id) {
-        return cafeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("카페가 없습니다. id=" + id));
-    }
     @Transactional(readOnly = true)
     public List<Cafe> searchApproved(String keyword) {
         if (keyword == null || keyword.isBlank()) {
