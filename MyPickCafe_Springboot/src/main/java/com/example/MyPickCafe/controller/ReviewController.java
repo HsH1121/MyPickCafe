@@ -13,7 +13,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.net.URLEncoder;
@@ -39,7 +38,6 @@ public class ReviewController {
 
     @PostMapping("/new")
     public String create(@ModelAttribute ReviewForm form,
-                         @RequestParam(value = "photos", required = false) MultipartFile[] photos,
                          RedirectAttributes ra,
                          Authentication authentication,
                          HttpServletRequest request) {

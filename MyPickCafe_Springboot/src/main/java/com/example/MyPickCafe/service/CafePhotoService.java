@@ -12,7 +12,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -20,10 +19,6 @@ public class CafePhotoService {
 
     private final CafePhotoRepository cafePhotoRepository;
     private final FileStorageService fileStorageService;
-
-    public List<CafePhoto> findMainPhotosForAllCafes() {
-        return cafePhotoRepository.findMainPhotosForAllCafes();
-    }
 
     public List<CafePhoto> findForCafeIdsOrderByMainThenSort(Collection<Long> cafeIds) {
         return cafePhotoRepository.findForCafeIdsOrderByMainThenSort(cafeIds);

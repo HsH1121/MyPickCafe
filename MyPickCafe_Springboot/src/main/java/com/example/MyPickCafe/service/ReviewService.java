@@ -9,7 +9,6 @@ import com.example.MyPickCafe.dto.ChatbotIndexRequest;
 import com.example.MyPickCafe.dto.MyReviewItem;
 import com.example.MyPickCafe.dto.PythonTagRequest;
 import com.example.MyPickCafe.dto.PythonTagResponse;
-import com.example.MyPickCafe.dto.ReviewCreateForm;
 import com.example.MyPickCafe.dto.ReviewForm;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafeTag;
@@ -19,10 +18,8 @@ import com.example.MyPickCafe.entity.ReviewTag;
 import com.example.MyPickCafe.repository.CafePhotoRepository;
 import com.example.MyPickCafe.repository.CafeRepository;
 import com.example.MyPickCafe.repository.CafeTagRepository;
-import com.example.MyPickCafe.repository.MemberRepository;
 import com.example.MyPickCafe.repository.ReviewRepository;
 import com.example.MyPickCafe.repository.ReviewTagRepository;
-import com.example.MyPickCafe.support.EntityIdUtil;
 import com.example.MyPickCafe.support.NotFoundException;
 
 import java.util.ArrayList;
@@ -47,7 +44,6 @@ public class ReviewService {
     private final ReviewTagRepository reviewTagRepository;
     private final CafeRepository cafeRepository;
     private final CafeTagRepository cafeTagRepository;
-    private final MemberRepository memberRepository;
     private final PythonTagClient pythonTagClient;
     private final ChatbotClient chatbotClient;
 
@@ -62,50 +58,10 @@ public class ReviewService {
                 .orElseThrow(() -> new NotFoundException("Review not found: " + id));
     }
 
-    @Transactional
-    public Review create(ReviewCreateForm form, Long memberId) {
-        Review saved = reviewRepository.save(mapToEntity(form, memberId));
-        try {
-            notificationService.notifyReviewCreated(saved);
-        } catch (Exception ignore) {
-        }
-        return saved;
-    }
-
-
-    @Transactional
-    public Review update(Long id, Review entity) {
-        if (!reviewRepository.existsById(id)) {
-            throw new NotFoundException("Review not found: " + id);
-        }
-        EntityIdUtil.setId(entity, id);
-        return reviewRepository.save(entity);
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        Review review = reviewRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Review not found: " + id));
-        Long cafeId = review.getCafe().getId();
-        chatbotClient.deleteOneAsync(id);
-        reviewRepository.deleteById(id);
-        syncCafeTopTags(cafeId);
-    }
-
-    public Review save(Review review) {
-        return reviewRepository.save(review);
-    }
-
     // 카페 상세에서 사용할 리뷰 목록(최신순)
     @Transactional(readOnly = true)
     public List<Review> findByCafeIdWithMember(Long cafeId) {
         return reviewRepository.findByCafe_IdOrderByCreatedAtDesc(cafeId);
-    }
-
-    // 홈의 최근 올라온 후기
-    @Transactional(readOnly = true)
-    public List<Review> findRecentTop10() {
-        return reviewRepository.findTop10ByOrderByCreatedAtDesc();
     }
 
     public Page<MyReviewItem> findMyReviews(Long memberId, Pageable pageable) {
@@ -140,16 +96,6 @@ public class ReviewService {
         return s == null ? "" : s;
     }
 
-    private Review mapToEntity(ReviewCreateForm form, Long memberId) {
-        Review r = new Review();
-        r.setCafe(cafeRepository.getReferenceById(form.getCafeId()));
-        r.setMember(memberRepository.getReferenceById(memberId));
-
-        // ⬇️ 아래 3줄은 네 엔티티/폼 필드명에 맞게 필요하면 이름만 바꿔줘!
-        r.setContent(form.getReviewContent());
-
-        return r;
-    }
     @Transactional
     public Review saveWithTags(ReviewForm form, Member me, Cafe cafe) {
         // 1. 리뷰 저장

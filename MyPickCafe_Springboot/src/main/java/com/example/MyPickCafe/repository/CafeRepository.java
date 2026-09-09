@@ -16,7 +16,6 @@ public interface CafeRepository extends JpaRepository<Cafe, Long> {
     boolean existsByName(String cafeName);
     boolean existsByNumber(String cafeNumber);
 
-    List<Cafe> findTop8ByOrderByViewsDesc();
 
     List<Cafe> findByStatusOrderByViewsDesc(CafeStatus status, Pageable pageable);
 
@@ -28,7 +27,6 @@ public interface CafeRepository extends JpaRepository<Cafe, Long> {
             CafeStatus status1, String name, CafeStatus status2, String address);
 
     long countByStatus(CafeStatus status);
-    boolean existsByAddress(String address);
 
     List<Cafe> findByOwner_IdOrderByDateDesc(Long ownerId);
 }
