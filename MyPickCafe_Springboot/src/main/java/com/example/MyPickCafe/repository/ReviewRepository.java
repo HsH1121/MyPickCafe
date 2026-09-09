@@ -26,21 +26,15 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     """)
     List<Review> findByCafeIdWithMember(@Param("cafeId") Long cafeId);
 
-    @EntityGraph(attributePaths = {"member", "cafe", "photos"})
-    List<Review> findByCafe_IdOrderByCreatedAtDesc(Long cafeId);
-
     @EntityGraph(attributePaths = {"member", "cafe"})
-    List<Review> findTop10ByOrderByCreatedAtDesc();
+    List<Review> findByCafe_IdOrderByCreatedAtDesc(Long cafeId);
 
     int countByCafe_IdAndSentiment(Long cafeId, String sentiment);
 
-    List<Review> findByCafe_IdOrderByIdDesc(Long cafeId);
 
     @EntityGraph(attributePaths = {"cafe"})
     Page<Review> findByMember_IdOrderByCreatedAtDesc(Long memberId, Pageable pageable);
 
-    long countByMember_Id(Long memberId);
-    long countByMember_IdAndSentiment(Long memberId, String sentiment);
 
     @Query("""
         SELECT r.cafe.id,
