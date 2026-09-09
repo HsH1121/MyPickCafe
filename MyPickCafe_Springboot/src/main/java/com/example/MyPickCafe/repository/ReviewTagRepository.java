@@ -11,10 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 public interface ReviewTagRepository extends JpaRepository<ReviewTag, Long> {
-    public interface TagCount {
-        String getCode();
-        Long getCnt();
-    }
     /* 좋아요 태그 집계 (GOOD 리뷰만) */
     @Query(value = """
     SELECT t.code AS code, COUNT(*) AS cnt
@@ -42,7 +38,7 @@ public interface ReviewTagRepository extends JpaRepository<ReviewTag, Long> {
     List<Object[]> findTagCountsByCafe(@Param("cafeId") Long cafeId);
 
     /* 리뷰에 달린 태그 전부 삭제 (연관관계 없이 review_id 정리) */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Transactional
     @Query(value = "DELETE FROM review_tag WHERE review_id = :reviewId", nativeQuery = true)
     void deleteByReviewId(@Param("reviewId") Long reviewId);
