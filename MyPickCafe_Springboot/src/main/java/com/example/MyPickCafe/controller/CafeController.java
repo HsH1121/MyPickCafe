@@ -34,7 +34,6 @@ public class CafeController {
     private final MemberService memberService;
     private final ReviewService reviewService;
     private final CafeStatsService cafeStatsService;
-    private final ReviewPhotoService reviewPhotoService;
     private final FavoriteService favoriteService;
     private final CafePhotoService cafePhotoService;
     private final CafeInfoService cafeInfoService;
@@ -345,12 +344,8 @@ public class CafeController {
         }).collect(Collectors.toList());
         model.addAttribute("menus", menuVm);
 
-        // 8) 리뷰 목록 + 리뷰 사진
+        // 8) 리뷰 목록 + 리뷰 사진 (photos까지 한 번에 페치, @OrderBy로 정렬)
         var reviews = reviewService.findByCafeIdWithMember(cafeId);
-        for (var r : reviews) {
-            var photos = reviewPhotoService.findByReviewIdOrderBySortIndexAsc(r.getId());
-            r.setPhotos(photos);
-        }
         model.addAttribute("reviews", reviews);
 
         // 9) 좋아요/아쉬워요 + 태그 집계

@@ -26,7 +26,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     """)
     List<Review> findByCafeIdWithMember(@Param("cafeId") Long cafeId);
 
-    @EntityGraph(attributePaths = {"member", "cafe"})
+    @EntityGraph(attributePaths = {"member", "cafe", "photos"})
     List<Review> findByCafe_IdOrderByCreatedAtDesc(Long cafeId);
 
     @EntityGraph(attributePaths = {"member", "cafe"})
