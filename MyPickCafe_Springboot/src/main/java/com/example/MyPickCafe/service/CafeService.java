@@ -262,7 +262,7 @@ public class CafeService {
             List<Cafe> all = cafeRepository.findByStatus(CafeStatus.APPROVED);
             Set<Long> ids = all.stream().map(Cafe::getId).collect(Collectors.toSet());
             Map<Long, Double> ratioMap = new HashMap<>();
-            for (Object[] row : reviewRepository.findSentimentCountsByCafeIds(ids)) {
+            for (Object[] row : reviewRepository.findSentimentCountsForCafeIds(ids)) {
                 long cafeId = ((Number) row[0]).longValue();
                 long good   = ((Number) row[1]).longValue();
                 long total  = ((Number) row[2]).longValue();
@@ -283,7 +283,7 @@ public class CafeService {
 
     @Transactional(readOnly = true)
     public List<CafeCardForm> findApprovedCardsByTag(String category, String code, int limit) {
-        List<Long> ids = cafeTagRepository.findCafeIdsByTag(category, code);
+        List<Long> ids = cafeTagRepository.findCafeIdsForTag(category, code);
         if (ids.isEmpty()) return List.of();
         return enrichWithPhotos(
                 cafeRepository.findByStatusAndIdInOrderByViewsDesc(CafeStatus.APPROVED, ids)
@@ -294,7 +294,7 @@ public class CafeService {
         if (cafes.isEmpty()) return List.of();
         Set<Long> ids = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
         Map<Long, String> photoMap = new HashMap<>();
-        for (CafePhoto p : cafePhotoRepository.findForCafeIdsOrderByMainThenSort(ids)) {
+        for (CafePhoto p : cafePhotoRepository.findPhotosForCafeIdsMainFirst(ids)) {
             photoMap.putIfAbsent(p.getCafe().getId(), p.getUrl());
         }
         return cafes.stream()

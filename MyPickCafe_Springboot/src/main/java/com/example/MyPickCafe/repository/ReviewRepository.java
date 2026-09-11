@@ -16,16 +16,6 @@ import java.util.List;
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
-    @Query("""
-        select r
-        from Review r
-        join fetch r.member m
-        join fetch r.cafe c
-        where c.id = :cafeId
-        order by r.createdAt desc
-    """)
-    List<Review> findByCafeIdWithMember(@Param("cafeId") Long cafeId);
-
     @EntityGraph(attributePaths = {"member", "cafe"})
     List<Review> findByCafe_IdOrderByCreatedAtDesc(Long cafeId);
 
@@ -44,5 +34,5 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         WHERE r.cafe.id IN :cafeIds
         GROUP BY r.cafe.id
     """)
-    List<Object[]> findSentimentCountsByCafeIds(@Param("cafeIds") Collection<Long> cafeIds);
+    List<Object[]> findSentimentCountsForCafeIds(@Param("cafeIds") Collection<Long> cafeIds);
 }

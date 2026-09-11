@@ -29,7 +29,7 @@ public class ChatbotController {
         List<ChatbotResult> results = chatbotClient.recommend(req.getQuery());
         if (!results.isEmpty()) {
             List<Long> cafeIds = results.stream().map(ChatbotResult::getCafeId).toList();
-            Map<Long, String> photoMap = cafePhotoService.findForCafeIdsOrderByMainThenSort(cafeIds)
+            Map<Long, String> photoMap = cafePhotoService.findPhotosForCafeIdsMainFirst(cafeIds)
                     .stream()
                     .collect(Collectors.toMap(
                             p -> p.getCafe().getId(),
