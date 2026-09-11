@@ -494,7 +494,7 @@ GoCafe의 태그는 수기 등록이었고, 리뷰 태그를 카페 단위로 �
 
 ### 10-1. 리뷰 → 태그·감성 자동 추출
 
-FastAPI(Ollama `qwen2.5:7b`) 연동을 **전용 Client 계층**으로 감싸
+FastAPI(Ollama `qwen2.5:14b`) 연동을 **전용 Client 계층**으로 감싸
 Service/Controller가 HTTP 세부사항을 모르게 했습니다.
 
 ### 10-2. 장애 격리 (Graceful Degradation)

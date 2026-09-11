@@ -38,7 +38,7 @@ D:/MyPickCafe/
 
   언어          : Python 3.11
   프레임워크    : FastAPI + Uvicorn
-  LLM           : Ollama — qwen2.5:7b (로컬, VRAM ~4.7GB)
+  LLM           : Ollama — qwen2.5:14b (로컬, VRAM ~8.7GB)
   벡터 DB       : ChromaDB (Persistent, cosine similarity, HNSW)
   임베딩        : Ollama /api/embed 엔드포인트
   DB 연결       : psycopg (PostgreSQL 드라이버)
@@ -52,7 +52,7 @@ D:/MyPickCafe/
    - 사용자 자연어 질문 → Ollama 임베딩 → ChromaDB 코사인 유사도 검색
    - 카페 다양성 보장 로직: 동일 카페 리뷰가 결과를 독점하지 않도록
      카페별 리뷰 cap 적용 (1등 최대 5개, 2등 4개, …)
-   - 검색된 컨텍스트를 qwen2.5:7b에 전달 → JSON 형태 추천 결과 생성
+   - 검색된 컨텍스트를 qwen2.5:14b에 전달 → JSON 형태 추천 결과 생성
    - Spring Boot → POST /chatbot/recommend 호출
 
 2. 리뷰 태그/감성 분석 AI
@@ -91,7 +91,7 @@ D:/MyPickCafe/
 ----------------------------------------------------------------
 
   - 카페 225개, 카페 오너, 리뷰 대량 더미 데이터를 SQL로 생성 (PostgreSQL 문법)
-  - Ollama(qwen2.5:7b)로 리뷰 텍스트 자동 생성
+  - Ollama(qwen2.5:14b)로 리뷰 텍스트 자동 생성
   - ChromaDB에 리뷰 임베딩 인덱싱까지 포함
 
 ----------------------------------------------------------------
