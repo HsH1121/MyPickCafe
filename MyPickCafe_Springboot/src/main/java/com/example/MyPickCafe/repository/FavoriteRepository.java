@@ -6,8 +6,6 @@ import com.example.MyPickCafe.entity.Member;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
@@ -16,8 +14,7 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
 
     boolean existsByMemberAndCafe(Member member, Cafe cafe);
 
-    @Query("select count(f) from Favorite f where f.cafe = :cafe")
-    long countByCafe(@Param("cafe") Cafe cafe);
+    long countByCafe(Cafe cafe);
 
     Page<Favorite> findByMember(Member member, Pageable pageable);
 

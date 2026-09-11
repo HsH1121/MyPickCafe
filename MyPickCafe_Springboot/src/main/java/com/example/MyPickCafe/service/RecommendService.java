@@ -66,7 +66,7 @@ public class RecommendService {
 
         // 대표 사진 조회
         Map<Long, String> photoMap = new HashMap<>();
-        for (CafePhoto p : cafePhotoRepository.findForCafeIdsOrderByMainThenSort(topCafeIds)) {
+        for (CafePhoto p : cafePhotoRepository.findPhotosForCafeIdsMainFirst(topCafeIds)) {
             photoMap.putIfAbsent(p.getCafe().getId(), p.getUrl());
         }
 

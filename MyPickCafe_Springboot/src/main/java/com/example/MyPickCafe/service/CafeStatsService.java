@@ -19,7 +19,7 @@ public class CafeStatsService {
         int bad  = reviewRepository.countByCafe_IdAndSentiment(cafeId, "BAD");
 
         List<Map<String, Object>> tags = new ArrayList<>();
-        for (Object[] row : reviewTagRepository.findLikeTagCountsGood(cafeId)) {
+        for (Object[] row : reviewTagRepository.findGoodLikeTagCountsForCafeId(cafeId)) {
             String code = (String) row[0];                 // 태그 코드 (예: "맛있어요")
             long cnt    = ((Number) row[1]).longValue();   // 개수
             // 🔧 템플릿이 기대하는 key 이름으로 맞춤

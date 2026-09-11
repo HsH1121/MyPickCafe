@@ -38,7 +38,7 @@ public class MainController {
     public String home(Model model, Authentication authentication) {
         List<Cafe> cafes = cafeService.findApprovedTopByViews(8);
         Set<Long> topIds = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
-        List<CafePhoto> mainPhotos = cafePhotoService.findForCafeIdsOrderByMainThenSort(topIds);
+        List<CafePhoto> mainPhotos = cafePhotoService.findPhotosForCafeIdsMainFirst(topIds);
 
         Map<Long, String> photoByCafeId = new HashMap<>();
         for (CafePhoto p : mainPhotos) {

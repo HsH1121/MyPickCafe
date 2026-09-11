@@ -345,7 +345,7 @@ public class CafeController {
         model.addAttribute("menus", menuVm);
 
         // 8) 리뷰 목록 + 리뷰 사진 (photos까지 한 번에 페치, @OrderBy로 정렬)
-        var reviews = reviewService.findByCafeIdWithMember(cafeId);
+        var reviews = reviewService.findReviewsForCafe(cafeId);
         model.addAttribute("reviews", reviews);
 
         // 9) 좋아요/아쉬워요 + 태그 집계
