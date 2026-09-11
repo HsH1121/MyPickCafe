@@ -27,7 +27,7 @@ public interface CafePhotoRepository extends JpaRepository<CafePhoto, Long> {
     @Query("select p from CafePhoto p " +
             "where p.cafe.id in :cafeIds " +
             "order by p.cafe.id asc, p.main desc, p.sortIndex asc")
-    List<CafePhoto> findForCafeIdsOrderByMainThenSort(@Param("cafeIds") Collection<Long> cafeIds);
+    List<CafePhoto> findPhotosForCafeIdsMainFirst(@Param("cafeIds") Collection<Long> cafeIds);
 
     @Query(value = """
         SELECT p.*

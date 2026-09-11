@@ -36,7 +36,7 @@ public class FavoritePageController {
 
         Map<Long, String> mainUrlByCafeId = new LinkedHashMap<>();
         if (!cafeIds.isEmpty()) {
-            List<CafePhoto> ordered = cafePhotoService.findForCafeIdsOrderByMainThenSort(cafeIds);
+            List<CafePhoto> ordered = cafePhotoService.findPhotosForCafeIdsMainFirst(cafeIds);
             for (CafePhoto p : ordered) {
                 Long cid = p.getCafe().getId();
                 mainUrlByCafeId.putIfAbsent(cid, p.getUrl());

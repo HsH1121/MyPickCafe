@@ -60,7 +60,7 @@ public class ReviewService {
 
     // 카페 상세에서 사용할 리뷰 목록(최신순)
     @Transactional(readOnly = true)
-    public List<Review> findByCafeIdWithMember(Long cafeId) {
+    public List<Review> findReviewsForCafe(Long cafeId) {
         return reviewRepository.findByCafe_IdOrderByCreatedAtDesc(cafeId);
     }
 
@@ -151,7 +151,7 @@ public class ReviewService {
         Review saved = reviewRepository.save(review);
 
         // 2. 기존 태그 전부 삭제
-        reviewTagRepository.deleteByReviewId(reviewId);
+        reviewTagRepository.deleteReviewTagsForReviewId(reviewId);
 
         // 3. FastAPI 태그 재추출
         PythonTagRequest pyReq = PythonTagRequest.builder()
@@ -185,7 +185,7 @@ public class ReviewService {
     }
 
     private void syncCafeTopTags(Long cafeId) {
-        List<Object[]> rows = reviewTagRepository.findTagCountsByCafe(cafeId);
+        List<Object[]> rows = reviewTagRepository.findTagCountsForCafeId(cafeId);
 
         // category -> [(code, count)] 이미 cnt 내림차순 정렬된 상태
         Map<String, List<Object[]>> byCategory = new LinkedHashMap<>();
@@ -193,7 +193,7 @@ public class ReviewService {
             byCategory.computeIfAbsent((String) row[0], k -> new ArrayList<>()).add(row);
         }
 
-        cafeTagRepository.deleteAllByCafeId(cafeId);
+        cafeTagRepository.deleteCafeTagsForCafeId(cafeId);
 
         Cafe cafeRef = cafeRepository.getReferenceById(cafeId);
 
