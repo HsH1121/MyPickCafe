@@ -20,8 +20,8 @@ public class CafePhotoService {
     private final CafePhotoRepository cafePhotoRepository;
     private final FileStorageService fileStorageService;
 
-    public List<CafePhoto> findForCafeIdsOrderByMainThenSort(Collection<Long> cafeIds) {
-        return cafePhotoRepository.findForCafeIdsOrderByMainThenSort(cafeIds);
+    public List<CafePhoto> findPhotosForCafeIdsMainFirst(Collection<Long> cafeIds) {
+        return cafePhotoRepository.findPhotosForCafeIdsMainFirst(cafeIds);
     }
 
     public CafePhoto findById(Long photoId) {

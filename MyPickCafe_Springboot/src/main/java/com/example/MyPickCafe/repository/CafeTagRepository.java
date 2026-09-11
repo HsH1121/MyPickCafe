@@ -16,7 +16,7 @@ public interface CafeTagRepository extends JpaRepository<CafeTag, Long> {
     @Modifying(flushAutomatically = true)
     @Transactional
     @Query(value = "DELETE FROM cafe_tag WHERE cafe_id = :cafeId", nativeQuery = true)
-    void deleteAllByCafeId(@Param("cafeId") Long cafeId);
+    void deleteCafeTagsForCafeId(@Param("cafeId") Long cafeId);
 
     @Query(value = """
         SELECT cafe_id,
@@ -37,7 +37,7 @@ public interface CafeTagRepository extends JpaRepository<CafeTag, Long> {
            OR (purpose_tag  = :tagCode AND :tagCategory = 'PURPOSE')
            OR (mood_tag     = :tagCode AND :tagCategory = 'MOOD')
     """, nativeQuery = true)
-    List<Long> findCafeIdsByTag(@Param("tagCategory") String tagCategory,
+    List<Long> findCafeIdsForTag(@Param("tagCategory") String tagCategory,
                                 @Param("tagCode") String tagCode);
 
     /**
@@ -53,5 +53,5 @@ public interface CafeTagRepository extends JpaRepository<CafeTag, Long> {
         UNION SELECT DISTINCT 'MENU',     menu_tag     FROM cafe_tag WHERE menu_tag     IS NOT NULL
         UNION SELECT DISTINCT 'FACILITY', facility_tag FROM cafe_tag WHERE facility_tag IS NOT NULL
     """, nativeQuery = true)
-    List<Object[]> findDistinctTagChips();
+    List<Object[]> findTagChipsInUse();
 }

@@ -19,7 +19,7 @@ public class CafeTagService {
     @Transactional(readOnly = true)
     public List<TagChipDto> findDistinctChips(int limit) {
         List<TagChipDto> chips = new ArrayList<>();
-        for (Object[] row : repository.findDistinctTagChips()) {
+        for (Object[] row : repository.findTagChipsInUse()) {
             if (chips.size() >= limit) break;
             chips.add(new TagChipDto((String) row[0], (String) row[1]));
         }

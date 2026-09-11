@@ -22,7 +22,7 @@ public interface ReviewTagRepository extends JpaRepository<ReviewTag, Long> {
      GROUP BY t.code
      ORDER BY cnt DESC
 """, nativeQuery = true)
-    List<Object[]> findLikeTagCountsGood(@Param("cafeId") Long cafeId);
+    List<Object[]> findGoodLikeTagCountsForCafeId(@Param("cafeId") Long cafeId);
 
     /* 카페의 긍정(GOOD) 리뷰 태그를 카테고리·코드별 집계 (cnt 내림차순) */
     @Query(value = """
@@ -35,12 +35,12 @@ public interface ReviewTagRepository extends JpaRepository<ReviewTag, Long> {
          GROUP BY t.category_code, t.code
          ORDER BY t.category_code, cnt DESC
     """, nativeQuery = true)
-    List<Object[]> findTagCountsByCafe(@Param("cafeId") Long cafeId);
+    List<Object[]> findTagCountsForCafeId(@Param("cafeId") Long cafeId);
 
     /* 리뷰에 달린 태그 전부 삭제 (연관관계 없이 review_id 정리) */
     @Modifying(flushAutomatically = true)
     @Transactional
     @Query(value = "DELETE FROM review_tag WHERE review_id = :reviewId", nativeQuery = true)
-    void deleteByReviewId(@Param("reviewId") Long reviewId);
+    void deleteReviewTagsForReviewId(@Param("reviewId") Long reviewId);
 
 }

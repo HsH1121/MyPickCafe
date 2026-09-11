@@ -99,7 +99,7 @@ public class ReviewController {
 
     @GetMapping("/cafes/{cafeId}/reviews")
     public String list(@PathVariable Long cafeId, Model model) {
-        List<Review> reviews = reviewService.findByCafeIdWithMember(cafeId);
+        List<Review> reviews = reviewService.findReviewsForCafe(cafeId);
         model.addAttribute("reviews", reviews);
         return "reviews/list";
     }
