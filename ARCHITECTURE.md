@@ -68,11 +68,11 @@
 
 ### 1. 리뷰 작성 → AI 태그·감성 분석 → 카페 태그 집계 (`ReviewService`)
 
-1. 리뷰를 DB에 먼저 저장합니다. 점주가 아닌 사용자가 작성하면 점주에게 알림이 갑니다.
+1. 리뷰를 DB에 먼저 저장합니다.
 2. FastAPI `POST /review/analyze`를 **동기** 호출해 태그와 감성을 받습니다. AI 서버는 few-shot 프롬프트로 `qwen2.5:14b`를 호출하고, 허용 목록에 있는 태그들을 받아옵니다.
    - 태그 4개 카테고리: `FACILITY`(WIFI, PLUG, TERRACE, PET, PARKING) · `MENU`(AMERICANO, LATTE, COLDBREW, BAKERY, CAKE, ADE, DESSERT) · `PURPOSE`(STUDY, TALK, REST, DATE, PHOTO, MEETING) · `MOOD`(MODERN, RETRO, NATURE, INDUSTRIAL, CLASSIC)
    - 감성: `GOOD` / `BAD` / `null`
-3. 받은 태그를 `review_tag`에 저장합니다. 이어서 카페의 GOOD 리뷰 태그를 카테고리별로 집계해, **카테고리 1위 태그와, 그 개수의 85% 이상인 모든 태그들**을 카페 태그(`cafe_tag`)로 다시 반영합니다. 상위 N개로 자르지 않으므로 리뷰 수가 적은 카페에도 태그가 붙습니다.
+3. 받은 태그를 `review_tag`에 저장합니다. 이어서 카페의 GOOD 리뷰 태그를 카테고리별로 집계해, **카테고리 1위 태그와, 그 개수의 85% 이상인 모든 태그들**을 카페 태그(`cafe_tag`)로 다시 반영합니다. 상위 N개로 자르지 않으므로 리뷰 수가 적은 카페에도 태그가 반드시 붙습니다.
 4. 챗봇 서버 `POST /chatbot/index-one`을 비동기(fire-and-forget)로 호출해 리뷰를 ChromaDB에 upsert합니다.
 
 > **AI 서버 장애 격리**: `WebClient`에 연결 2초·응답 10초 타임아웃이 걸려 있습니다. 호출이 실패하면 예외를 던지지 않고 빈 결과를 돌려주므로, 리뷰는 태그 없이 정상 저장됩니다 (`AiClientDegradationTest`로 검증).
@@ -81,15 +81,15 @@
 
 `/cafes` 페이지의 "픽봇" 탭 → `POST /api/chatbot/recommend` → FastAPI `POST /chatbot/recommend`
 
-1. 사용자 질의를 `bge-m3`로 임베딩하여 ChromaDB에 저장합니다.
-2. ChromaDB에서 코사인 유사도로 리뷰를 검색합니다. 한 카페가 결과를 독점하지 않도록 카페별 리뷰 수에 상한을 둡니다(1위 카페 최대 5건, 순위가 내려갈수록 1건씩 감소, 최소 1건).
+1. 사용자 질의를 `bge-m3`로 임베딩합니다.
+2. ChromaDB의 리뷰 벡터 값들과 코사인 유사도로 유사 리뷰를 15건 검색합니다. 한 카페가 결과를 독점하지 않도록 카페별 리뷰 수에 상한을 둡니다(1위 카페 최대 5건, 순위가 내려갈수록 1건씩 감소).
 3. 카페별 최고 점수 기준 상위 5개 카페를 컨텍스트로 넣고 `qwen2.5:14b`에 JSON 형식의 추천 결과를 요청합니다.
-4. LLM 호출이 실패하면 벡터 검색 결과를 그대로 반환하고, Spring은 챗봇 서버 호출이 실패하면 빈 목록을 반환합니다.
-5. Spring이 결과에 카페 대표 사진 URL을 붙여 응답합니다.
+4. LLM 호출이 실패하면 벡터 검색 결과를 그대로 반환합니다.
+6. Spring이 결과에 카페 대표 사진 URL을 붙여 응답합니다.
 
 인덱스 관리: FastAPI 기동 시 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 인덱싱합니다. 그 밖에 `POST /chatbot/reindex`, `POST /chatbot/delete-one`, 독립 실행 스크립트 `ChatBot_AI/embed_all.py`가 있습니다.
 
-### 3. 니즈 기반 추천 — Spring 내부 로직 (AI 모델 미사용)
+### 3. 니즈 기반 추천
 
 사용자가 마이페이지에서 고른 니즈 태그 집합과 각 카페의 태그 집합 사이의 **자카드 유사도**를 계산해 높은 순으로 보여줍니다 (`RecommendService`). 메인 페이지와 `/cafes?sort=recommend`에서 사용합니다.
 
@@ -98,7 +98,6 @@
 1. 사진 여러 장과 사업자 증빙 파일을 올려 카페를 신청하면 상태 `PENDING`으로 저장되고 관리자에게 알림이 갑니다.
 2. 관리자는 승인 대기 목록과 증빙 문서를 확인하고 승인 또는 반려합니다.
 3. 승인 시 카페 소유자가 MEMBER면 CAFEOWNER로 바뀌고, 점주에게 승인/반려 알림이 갑니다.
-4. 미승인 카페 상세는 점주와 관리자만 열람할 수 있습니다.
 
 사진·메뉴·영업정보 수정은 URL 기반 역할 검사에 더해, 요청자가 해당 카페의 점주인지 리소스 단위로 확인합니다 (`CafeOwnershipGuard` 및 컨트롤러 내부 검증). 업로드 파일은 로컬 디스크(`file.upload-dir`, 기본 `./uploads`)에 저장되고 `/uploads/**`로 서빙됩니다.
 
