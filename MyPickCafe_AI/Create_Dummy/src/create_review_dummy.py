@@ -46,7 +46,7 @@ def _extract_tags_batch(contents: list[str], attempt: int = 0) -> list[dict]:
             system_prompt=SYSTEM_PROMPT,
             user_message=user_message,
             model=_settings.ollama_model,
-            base_url=_settings.model_api_url,
+            base_url=_settings.llm_base_url,
             timeout=_settings.ollama_timeout,
         ))
         results = raw.get('results', [])

@@ -161,7 +161,7 @@ async def analyze_review(request: ReviewRequest) -> ReviewAnalyzeResponse:
             system_prompt=SYSTEM_PROMPT,
             user_message=user_message,
             model=review_settings.ollama_model,
-            base_url=review_settings.model_api_url,
+            base_url=review_settings.llm_base_url,
             timeout=review_settings.ollama_timeout,
         )
     except Exception as exc:

@@ -29,7 +29,7 @@
 |------|-----|
 | 모델명 | `qwen2.5:14b` |
 | 모델 크기 | 9.0GB |
-| Ollama API URL | `http://localhost:11434` |
+| LLM API URL (OpenAI 호환) | `http://localhost:11434/v1` |
 | VRAM 사용량 (로드 시) | 약 8.7GB (여유 ~3.3GB) |
 
 ---
@@ -65,10 +65,10 @@ ollama          # create_review_dummy.py 실행 시 필요
 
 | 설정 | 값 |
 |------|----|
-| Ollama API URL | `http://localhost:11434` |
+| LLM API URL (OpenAI 호환) | `http://localhost:11434/v1` |
 | 모델명 | `qwen2.5:14b` |
 | 타임아웃 | 60초 |
-| 환경변수 파일 | `.env` (없으면 기본값 사용) |
+| 환경변수 파일 | `MyPickCafe_AI/.env` (실행 위치와 무관, 없으면 기본값 사용) |
 
 ### 서버 실행 명령
 

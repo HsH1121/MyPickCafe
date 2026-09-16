@@ -75,7 +75,7 @@ class CafeRAG:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._emb_fn = _OllamaEmbeddingFunction(
-            base_url=settings.model_api_url,
+            base_url=settings.embed_base_url,
             model=settings.embed_model,
         )
         self._client = chromadb.PersistentClient(path=settings.chroma_path)
@@ -253,7 +253,7 @@ class CafeRAG:
                 system_prompt=_SYSTEM_PROMPT,
                 user_message=user_msg,
                 model=self.settings.ollama_model,
-                base_url=self.settings.model_api_url,
+                base_url=self.settings.llm_base_url,
                 timeout=self.settings.ollama_timeout,
             )
             items = raw.get("results", [])

@@ -144,7 +144,7 @@ async def run() -> None:
                 system_prompt=SYSTEM_PROMPT,
                 user_message=build_user_message(req),
                 model=settings.ollama_model,
-                base_url=settings.model_api_url,
+                base_url=settings.llm_base_url,
                 timeout=settings.ollama_timeout,
             )
             res = _extract(raw)
