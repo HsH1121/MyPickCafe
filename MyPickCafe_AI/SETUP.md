@@ -117,9 +117,12 @@ cd D:\Workspace\MyPickCafe\MyPickCafe_AI
   ```powershell
   .\.venv\Scripts\python.exe -m playwright install chromium
   ```
-- **ChromaDB 경로는 실행 디렉터리 기준 `./chroma_db`입니다.** `MyPickCafe_AI/`에서
-  띄우느냐 `ChatBot_AI/`에서 띄우느냐에 따라 다른 위치에 인덱스가 생깁니다.
-  통합 서버는 항상 `MyPickCafe_AI/`에서 실행하세요.
+- **ChromaDB는 `MyPickCafe_AI/chroma_db` 한 곳을 씁니다.** 상대경로(`./chroma_db`)는
+  실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀리므로, `ChatBot_AI/embed_all.py`로
+  만든 인덱스를 통합 서버가 그대로 씁니다.
+  단, 서버가 떠 있는 동안 `embed_all.py`를 함께 돌리지 마세요. 두 프로세스가 같은
+  인덱스에 동시에 쓰게 되고, 떠 있는 서버는 재시작 전까지 추가분을 반영하지 않습니다.
+  서버 실행 중에는 `POST /chatbot/reindex`를 쓰면 됩니다(없는 리뷰만 추가).
 - **Ollama가 별도로 떠 있어야 합니다.** 모델도 미리 받아두세요.
   ```powershell
   ollama pull qwen2.5:14b
