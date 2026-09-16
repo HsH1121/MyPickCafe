@@ -29,21 +29,6 @@ public class JwtTokenProvider {
         this.jwtExpirationMs = jwtExpirationMs;
     }
 
-    // (기존) 단순 발급
-    public String generateToken(UserDetails user) {
-        String roles = user.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.joining(","));
-        return Jwts.builder()
-                .setSubject(user.getUsername())
-                .addClaims(Map.of("roles", roles))
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(key, SignatureAlgorithm.HS256)
-                .compact();
-    }
-
-    // (신규) ver 클레임 포함 발급
     public String generateToken(UserDetails user, Long version) {
         String roles = user.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -64,7 +49,7 @@ public class JwtTokenProvider {
     public <T> T extractClaim(String token, Function<Claims, T> resolver) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(key)
-                .setAllowedClockSkewSeconds(60) // 시계 오차 허용
+                .setAllowedClockSkewSeconds(60)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
