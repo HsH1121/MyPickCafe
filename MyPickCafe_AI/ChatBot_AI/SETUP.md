@@ -78,8 +78,12 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 
 ### 서버 실행 명령
 
+챗봇은 단독 서버로 띄우지 않고, 통합 FastAPI(`MyPickCafe_AI/app.py`, :8000)에 포함되어 함께 실행됩니다.
+자세한 환경 세팅은 `MyPickCafe_AI/SETUP.md`를 참고하세요.
+
 ```powershell
-.venv\Scripts\uvicorn.exe app:app --reload --port 8001
+# MyPickCafe_AI/ 에서 실행
+.\.venv\Scripts\python.exe app.py
 ```
 
 ### API 엔드포인트
@@ -94,9 +98,9 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 
 ## Spring Boot 연동
 
-- Spring Boot → `POST http://localhost:8001/chatbot/recommend` 호출
+- Spring Boot → `POST http://localhost:8000/chatbot/recommend` 호출 (`chatbot.api.base-url`, 환경변수 `CHATBOT_API_BASE_URL`로 변경 가능)
 - Request: `{ "query": string }`
-- Response: `{ "results": [{"cafeId": int, "cafeName": string, "address": string, "snippet": string, "score": float}] }`
+- Response: `[{"cafeId": int, "cafeName": string, "address": string, "snippet": string, "score": float}]`
 
 ---
 
@@ -122,4 +126,4 @@ PostgreSQL의 리뷰 전체를 ChromaDB에 임베딩합니다. FastAPI 서버 �
 - [ ] `nomic-embed-text` 모델 다운로드 확인 (`ollama pull nomic-embed-text`)
 - [ ] `embed_all.py` 실행하여 ChromaDB 인덱싱 완료
 - [ ] Spring Boot 서버 실행 (포트 확인 필요)
-- [ ] FastAPI 서버 실행 (`uvicorn app:app --reload --port 8001`)
+- [ ] 통합 FastAPI 서버 실행 (`MyPickCafe_AI/`에서 `.\.venv\Scripts\python.exe app.py`, :8000)
