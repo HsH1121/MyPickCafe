@@ -1,11 +1,15 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+# MyPickCafe_AI/ — 실행 위치와 무관하게 파일 경로를 풀 기준 디렉터리
+_AI_ROOT = Path(__file__).resolve().parent.parent
 
 # .env 는 실행 위치와 무관하게 MyPickCafe_AI/.env 하나만 바라본다.
 # (상대경로로 두면 CWD 기준이라 ChatBot_AI/ 에서 띄우느냐 루트에서 띄우느냐에 따라
 #  다른 파일을 읽고, 설정이 조용히 기본값으로 되돌아간다.)
-_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+_ENV_FILE = _AI_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -26,8 +30,16 @@ class Settings(BaseSettings):
     db_user:     str = "mypickcafe"
     db_password: str = ""
 
-    # ChromaDB 저장 경로
+    # ChromaDB 저장 경로 — 상대경로는 실행 위치가 아니라 MyPickCafe_AI/ 기준으로 푼다.
+    # 실행 위치 기준이면 ChatBot_AI/ 에서 돌린 embed_all.py 와 MyPickCafe_AI/ 에서
+    # 띄운 app.py 가 서로 다른 인덱스를 보고, app.py 가 전체 재인덱싱을 한다.
     chroma_path: str = "./chroma_db"
+
+    @field_validator("chroma_path")
+    @classmethod
+    def _resolve_chroma_path(cls, v: str) -> str:
+        p = Path(v)
+        return str(p if p.is_absolute() else (_AI_ROOT / p).resolve())
 
     class Config:
         env_file = _ENV_FILE

@@ -72,7 +72,7 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 | 채팅 모델 | `qwen2.5:14b` |
 | 임베딩 모델 | `nomic-embed-text` |
 | 타임아웃 | 60초 |
-| ChromaDB 경로 | `./chroma_db` |
+| ChromaDB 경로 | `MyPickCafe_AI/chroma_db` (실행 위치와 무관) |
 | PostgreSQL 접속 | `localhost:5432/mypickcafe` (Docker, `docker-compose.yml`) |
 | 환경변수 파일 | `MyPickCafe_AI/.env` (실행 위치와 무관, 없으면 기본값 사용) |
 

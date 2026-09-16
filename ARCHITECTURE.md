@@ -472,8 +472,8 @@ python app.py            # uvicorn, 0.0.0.0:8000, reload
 
 - 헬스체크: `GET http://localhost:8000/health`
 - PostgreSQL 접속 정보는 `ChatBot_AI/config.py`의 `Settings` 필드(`db_host`, `db_port`, `db_name`, `db_user`, `db_password` 등)로 받습니다. 환경변수(`DB_PASSWORD` 등)로 지정하세요. 기본 비밀번호는 빈 문자열입니다.
-  - 두 `Settings` 클래스(ChatBot / Review)가 모두 실행 디렉터리의 `.env`를 읽도록 되어 있습니다. `.env` 방식으로 DB 값을 넣었을 때 동작하는지: `[여기 직접 확인/작성]`
-- ChromaDB 경로 기본값은 실행 디렉터리 기준 `./chroma_db`입니다. `ChatBot_AI/embed_all.py`를 `ChatBot_AI/` 안에서 실행하면 다른 경로에 인덱스가 생기므로 주의하세요.
+  - 두 `Settings` 클래스(ChatBot / Review)가 모두 `MyPickCafe_AI/.env` 하나를 읽습니다. 실행 위치와 무관하며, OS 환경변수가 `.env`보다 우선합니다.
+- ChromaDB 경로 기본값은 `./chroma_db`이고, 상대경로는 실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀립니다. `ChatBot_AI/embed_all.py`로 만든 인덱스를 통합 서버가 그대로 사용합니다. 서버가 떠 있을 때는 `embed_all.py` 대신 `POST /chatbot/reindex`를 쓰세요.
 - AI 서버를 띄우지 않아도 Spring 앱은 동작합니다. 태그 분석과 픽봇 추천만 빈 결과를 반환합니다.
 
 ---
