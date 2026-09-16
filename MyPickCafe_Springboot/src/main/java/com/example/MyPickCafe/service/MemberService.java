@@ -18,17 +18,17 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class MemberService {
 
-    private final MemberRepository repository;
+    private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder; // BCrypt 빈 등록 가정
 
     @Transactional(readOnly = true)
     public List<Member> findAll() {
-        return repository.findAll();
+        return memberRepository.findAll();
     }
 
     @Transactional(readOnly = true)
     public Member findById(Long id) {
-        return repository.findById(id)
+        return memberRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found: " + id));
     }
 
@@ -39,10 +39,10 @@ public class MemberService {
      */
     @Transactional
     public Member createMember(MemberCreateRequest req) {
-        if (repository.findByEmail(req.email()).isPresent()) {
+        if (memberRepository.findByEmail(req.email()).isPresent()) {
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
         }
-        if (repository.existsByNickname(req.nickname())) {
+        if (memberRepository.existsByNickname(req.nickname())) {
             throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
         }
 
@@ -55,7 +55,7 @@ public class MemberService {
         m.setRoleKind(parseRole(req.roleKind()));
         m.setPhoto(req.photo());
         m.setTokenVersion(0L);
-        return repository.save(m);
+        return memberRepository.save(m);
     }
 
     /**
@@ -69,7 +69,7 @@ public class MemberService {
 
         if (req.nickname() != null && !req.nickname().isBlank()
                 && !req.nickname().equals(m.getNickname())) {
-            if (repository.existsByNickname(req.nickname())) {
+            if (memberRepository.existsByNickname(req.nickname())) {
                 throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
             }
             m.setNickname(req.nickname());
@@ -93,15 +93,15 @@ public class MemberService {
 
     @Transactional
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
+        if (!memberRepository.existsById(id)) {
             throw new NotFoundException("User not found: " + id);
         }
-        repository.deleteById(id);
+        memberRepository.deleteById(id);
     }
 
     @Transactional(readOnly = true)
     public Member findByEmail(String email) {
-        return repository.findByEmail(email)
+        return memberRepository.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("User not found by email: " + email));
     }
 
@@ -125,7 +125,7 @@ public class MemberService {
         // 닉네임 변경 중복 체크
         if (nickname != null && !nickname.isBlank()
                 && !nickname.equals(m.getNickname())
-                && repository.existsByNickname(nickname)) {
+                && memberRepository.existsByNickname(nickname)) {
             throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
         }
 
@@ -161,28 +161,29 @@ public class MemberService {
         m.setTokenVersion(v + 1);
     }
 
+    @Transactional(readOnly = true)
     public Optional<Member> findByEmailOptional(String email) {
-        return repository.findByEmail(email);
+        return memberRepository.findByEmail(email);
     }
 
     public boolean existsByEmail(String email) {
-        return repository.findByEmail(email).isPresent();
+        return memberRepository.findByEmail(email).isPresent();
     }
 
     public boolean existsByNickname(String nickname) {
-        return repository.existsByNickname(nickname);
+        return memberRepository.existsByNickname(nickname);
     }
 
     public Member save(Member m) {
-        return repository.save(m);
+        return memberRepository.save(m);
     }
 
     @Transactional
     public boolean bumpTokenVersion(String email) {
-        return repository.findByEmail(email).map(m -> {
+        return memberRepository.findByEmail(email).map(m -> {
             long nv = (m.getTokenVersion() == null ? 0L : m.getTokenVersion()) + 1L;
             m.setTokenVersion(nv);
-            repository.save(m);
+            memberRepository.save(m);
             return true;
         }).orElse(false);
     }
