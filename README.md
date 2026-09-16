@@ -8,8 +8,6 @@
 
 Spring Boot 웹 애플리케이션이 카페·리뷰·회원 기능을 제공하고, RAG를 거친 후 FastAPI 서버가 LLM과 연동해 리뷰 감성 분석과, 카페 추천을 합니다. AI 기능은 Ollama로 띄운 모델을 FastAPI 서버에서 HTTP로 호출하는 구조입니다.
 
-학교 팀 프로젝트(GoCafe)를 개인적으로 이어받아 재작업한 프로젝트입니다.
-
 ## 핵심 기술
 
 - Java 17 / Spring Boot 3.5.5 (`web`, `data-jpa`, `validation`, `mustache`)
