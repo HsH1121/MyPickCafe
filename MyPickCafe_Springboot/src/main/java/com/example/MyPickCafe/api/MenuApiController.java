@@ -1,4 +1,4 @@
-package com.example.MyPickCafe.apiController;
+package com.example.MyPickCafe.api;
 
 import com.example.MyPickCafe.dto.MenuResponse;
 import com.example.MyPickCafe.dto.MenuUpdateRequest;

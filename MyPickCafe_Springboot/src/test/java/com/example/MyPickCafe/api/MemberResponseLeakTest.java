@@ -1,4 +1,4 @@
-package com.example.MyPickCafe.apiController;
+package com.example.MyPickCafe.api;
 
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
