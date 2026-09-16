@@ -15,6 +15,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  * 리뷰 작성 같은 핵심 기능을 실패시키면 안 된다.
  *
  * <p>닫혀 있는 포트를 향해 실제로 호출해 실패 경로를 그대로 태운다.
+ *
+ * <p>챗봇 추천 조회는 사용자가 결과를 기다리는 요청이라 실패를 빈 목록으로 흡수하지 않는다.
+ * 그 동작은 {@link ChatbotClientRecommendTest}에서 검증한다.
  */
 @DisplayName("AI 클라이언트 장애 격리")
 class AiClientDegradationTest {
@@ -32,16 +35,6 @@ class AiClientDegradationTest {
 
         assertThat(result)
                 .as("호출 실패는 Optional.empty로 흡수되어야 한다")
-                .isEmpty();
-    }
-
-    @Test
-    @DisplayName("챗봇 서버가 죽어 있으면 예외 대신 빈 목록을 반환한다")
-    void chatbotClientReturnsEmptyListWhenServerIsDown() {
-        ChatbotClient client = new ChatbotClient(WebClient.create(DEAD_SERVER));
-
-        assertThat(client.recommend("조용한 카페 추천해줘"))
-                .as("추천 실패는 빈 목록으로 흡수되어야 한다")
                 .isEmpty();
     }
 

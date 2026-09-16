@@ -2,11 +2,17 @@ package com.example.MyPickCafe.service;
 
 import com.example.MyPickCafe.dto.ChatbotIndexRequest;
 import com.example.MyPickCafe.dto.ChatbotResult;
+import com.example.MyPickCafe.support.ChatbotUnavailableException;
+import com.example.MyPickCafe.support.ChatbotUnavailableException.Reason;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.codec.CodecException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -27,21 +33,93 @@ public class ChatbotClient {
         this.webClient = webClient;
     }
 
-    /** 자연어 질의로 카페를 추천받는다. 실패 시 빈 목록(추천 없음)으로 degrade. */
+    /**
+     * 자연어 질의로 카페를 추천받는다.
+     *
+     * <p>호출 실패를 빈 목록으로 흡수하면 "조건에 맞는 카페 없음"과 구분할 수 없으므로,
+     * 실패 원인을 분류해 로그로 남기고 {@link ChatbotUnavailableException} 을 던진다.
+     *
+     * @throws ChatbotUnavailableException 챗봇 서버에서 추천 결과를 받지 못한 경우
+     */
     public List<ChatbotResult> recommend(String query) {
+        long startedAt = System.currentTimeMillis();
+        List<ChatbotResult> results;
         try {
-            List<ChatbotResult> results = webClient.post()
+            results = webClient.post()
                     .uri("/chatbot/recommend")
                     .bodyValue(Map.of("query", query))
                     .retrieve()
                     .bodyToFlux(ChatbotResult.class)
                     .collectList()
                     .block();
-            return results != null ? results : Collections.emptyList();
         } catch (Exception e) {
-            log.warn("챗봇 추천 API 호출 실패 (빈 결과 반환): {}", e.getMessage());
+            throw failure(query, System.currentTimeMillis() - startedAt, e);
+        }
+
+        long elapsedMs = System.currentTimeMillis() - startedAt;
+        if (results == null || results.isEmpty()) {
+            log.info("챗봇 추천 결과 없음 (서버 정상 응답) [{}ms] query=\"{}\"", elapsedMs, query);
             return Collections.emptyList();
         }
+        log.debug("챗봇 추천 {}건 [{}ms] query=\"{}\"", results.size(), elapsedMs, query);
+        return results;
+    }
+
+    private static ChatbotUnavailableException failure(String query, long elapsedMs, Exception e) {
+        Reason reason = classify(e);
+        Throwable root = rootCause(e);
+        String cause = root.getClass().getSimpleName()
+                + (root.getMessage() != null ? ": " + root.getMessage() : "");
+
+        switch (reason) {
+            case CONNECTION_FAILED -> log.warn(
+                    "챗봇 추천 실패 - 서버 연결 불가 [{}ms] query=\"{}\" cause={}", elapsedMs, query, cause);
+            case TIMEOUT -> log.warn(
+                    "챗봇 추천 실패 - 응답 타임아웃 [{}ms] query=\"{}\" cause={}", elapsedMs, query, cause);
+            case HTTP_ERROR -> {
+                WebClientResponseException re = (WebClientResponseException) e;
+                log.warn("챗봇 추천 실패 - 서버 오류 응답 [{}ms] query=\"{}\" status={} body={}",
+                        elapsedMs, query, re.getStatusCode().value(), truncate(re.getResponseBodyAsString()));
+            }
+            case INVALID_RESPONSE -> log.warn(
+                    "챗봇 추천 실패 - 응답 형식 오류 [{}ms] query=\"{}\" cause={}", elapsedMs, query, cause);
+            default -> log.error(
+                    "챗봇 추천 실패 - 분류되지 않은 오류 [{}ms] query=\"{}\"", elapsedMs, query, e);
+        }
+        return new ChatbotUnavailableException(reason, "챗봇 추천 실패: " + reason, e);
+    }
+
+    private static Reason classify(Exception e) {
+        if (e instanceof WebClientResponseException) {
+            return Reason.HTTP_ERROR;
+        }
+        // WebClientRequestException 등 래퍼 안쪽의 실제 원인으로 판단한다.
+        // 타임아웃 예외는 메시지가 null 이라 getMessage() 만으로는 구분할 수 없다.
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof ConnectException || t instanceof UnknownHostException) {
+                return Reason.CONNECTION_FAILED; // netty ConnectTimeoutException 포함
+            }
+            if (t instanceof io.netty.handler.timeout.TimeoutException
+                    || t instanceof java.util.concurrent.TimeoutException) {
+                return Reason.TIMEOUT;
+            }
+            if (t instanceof CodecException) {
+                return Reason.INVALID_RESPONSE;
+            }
+        }
+        return Reason.UNKNOWN;
+    }
+
+    private static Throwable rootCause(Throwable e) {
+        Throwable t = e;
+        while (t.getCause() != null && t.getCause() != t) {
+            t = t.getCause();
+        }
+        return t;
+    }
+
+    private static String truncate(String body) {
+        return body.length() > 500 ? body.substring(0, 500) + "..." : body;
     }
 
     /**

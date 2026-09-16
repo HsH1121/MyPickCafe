@@ -76,6 +76,7 @@
 4. 챗봇 서버 `POST /chatbot/index-one`을 비동기(fire-and-forget)로 호출해 리뷰를 ChromaDB에 upsert합니다.
 
 > **AI 서버 장애 격리**: `WebClient`에 연결 2초·응답 10초 타임아웃이 걸려 있습니다. 호출이 실패하면 예외를 던지지 않고 빈 결과를 돌려주므로, 리뷰는 태그 없이 정상 저장됩니다 (`AiClientDegradationTest`로 검증).
+> 단, 픽봇 추천 조회는 LLM 생성을 기다려야 해서 응답 타임아웃을 따로 60초(`ai.chatbot.read-timeout-ms`)로 둡니다. 실패를 빈 결과로 흡수하면 "조건에 맞는 카페 없음"과 구분되지 않으므로, 실패 원인(연결 불가·타임아웃·서버 오류 응답·응답 형식 오류)을 로그로 남기고 `503`을 반환합니다.
 
 ### 2. 픽봇 — 자연어 추천 (RAG)
 
@@ -85,7 +86,7 @@
 2. ChromaDB의 리뷰 벡터 값들과 코사인 유사도로 유사 리뷰를 15건 검색합니다. 한 카페가 결과를 독점하지 않도록 카페별 리뷰 수에 상한을 둡니다(1위 카페 최대 5건, 순위가 내려갈수록 1건씩 감소).
 3. 카페별 최고 점수 기준 상위 5개 카페를 컨텍스트로 넣고 `qwen2.5:14b`에 JSON 형식의 추천 결과를 요청합니다.
 4. LLM 호출이 실패하면 벡터 검색 결과를 그대로 반환합니다.
-6. Spring이 결과에 카페 대표 사진 URL을 붙여 응답합니다.
+6. Spring이 결과에 카페 대표 사진 URL을 붙여 응답합니다. 챗봇 서버 호출 자체가 실패하면 `503`(`reason` 필드에 실패 유형)을 응답하고, 화면은 "일시적인 오류" 문구를 띄웁니다.
 
 인덱스 관리: FastAPI 기동 시 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 인덱싱합니다. 그 밖에 `POST /chatbot/reindex`, `POST /chatbot/delete-one`, 독립 실행 스크립트 `ChatBot_AI/embed_all.py`가 있습니다.
 
@@ -474,7 +475,7 @@ python app.py            # uvicorn, 0.0.0.0:8000, reload
 - PostgreSQL 접속 정보는 `ChatBot_AI/config.py`의 `Settings` 필드(`db_host`, `db_port`, `db_name`, `db_user`, `db_password` 등)로 받습니다. 환경변수(`DB_PASSWORD` 등)로 지정하세요. 기본 비밀번호는 빈 문자열입니다.
   - 두 `Settings` 클래스(ChatBot / Review)가 모두 실행 디렉터리의 `.env`를 읽도록 되어 있습니다. `.env` 방식으로 DB 값을 넣었을 때 동작하는지: `[여기 직접 확인/작성]`
 - ChromaDB 경로 기본값은 실행 디렉터리 기준 `./chroma_db`입니다. `ChatBot_AI/embed_all.py`를 `ChatBot_AI/` 안에서 실행하면 다른 경로에 인덱스가 생기므로 주의하세요.
-- AI 서버를 띄우지 않아도 Spring 앱은 동작합니다. 태그 분석과 픽봇 추천만 빈 결과를 반환합니다.
+- AI 서버를 띄우지 않아도 Spring 앱은 동작합니다. 태그 분석은 빈 결과를 반환하고, 픽봇 추천은 `503`(일시적인 오류)을 반환합니다.
 
 ---
 
@@ -492,7 +493,9 @@ cd MyPickCafe_Springboot
 | `MyPickCafeApplicationTests` | 컨텍스트 로드 |
 | `security/ApiAuthorizationTest` | 공개/ADMIN/CAFEOWNER 인가 규칙 (401·403·200) |
 | `api/MemberResponseLeakTest` | 회원·카페 API 응답에 비밀번호 해시·점주 이메일이 노출되지 않음 |
-| `service/AiClientDegradationTest` | AI 서버 장애 시 예외 대신 빈 결과 반환 |
+| `service/AiClientDegradationTest` | AI 서버 장애 시 태그 분석·색인 호출이 예외 대신 빈 결과로 흡수됨 |
+| `service/ChatbotClientRecommendTest` | 챗봇 추천의 빈 결과와 실패 구분, 실패 유형(연결 불가·타임아웃·서버 오류·응답 형식 오류) 분류 |
+| `controller/ChatbotControllerTest` | 챗봇 서버 장애 시 `503`과 실패 사유 반환 |
 | `service/CafeServiceTest` | 카페 등록 시 PENDING 강제, 소유자 지정, 중복 이름 거부 |
 | `service/MemberServiceTest` | 비밀번호 해시 저장, 기본 역할, 중복/잘못된 역할 거부, null 필드 미덮어쓰기 |
 
