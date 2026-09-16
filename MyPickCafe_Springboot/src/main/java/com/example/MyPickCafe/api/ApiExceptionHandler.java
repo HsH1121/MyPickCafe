@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.api;
 
+import com.example.MyPickCafe.support.ChatbotUnavailableException;
 import com.example.MyPickCafe.support.NotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +20,19 @@ public class ApiExceptionHandler {
                 "status", 404,
                 "error", "Not Found",
                 "message", ex.getMessage()
+        );
+    }
+
+    /** 챗봇 서버 호출 실패 — 원인 로그는 ChatbotClient 가 남기므로 응답에는 사유 코드만 담는다. */
+    @ExceptionHandler(ChatbotUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public Map<String, Object> handleChatbotUnavailable(ChatbotUnavailableException ex) {
+        return Map.of(
+                "timestamp", Instant.now().toString(),
+                "status", 503,
+                "error", "Service Unavailable",
+                "message", "추천 서버에서 응답을 받지 못했습니다.",
+                "reason", ex.getReason().name()
         );
     }
 

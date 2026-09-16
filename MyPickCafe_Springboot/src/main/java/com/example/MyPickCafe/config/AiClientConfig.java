@@ -32,6 +32,13 @@ public class AiClientConfig {
     @Value("${ai.client.read-timeout-ms}")
     private int readTimeoutMs;
 
+    /**
+     * 챗봇 추천은 임베딩 검색 뒤 LLM 생성까지 기다려야 해서 태그 분석보다 훨씬 오래 걸린다.
+     * 공용 응답 타임아웃(10초)을 쓰면 LLM 이 답하기 전에 끊겨 추천이 실패하므로 따로 둔다.
+     */
+    @Value("${ai.chatbot.read-timeout-ms}")
+    private int chatbotReadTimeoutMs;
+
     @Value("${python.api.base-url}")
     private String pythonApiBaseUrl;
 
@@ -42,7 +49,7 @@ public class AiClientConfig {
     @Bean
     public WebClient pythonTagWebClient(WebClient.Builder builder) {
         return builder.baseUrl(pythonApiBaseUrl)
-                .clientConnector(new ReactorClientHttpConnector(httpClient()))
+                .clientConnector(new ReactorClientHttpConnector(httpClient(readTimeoutMs)))
                 .build();
     }
 
@@ -50,11 +57,11 @@ public class AiClientConfig {
     @Bean
     public WebClient chatbotWebClient(WebClient.Builder builder) {
         return builder.baseUrl(chatbotApiBaseUrl)
-                .clientConnector(new ReactorClientHttpConnector(httpClient()))
+                .clientConnector(new ReactorClientHttpConnector(httpClient(chatbotReadTimeoutMs)))
                 .build();
     }
 
-    private HttpClient httpClient() {
+    private HttpClient httpClient(int readTimeoutMs) {
         return HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)
                 .responseTimeout(Duration.ofMillis(readTimeoutMs))
