@@ -77,7 +77,7 @@ public class AuthController {
                 .authorities("ROLE_" + roleName)
                 .build();
 
-        String token = jwtTokenProvider.generateToken(ud, member.getTokenVersion()==null?0L:member.getTokenVersion());
+        String token = jwtTokenProvider.generateToken(ud, member.getTokenVersion());
         ResponseCookie cookie = ResponseCookie.from("AT", token)
                 .httpOnly(true).secure(false).sameSite("Lax")
                 .path("/").maxAge(Duration.ofDays(7))
