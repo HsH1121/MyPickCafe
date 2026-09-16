@@ -433,7 +433,7 @@ cp secret.properties.example secret.properties
 | `DB_URL` | | 기본값 `jdbc:postgresql://localhost:5432/mypickcafe` |
 | `JWT_SECRET` | 필수 | `JwtTokenProvider`가 **Base64로 디코딩**하므로 Base64 문자열이어야 합니다 (HS256, 32바이트 이상). 예: `openssl rand -base64 48` |
 | `KAKAO_JS_KEY` | | 지도 탐색 페이지용 |
-| `CHATBOT_API_BASE_URL` | 주의 | 기본값은 `http://localhost:8001`이지만 통합 FastAPI(`app.py`)는 **8000 포트 한 곳에서** 챗봇·태그 API를 모두 제공합니다. 통합 서버를 쓴다면 `http://localhost:8000`으로 지정하세요. |
+| `CHATBOT_API_BASE_URL` | | 기본값 `http://localhost:8000` (통합 FastAPI `app.py`가 챗봇·태그 API를 한 포트에서 제공) |
 | `PYTHON_API_BASE_URL` | | 기본값 `http://localhost:8000` |
 
 ```bash
