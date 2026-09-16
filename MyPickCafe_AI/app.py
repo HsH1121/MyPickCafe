@@ -23,7 +23,26 @@ from fastapi.responses import JSONResponse
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
+# ChatBot_AI 와 Review_Tag_AI 가 같은 이름의 모듈을 갖고 있어, 각 패키지를
+# import 하기 직전에 캐시에서 지워야 올바른 쪽이 로드된다.
+#
+# ChatBot_AI 앞에서도 지우는 이유: `python app.py` 로 띄우면 이 파일이 먼저
+# __main__ 으로 한 번 실행되고, uvicorn 이 "app:app" 문자열로 다시 import 한다.
+# 그때 sys.modules 에 1차 실행의 Review_Tag_AI 모듈이 남아 있어
+# `from schemas import ChatbotRequest` 가 Review_Tag_AI/schemas.py 를 집고 죽는다.
+#
+# 이름이 겹치는 모듈만 지운다. chatbot_rag 등은 모듈 레벨에서 로그 핸들러를
+# 붙이므로, 지우고 재실행하면 핸들러가 중복돼 로그가 두 번씩 찍힌다.
+_CONFLICTING_MODULES = ["config", "schemas", "ollama_client"]
+
+
+def _purge_conflicting_modules() -> None:
+    for _mod in _CONFLICTING_MODULES:
+        sys.modules.pop(_mod, None)
+
+
 # ── ChatBot_AI 모듈 로드 ─────────────────────────────────────────────────────
+_purge_conflicting_modules()
 sys.path.insert(0, os.path.join(BASE, "ChatBot_AI"))
 
 from config import Settings as ChatbotSettings
@@ -31,9 +50,7 @@ from schemas import ChatbotRequest, ChatbotResult, IndexOneRequest, DeleteOneReq
 from chatbot_rag import CafeRAG
 
 # ── Review_Tag_AI 모듈 로드 (충돌 모듈 제거 후 재로드) ──────────────────────
-for _mod in ["config", "schemas", "ollama_client"]:
-    sys.modules.pop(_mod, None)
-
+_purge_conflicting_modules()
 sys.path.insert(0, os.path.join(BASE, "Review_Tag_AI"))
 
 from config import Settings as ReviewSettings
