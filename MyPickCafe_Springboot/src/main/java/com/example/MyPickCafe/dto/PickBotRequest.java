@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ChatbotRequest {
+public class PickBotRequest {
     private String query;
 }

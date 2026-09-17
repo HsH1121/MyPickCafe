@@ -1,7 +1,7 @@
 package com.example.MyPickCafe.service;
 
-import com.example.MyPickCafe.support.ChatbotUnavailableException;
-import com.example.MyPickCafe.support.ChatbotUnavailableException.Reason;
+import com.example.MyPickCafe.support.PickBotUnavailableException;
+import com.example.MyPickCafe.support.PickBotUnavailableException.Reason;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,14 +21,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 챗봇 추천 조회의 결과 / 실패 구분을 고정한다.
+ * 픽봇 추천 조회의 결과 / 실패 구분을 고정한다.
  *
  * <p>예전에는 모든 실패를 빈 목록으로 흡수해, 화면에서 "조건에 맞는 카페 없음"과
  * "추천 서버 장애"를 구분할 수 없었고 로그에도 원인이 남지 않았다(타임아웃은 {@code null}).
  * 실패 유형마다 실제 HTTP 서버를 띄워 {@link Reason} 분류를 검증한다.
  */
-@DisplayName("챗봇 추천 조회 결과/실패 구분")
-class ChatbotClientRecommendTest {
+@DisplayName("픽봇 추천 조회 결과/실패 구분")
+class PickBotClientRecommendTest {
 
     private static final String QUERY = "조용한 카페 추천해줘";
 
@@ -66,7 +66,7 @@ class ChatbotClientRecommendTest {
     @Test
     @DisplayName("서버가 떠 있지 않으면 CONNECTION_FAILED")
     void connectionRefused() {
-        ChatbotClient client = new ChatbotClient(WebClient.create("http://localhost:19999"));
+        PickBotClient client = new PickBotClient(WebClient.create("http://localhost:19999"));
 
         assertReason(() -> client.recommend(QUERY), Reason.CONNECTION_FAILED);
     }
@@ -95,16 +95,16 @@ class ChatbotClientRecommendTest {
         assertReason(() -> client(Duration.ofSeconds(5)).recommend(QUERY), Reason.INVALID_RESPONSE);
     }
 
-    private ChatbotClient client(Duration responseTimeout) {
+    private PickBotClient client(Duration responseTimeout) {
         HttpClient httpClient = HttpClient.create().responseTimeout(responseTimeout);
-        return new ChatbotClient(WebClient.builder()
+        return new PickBotClient(WebClient.builder()
                 .baseUrl("http://localhost:" + server.getAddress().getPort())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build());
     }
 
     private void respond(int status, String body, long delayMs) {
-        server.createContext("/chatbot/recommend", exchange -> {
+        server.createContext("/pickbot/recommend", exchange -> {
             try {
                 Thread.sleep(delayMs);
             } catch (InterruptedException e) {
@@ -123,7 +123,7 @@ class ChatbotClientRecommendTest {
 
     private static void assertReason(Runnable call, Reason expected) {
         assertThatThrownBy(call::run)
-                .isInstanceOfSatisfying(ChatbotUnavailableException.class,
+                .isInstanceOfSatisfying(PickBotUnavailableException.class,
                         e -> assertThat(e.getReason()).isEqualTo(expected));
     }
 }

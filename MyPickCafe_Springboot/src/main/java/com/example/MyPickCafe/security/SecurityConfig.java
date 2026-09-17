@@ -107,7 +107,7 @@ public class SecurityConfig {
                         .requestMatchers("/css/**", "/js/**", "/images/**", "/img/**", "/favicon.ico").permitAll()
                         .requestMatchers("/uploads/**", "/files/**").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/chatbot/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/pickbot/**").permitAll()
 
                         // Swagger UI / OpenAPI 문서 (prod 프로파일에서는 springdoc 자체가 비활성)
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()

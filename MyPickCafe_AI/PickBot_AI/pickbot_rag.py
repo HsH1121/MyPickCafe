@@ -16,7 +16,7 @@ from chromadb import Documents, EmbeddingFunction, Embeddings
 import httpx
 
 from config import Settings
-from chatbot_db import fetch_reviews_for_index
+from pickbot_db import fetch_reviews_for_index
 from llm_client import call_llm
 
 
@@ -173,9 +173,9 @@ class CafeRAG:
     # 추천
     # ------------------------------------------------------------------
     async def recommend(self, query: str, top_n: int = 5) -> list[dict]:
-        """쿼리 → 유사도 검색 → Qwen 추천 → ChatbotResult dict 목록 반환."""
+        """쿼리 → 유사도 검색 → Qwen 추천 → PickBotResult dict 목록 반환."""
         if self._col.count() == 0:
-            logger.warning("ChromaDB가 비어 있습니다. 먼저 /chatbot/reindex를 호출하세요.")
+            logger.warning("ChromaDB가 비어 있습니다. 먼저 /pickbot/reindex를 호출하세요.")
             return []
 
         # 1. 벡터 검색 — 카페 다양성 보장을 위해 필요한 만큼만 추가 조회
@@ -285,7 +285,7 @@ class CafeRAG:
                 for c in top_cafes
             ]
 
-        # 5. Qwen 응답 → ChatbotResult 형태로 변환
+        # 5. Qwen 응답 → PickBotResult 형태로 변환
         score_by_id = {str(c["cafe_id"]): c["score"] for c in top_cafes}
         output = []
         for item in items:
