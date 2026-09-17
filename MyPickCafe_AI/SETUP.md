@@ -1,7 +1,7 @@
 # MyPickCafe AI 통합 서버 — 가상환경 세팅
 
 `MyPickCafe_AI/app.py`(통합 FastAPI, :8000)를 띄우기 위한 환경입니다.
-`ChatBot_AI`·`Review_Tag_AI`를 각각 따로 띄울 때는 각 폴더의 `SETUP.md`를 보세요.
+`PickBot_AI`·`Review_Tag_AI`를 각각 따로 띄울 때는 각 폴더의 `SETUP.md`를 보세요.
 
 ---
 
@@ -57,7 +57,7 @@ source .venv/Scripts/activate
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-`requirements.txt` 하나에 ChatBot_AI·Review_Tag_AI·Create_Dummy 의존성이
+`requirements.txt` 하나에 PickBot_AI·Review_Tag_AI·Create_Dummy 의존성이
 모두 들어 있습니다. 통합 서버는 이 환경 하나로 돌아갑니다.
 
 설치되는 주요 패키지:
@@ -96,7 +96,7 @@ cd D:\Workspace\MyPickCafe\MyPickCafe_AI
 
 - 주소: `http://0.0.0.0:8000` (reload 켜짐)
 - 헬스체크: `GET http://localhost:8000/health`
-- 챗봇·태그 분석 API가 **8000 포트 한 곳**에서 모두 제공됩니다.
+- 픽봇·태그 분석 API가 **8000 포트 한 곳**에서 모두 제공됩니다.
 
 ---
 
@@ -118,11 +118,11 @@ cd D:\Workspace\MyPickCafe\MyPickCafe_AI
   .\.venv\Scripts\python.exe -m playwright install chromium
   ```
 - **ChromaDB는 `MyPickCafe_AI/chroma_db` 한 곳을 씁니다.** 상대경로(`./chroma_db`)는
-  실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀리므로, `ChatBot_AI/embed_all.py`로
+  실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀리므로, `PickBot_AI/embed_all.py`로
   만든 인덱스를 통합 서버가 그대로 씁니다.
   단, 서버가 떠 있는 동안 `embed_all.py`를 함께 돌리지 마세요. 두 프로세스가 같은
   인덱스에 동시에 쓰게 되고, 떠 있는 서버는 재시작 전까지 추가분을 반영하지 않습니다.
-  서버 실행 중에는 `POST /chatbot/reindex`를 쓰면 됩니다(없는 리뷰만 추가).
+  서버 실행 중에는 `POST /pickbot/reindex`를 쓰면 됩니다(없는 리뷰만 추가).
 - **Ollama가 별도로 떠 있어야 합니다.** 모델도 미리 받아두세요.
   ```powershell
   ollama pull qwen2.5:14b

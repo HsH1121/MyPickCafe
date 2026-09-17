@@ -13,7 +13,7 @@ Spring Boot 백엔드와 Python AI 서버로 구성된 모노레포 구조입니
 D:/MyPickCafe/
 ├── MyPickCafe_Springboot/   # Java 백엔드
 └── MyPickCafe_AI/
-    ├── ChatBot_AI/          # RAG 추천 챗봇
+    ├── PickBot_AI/          # RAG 추천 픽봇
     ├── Review_Tag_AI/       # 리뷰 태그/감성 분석
     └── app.py               # 통합 FastAPI 서버
 
@@ -48,12 +48,12 @@ D:/MyPickCafe/
   주요 기능
 ----------------------------------------------------------------
 
-1. 카페 추천 챗봇 (RAG)
+1. 카페 추천 픽봇 (RAG)
    - 사용자 자연어 질문 → Ollama 임베딩 → ChromaDB 코사인 유사도 검색
    - 카페 다양성 보장 로직: 동일 카페 리뷰가 결과를 독점하지 않도록
      카페별 리뷰 cap 적용 (1등 최대 5개, 2등 4개, …)
    - 검색된 컨텍스트를 qwen2.5:14b에 전달 → JSON 형태 추천 결과 생성
-   - Spring Boot → POST /chatbot/recommend 호출
+   - Spring Boot → POST /pickbot/recommend 호출
 
 2. 리뷰 태그/감성 분석 AI
    - 리뷰 작성 시 자동으로 태그 추출 및 감성 판별
@@ -78,12 +78,12 @@ D:/MyPickCafe/
 ----------------------------------------------------------------
 
   Spring Boot   :8080  (메인 웹서버)
-  FastAPI AI    :8000  (통합 app.py → /review/analyze, /chatbot/recommend)
+  FastAPI AI    :8000  (통합 app.py → /review/analyze, /pickbot/recommend)
   Ollama        :11434 (LLM 로컬 서버)
   PostgreSQL    :5432  (Docker, docker-compose.yml)
 
   ※ application.properties의 python.api.base-url(review)과
-     chatbot.api.base-url(chatbot)은 모두 기본값 8000을 가리킵니다.
+     pickbot.api.base-url(pickbot)은 모두 기본값 8000을 가리킵니다.
 
 ----------------------------------------------------------------
   더미 데이터

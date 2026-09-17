@@ -3,7 +3,7 @@
 
 실제 구현은 ../shared/llm_client.py 한 곳에만 있습니다.
 동작을 바꾸려면 이 파일이 아니라 shared/llm_client.py 를 수정하세요.
-ChatBot_AI / Review_Tag_AI 양쪽에 그대로 반영됩니다.
+PickBot_AI / Review_Tag_AI 양쪽에 그대로 반영됩니다.
 
 이 파일과 공유 구현이 둘 다 llm_client 라는 이름이라 sys.path 로는 서로를 가려
 불러올 수 없습니다. 그래서 공유 구현은 파일 경로로 직접, 겹치지 않는 이름으로 로드합니다.

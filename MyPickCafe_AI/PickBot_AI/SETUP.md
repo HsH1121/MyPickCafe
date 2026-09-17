@@ -1,4 +1,4 @@
-# MyPickCafe ChatBot AI — 개발 환경 세팅
+# MyPickCafe PickBot AI — 개발 환경 세팅
 
 ## 데스크탑 사양
 
@@ -38,7 +38,7 @@
 ## Python 가상환경 (.venv)
 
 ```
-위치: D:\MyPickCafe\MyPickCafe_AI\ChatBot_AI\.venv
+위치: D:\MyPickCafe\MyPickCafe_AI\PickBot_AI\.venv
 베이스: C:\Users\eju20\AppData\Local\Programs\Python\Python311\python.exe
 ```
 
@@ -78,7 +78,7 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 
 ### 서버 실행 명령
 
-챗봇은 단독 서버로 띄우지 않고, 통합 FastAPI(`MyPickCafe_AI/app.py`, :8000)에 포함되어 함께 실행됩니다.
+픽봇은 단독 서버로 띄우지 않고, 통합 FastAPI(`MyPickCafe_AI/app.py`, :8000)에 포함되어 함께 실행됩니다.
 자세한 환경 세팅은 `MyPickCafe_AI/SETUP.md`를 참고하세요.
 
 ```powershell
@@ -90,15 +90,15 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/chatbot/recommend` | 카페 추천 (RAG 기반) |
-| POST | `/chatbot/reindex` | ChromaDB 전체 재인덱싱 |
+| POST | `/pickbot/recommend` | 카페 추천 (RAG 기반) |
+| POST | `/pickbot/reindex` | ChromaDB 전체 재인덱싱 |
 | GET | `/health` | 헬스체크 |
 
 ---
 
 ## Spring Boot 연동
 
-- Spring Boot → `POST http://localhost:8000/chatbot/recommend` 호출 (`chatbot.api.base-url`, 환경변수 `CHATBOT_API_BASE_URL`로 변경 가능)
+- Spring Boot → `POST http://localhost:8000/pickbot/recommend` 호출 (`pickbot.api.base-url`, 환경변수 `PICKBOT_API_BASE_URL`로 변경 가능)
 - Request: `{ "query": string }`
 - Response: `[{"cafeId": int, "cafeName": string, "address": string, "snippet": string, "score": float}]`
 

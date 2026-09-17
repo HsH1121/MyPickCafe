@@ -73,22 +73,22 @@
    - 태그 4개 카테고리: `FACILITY`(WIFI, PLUG, TERRACE, PET, PARKING) · `MENU`(AMERICANO, LATTE, COLDBREW, BAKERY, CAKE, ADE, DESSERT) · `PURPOSE`(STUDY, TALK, REST, DATE, PHOTO, MEETING) · `MOOD`(MODERN, RETRO, NATURE, INDUSTRIAL, CLASSIC)
    - 감성: `GOOD` / `BAD` / `null`
 3. 받은 태그를 `review_tag`에 저장합니다. 이어서 카페의 GOOD 리뷰 태그를 카테고리별로 집계해, **카테고리 1위 태그와, 그 개수의 85% 이상인 모든 태그들**을 카페 태그(`cafe_tag`)로 다시 반영합니다. 상위 N개로 자르지 않으므로 리뷰 수가 적은 카페에도 태그가 반드시 붙습니다.
-4. 챗봇 서버 `POST /chatbot/index-one`을 비동기(fire-and-forget)로 호출해 리뷰를 ChromaDB에 upsert합니다.
+4. 픽봇 서버 `POST /pickbot/index-one`을 비동기(fire-and-forget)로 호출해 리뷰를 ChromaDB에 upsert합니다.
 
 > **AI 서버 장애 격리**: `WebClient`에 연결 2초·응답 10초 타임아웃이 걸려 있습니다. 호출이 실패하면 예외를 던지지 않고 빈 결과를 돌려주므로, 리뷰는 태그 없이 정상 저장됩니다 (`AiClientDegradationTest`로 검증).
-> 단, 픽봇 추천 조회는 LLM 생성을 기다려야 해서 응답 타임아웃을 따로 60초(`ai.chatbot.read-timeout-ms`)로 둡니다. 실패를 빈 결과로 흡수하면 "조건에 맞는 카페 없음"과 구분되지 않으므로, 실패 원인(연결 불가·타임아웃·서버 오류 응답·응답 형식 오류)을 로그로 남기고 `503`을 반환합니다.
+> 단, 픽봇 추천 조회는 LLM 생성을 기다려야 해서 응답 타임아웃을 따로 60초(`ai.pickbot.read-timeout-ms`)로 둡니다. 실패를 빈 결과로 흡수하면 "조건에 맞는 카페 없음"과 구분되지 않으므로, 실패 원인(연결 불가·타임아웃·서버 오류 응답·응답 형식 오류)을 로그로 남기고 `503`을 반환합니다.
 
 ### 2. 픽봇 — 자연어 추천 (RAG)
 
-`/cafes` 페이지의 "픽봇" 탭 → `POST /api/chatbot/recommend` → FastAPI `POST /chatbot/recommend`
+`/cafes` 페이지의 "픽봇" 탭 → `POST /api/pickbot/recommend` → FastAPI `POST /pickbot/recommend`
 
 1. 사용자 질의를 `bge-m3`로 임베딩합니다.
 2. ChromaDB의 리뷰 벡터 값들과 코사인 유사도로 유사 리뷰를 15건 검색합니다. 한 카페가 결과를 독점하지 않도록 카페별 리뷰 수에 상한을 둡니다(1위 카페 최대 5건, 순위가 내려갈수록 1건씩 감소).
 3. 카페별 최고 점수 기준 상위 5개 카페를 컨텍스트로 넣고 `qwen2.5:14b`에 JSON 형식의 추천 결과를 요청합니다.
 4. LLM 호출이 실패하면 벡터 검색 결과를 그대로 반환합니다.
-6. Spring이 결과에 카페 대표 사진 URL을 붙여 응답합니다. 챗봇 서버 호출 자체가 실패하면 `503`(`reason` 필드에 실패 유형)을 응답하고, 화면은 "일시적인 오류" 문구를 띄웁니다.
+6. Spring이 결과에 카페 대표 사진 URL을 붙여 응답합니다. 픽봇 서버 호출 자체가 실패하면 `503`(`reason` 필드에 실패 유형)을 응답하고, 화면은 "일시적인 오류" 문구를 띄웁니다.
 
-인덱스 관리: FastAPI 기동 시 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 인덱싱합니다. 그 밖에 `POST /chatbot/reindex`, `POST /chatbot/delete-one`, 독립 실행 스크립트 `ChatBot_AI/embed_all.py`가 있습니다.
+인덱스 관리: FastAPI 기동 시 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 인덱싱합니다. 그 밖에 `POST /pickbot/reindex`, `POST /pickbot/delete-one`, 독립 실행 스크립트 `PickBot_AI/embed_all.py`가 있습니다.
 
 ### 3. 니즈 기반 추천
 
@@ -160,7 +160,7 @@
 |---|---|
 | 리뷰 작성 | `POST /reviews/new` |
 | 리뷰 수정 (본인만) | `POST /reviews/{id}/edit` |
-| 픽봇 추천 | `POST /api/chatbot/recommend` |
+| 픽봇 추천 | `POST /api/pickbot/recommend` |
 
 **즐겨찾기 · 알림 · 지도**
 
@@ -181,7 +181,7 @@
 
 | 대상 | 변경 | 근거 |
 |---|---|---|
-| 임베딩 모델 (`ChatBot_AI/config.py`) | `nomic-embed-text` → `bge-m3` | git 커밋 `a43c7d7` |
+| 임베딩 모델 (`PickBot_AI/config.py`) | `nomic-embed-text` → `bge-m3` | git 커밋 `a43c7d7` |
 
 - 교체 이유 / 교체 전후 성능 비교: `[여기 직접 확인/작성]`
 - 리뷰 태그 분석 정확도: `Review_Tag_AI/test_api.py`(15개 케이스, 카테고리별 Precision/Recall/F1 출력)로 측정할 수 있습니다. 측정 결과: `[여기 직접 확인/작성]`
@@ -199,13 +199,13 @@ flowchart LR
     S -->|JPA| P[(PostgreSQL 16)]
     S -->|파일 저장| U[./uploads]
     S -->|WebClient<br/>POST /review/analyze 동기| F[FastAPI app.py :8000]
-    S -->|WebClient<br/>/chatbot/recommend 동기<br/>/chatbot/index-one 비동기| F
+    S -->|WebClient<br/>/pickbot/recommend 동기<br/>/pickbot/index-one 비동기| F
     F -->|/api/chat, /api/embed| O[Ollama :11434<br/>qwen2.5:14b, bge-m3]
     F -->|인덱싱용 리뷰 조회| P
     F --> C[(ChromaDB ./chroma_db)]
 ```
 
-- `MyPickCafe_AI/app.py`는 `ChatBot_AI`(RAG 추천)와 `Review_Tag_AI`(태그·감성 분석)의 엔드포인트를 **하나의 FastAPI 서버**로 묶은 통합 서버입니다.
+- `MyPickCafe_AI/app.py`는 `PickBot_AI`(RAG 추천)와 `Review_Tag_AI`(태그·감성 분석)의 엔드포인트를 **하나의 FastAPI 서버**로 묶은 통합 서버입니다.
 - 포트는 코드 기준입니다. Spring은 `server.port`를 따로 지정하지 않아 기본값 8080을 쓰고, FastAPI는 `app.py` `__main__` 기준 8000입니다.
 
 ### Spring Boot 계층 구조
@@ -213,8 +213,8 @@ flowchart LR
 ```
 com.example.MyPickCafe
 ├── api/          REST 컨트롤러 (auth, cafes, cafe-infos, members, menus, notifications, admin) + ApiExceptionHandler
-├── controller/   Mustache 페이지 컨트롤러 + 일부 REST (사진, 챗봇, 즐겨찾기)
-├── service/      비즈니스 로직, AI 서버 클라이언트 (PythonTagClient, ChatbotClient), 파일 저장
+├── controller/   Mustache 페이지 컨트롤러 + 일부 REST (사진, 픽봇, 즐겨찾기)
+├── service/      비즈니스 로직, AI 서버 클라이언트 (PythonTagClient, PickBotClient), 파일 저장
 ├── repository/   Spring Data JPA (파생 쿼리 + 네이티브/JPQL 쿼리)
 ├── entity/       JPA 엔티티
 ├── domain/       enum (역할, 카페 상태, 알림 유형, 4종 태그)
@@ -302,7 +302,7 @@ sequenceDiagram
 | 2 | `/`, `/index/**`, `/search/**`, `/signup`, `/login` | permitAll |
 | 3 | `/cafes`, `/cafes/{cafeId}` | permitAll |
 | 4 | `/css/**`, `/js/**`, `/images/**`, `/img/**`, `/favicon.ico`, `/uploads/**`, `/files/**` | permitAll |
-| 5 | `/api/auth/login`, `POST /api/chatbot/**` | permitAll |
+| 5 | `/api/auth/login`, `POST /api/pickbot/**` | permitAll |
 | 6 | `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**` | permitAll (prod에서는 springdoc 비활성) |
 | 7 | `/api/members/**` | `hasRole('ADMIN')` |
 | 8 | `GET /api/cafes/**`, `GET /api/**` | permitAll |
@@ -434,7 +434,7 @@ cp secret.properties.example secret.properties
 | `DB_URL` | | 기본값 `jdbc:postgresql://localhost:5432/mypickcafe` |
 | `JWT_SECRET` | 필수 | `JwtTokenProvider`가 **Base64로 디코딩**하므로 Base64 문자열이어야 합니다 (HS256, 32바이트 이상). 예: `openssl rand -base64 48` |
 | `KAKAO_JS_KEY` | | 지도 탐색 페이지용 |
-| `CHATBOT_API_BASE_URL` | | 기본값 `http://localhost:8000` (통합 FastAPI `app.py`가 챗봇·태그 API를 한 포트에서 제공) |
+| `PICKBOT_API_BASE_URL` | | 기본값 `http://localhost:8000` (통합 FastAPI `app.py`가 픽봇·태그 API를 한 포트에서 제공) |
 | `PYTHON_API_BASE_URL` | | 기본값 `http://localhost:8000` |
 
 ```bash
@@ -472,9 +472,9 @@ python app.py            # uvicorn, 0.0.0.0:8000, reload
 ```
 
 - 헬스체크: `GET http://localhost:8000/health`
-- PostgreSQL 접속 정보는 `ChatBot_AI/config.py`의 `Settings` 필드(`db_host`, `db_port`, `db_name`, `db_user`, `db_password` 등)로 받습니다. 환경변수(`DB_PASSWORD` 등)로 지정하세요. 기본 비밀번호는 빈 문자열입니다.
-  - 두 `Settings` 클래스(ChatBot / Review)가 모두 `MyPickCafe_AI/.env` 하나를 읽습니다. 실행 위치와 무관하며, OS 환경변수가 `.env`보다 우선합니다.
-- ChromaDB 경로 기본값은 `./chroma_db`이고, 상대경로는 실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀립니다. `ChatBot_AI/embed_all.py`로 만든 인덱스를 통합 서버가 그대로 사용합니다. 서버가 떠 있을 때는 `embed_all.py` 대신 `POST /chatbot/reindex`를 쓰세요.
+- PostgreSQL 접속 정보는 `PickBot_AI/config.py`의 `Settings` 필드(`db_host`, `db_port`, `db_name`, `db_user`, `db_password` 등)로 받습니다. 환경변수(`DB_PASSWORD` 등)로 지정하세요. 기본 비밀번호는 빈 문자열입니다.
+  - 두 `Settings` 클래스(PickBot / Review)가 모두 `MyPickCafe_AI/.env` 하나를 읽습니다. 실행 위치와 무관하며, OS 환경변수가 `.env`보다 우선합니다.
+- ChromaDB 경로 기본값은 `./chroma_db`이고, 상대경로는 실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀립니다. `PickBot_AI/embed_all.py`로 만든 인덱스를 통합 서버가 그대로 사용합니다. 서버가 떠 있을 때는 `embed_all.py` 대신 `POST /pickbot/reindex`를 쓰세요.
 - AI 서버를 띄우지 않아도 Spring 앱은 동작합니다. 태그 분석은 빈 결과를 반환하고, 픽봇 추천은 `503`(일시적인 오류)을 반환합니다.
 
 ---
@@ -494,8 +494,8 @@ cd MyPickCafe_Springboot
 | `security/ApiAuthorizationTest` | 공개/ADMIN/CAFEOWNER 인가 규칙 (401·403·200) |
 | `api/MemberResponseLeakTest` | 회원·카페 API 응답에 비밀번호 해시·점주 이메일이 노출되지 않음 |
 | `service/AiClientDegradationTest` | AI 서버 장애 시 태그 분석·색인 호출이 예외 대신 빈 결과로 흡수됨 |
-| `service/ChatbotClientRecommendTest` | 챗봇 추천의 빈 결과와 실패 구분, 실패 유형(연결 불가·타임아웃·서버 오류·응답 형식 오류) 분류 |
-| `controller/ChatbotControllerTest` | 챗봇 서버 장애 시 `503`과 실패 사유 반환 |
+| `service/PickBotClientRecommendTest` | 픽봇 추천의 빈 결과와 실패 구분, 실패 유형(연결 불가·타임아웃·서버 오류·응답 형식 오류) 분류 |
+| `controller/PickBotControllerTest` | 픽봇 서버 장애 시 `503`과 실패 사유 반환 |
 | `service/CafeServiceTest` | 카페 등록 시 PENDING 강제, 소유자 지정, 중복 이름 거부 |
 | `service/MemberServiceTest` | 비밀번호 해시 저장, 기본 역할, 중복/잘못된 역할 거부, null 필드 미덮어쓰기 |
 
@@ -512,7 +512,7 @@ cd MyPickCafe_Springboot
 - **지도 탐색 페이지**: 초기 목록과 마커는 `MapController`에 하드코딩된 샘플 장소 2건입니다(DB 연동 아님). 검색 결과는 Kakao 키워드 검색을 사용합니다.
 - **카페 상세 지도 / 등록 폼 주소 찾기**: 템플릿에 지도 영역과 `daum.Postcode`·Kakao 지오코딩 호출 코드가 있지만, 해당 페이지에서 SDK 스크립트를 불러오는 태그가 없습니다.
 - **리뷰 사진**: 리뷰 작성 모달에 사진 입력란이 있지만 서버(`ReviewForm`/`ReviewController`)에서 파일을 처리하지 않습니다.
-- **리뷰 삭제**: 삭제 엔드포인트가 없습니다. `ChatbotClient.deleteOneAsync`는 구현되어 있으나 호출하는 곳이 없습니다.
+- **리뷰 삭제**: 삭제 엔드포인트가 없습니다. `PickBotClient.deleteOneAsync`는 구현되어 있으나 호출하는 곳이 없습니다.
 - **파일 저장소**: 로컬 디스크 구현(`LocalFileStorageService`)만 있습니다.
 
 ---

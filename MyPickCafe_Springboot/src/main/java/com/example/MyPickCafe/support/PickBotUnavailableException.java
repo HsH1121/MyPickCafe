@@ -3,13 +3,13 @@ package com.example.MyPickCafe.support;
 import lombok.Getter;
 
 /**
- * 추천 챗봇 서버 호출이 실패했음을 나타낸다.
+ * 추천 픽봇 서버 호출이 실패했음을 나타낸다.
  *
  * <p>"조건에 맞는 카페가 없음(빈 결과)"과 "추천 자체를 받지 못함"을 구분하기 위해
  * 실패를 빈 목록으로 흡수하지 않고 이 예외로 올린다. API 응답은 503 으로 변환된다.
  */
 @Getter
-public class ChatbotUnavailableException extends RuntimeException {
+public class PickBotUnavailableException extends RuntimeException {
 
     public enum Reason {
         /** 연결 거부, 연결 타임아웃, 호스트 해석 실패 등 — 서버에 닿지 못함 */
@@ -26,7 +26,7 @@ public class ChatbotUnavailableException extends RuntimeException {
 
     private final Reason reason;
 
-    public ChatbotUnavailableException(Reason reason, String message, Throwable cause) {
+    public PickBotUnavailableException(Reason reason, String message, Throwable cause) {
         super(message, cause);
         this.reason = reason;
     }

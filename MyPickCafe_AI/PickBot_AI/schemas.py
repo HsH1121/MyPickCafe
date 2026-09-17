@@ -1,11 +1,11 @@
 from pydantic import BaseModel
 
 
-class ChatbotRequest(BaseModel):
+class PickBotRequest(BaseModel):
     query: str
 
 
-class ChatbotResult(BaseModel):
+class PickBotResult(BaseModel):
     cafeId:   int
     cafeName: str
     address:  str

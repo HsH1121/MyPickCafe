@@ -24,7 +24,7 @@ flowchart LR
     S -->|JPA| P[(PostgreSQL 16)]
     S -->|파일 저장| U[./uploads]
     S -->|WebClient<br/>POST /review/analyze 동기| F[FastAPI app.py :8000]
-    S -->|WebClient<br/>/chatbot/recommend 동기<br/>/chatbot/index-one 비동기| F
+    S -->|WebClient<br/>/pickbot/recommend 동기<br/>/pickbot/index-one 비동기| F
     F -->|/api/chat, /api/embed| O[Ollama :11434<br/>qwen2.5:14b, bge-m3]
     F -->|인덱싱용 리뷰 조회| P
     F --> C[(ChromaDB ./chroma_db)]
