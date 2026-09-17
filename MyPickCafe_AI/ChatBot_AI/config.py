@@ -14,14 +14,20 @@ _ENV_FILE = _AI_ROOT / ".env"
 
 class Settings(BaseSettings):
     # LLM (OpenAI 호환 /chat/completions) — base_url 은 /chat/completions 바로 앞까지
-    llm_base_url:   str = "http://localhost:11434/v1"
+    # 호스트를 localhost 가 아닌 127.0.0.1 로 둔다. Windows 에서 localhost 는 IPv6(::1) 부터
+    # 시도하는데 Ollama 는 IPv4 에서만 대기해, 새 연결마다 약 2.2s 가 붙는다.
+    llm_base_url:   str = "http://127.0.0.1:11434/v1"
     llm_api_key:    str = ""
     ollama_model:   str = "qwen2.5:14b"
     ollama_timeout: int = 60
 
     # 임베딩 (Ollama 네이티브 /api/embed) — LLM 과 다른 서버를 가리킬 수 있다
-    embed_base_url: str = "http://localhost:11434"
+    embed_base_url: str = "http://127.0.0.1:11434"
     embed_model:    str = "bge-m3"
+    # 소량 임베딩(검색 쿼리·리뷰 1건 upsert)을 CPU 로 돌릴지. 로컬에서 LLM 과 GPU 를
+    # 나눠 쓸 때 요청마다 모델을 내렸다 올리는 비용(수 초)을 없앤다.
+    # LLM 이 원격이거나 VRAM 이 넉넉한 환경이면 false 로 둬도 된다.
+    embed_small_batches_on_cpu: bool = True
 
     # PostgreSQL (chatbot RAG 인덱싱용) — .env 파일에서 주입
     db_host:     str = "localhost"

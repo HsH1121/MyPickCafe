@@ -52,7 +52,7 @@
 | 구분 | 사용 기술 |
 |---|---|
 | 서버 | Python, FastAPI, Uvicorn |
-| 모델 실행 | Ollama (로컬, 기본 `http://localhost:11434`) — `/api/chat`, `/api/embed` HTTP 호출 |
+| 모델 실행 | Ollama (로컬, 기본 `http://127.0.0.1:11434`) — `/api/chat`, `/api/embed` HTTP 호출 |
 | 사용 모델 (코드 기본값) | 생성/분석: `qwen2.5:14b` · 임베딩: `bge-m3` |
 | 벡터 DB | ChromaDB (PersistentClient, cosine) |
 | 기타 | httpx, pydantic / pydantic-settings, psycopg (인덱싱용 PostgreSQL 조회) |
