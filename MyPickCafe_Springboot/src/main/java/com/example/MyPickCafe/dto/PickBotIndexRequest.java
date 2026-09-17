@@ -5,7 +5,7 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class ChatbotIndexRequest {
+public class PickBotIndexRequest {
     private Long   reviewId;
     private Long   cafeId;
     private String cafeName;

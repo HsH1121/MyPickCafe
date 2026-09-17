@@ -33,17 +33,17 @@ public class AiClientConfig {
     private int readTimeoutMs;
 
     /**
-     * 챗봇 추천은 임베딩 검색 뒤 LLM 생성까지 기다려야 해서 태그 분석보다 훨씬 오래 걸린다.
+     * 픽봇 추천은 임베딩 검색 뒤 LLM 생성까지 기다려야 해서 태그 분석보다 훨씬 오래 걸린다.
      * 공용 응답 타임아웃(10초)을 쓰면 LLM 이 답하기 전에 끊겨 추천이 실패하므로 따로 둔다.
      */
-    @Value("${ai.chatbot.read-timeout-ms}")
-    private int chatbotReadTimeoutMs;
+    @Value("${ai.pickbot.read-timeout-ms}")
+    private int pickBotReadTimeoutMs;
 
     @Value("${python.api.base-url}")
     private String pythonApiBaseUrl;
 
-    @Value("${chatbot.api.base-url}")
-    private String chatbotApiBaseUrl;
+    @Value("${pickbot.api.base-url}")
+    private String pickBotApiBaseUrl;
 
     /** 리뷰 태그·감성 분석 서버 전용 WebClient. */
     @Bean
@@ -53,11 +53,11 @@ public class AiClientConfig {
                 .build();
     }
 
-    /** 추천 챗봇(RAG) 서버 전용 WebClient. */
+    /** 추천 픽봇(RAG) 서버 전용 WebClient. */
     @Bean
-    public WebClient chatbotWebClient(WebClient.Builder builder) {
-        return builder.baseUrl(chatbotApiBaseUrl)
-                .clientConnector(new ReactorClientHttpConnector(httpClient(chatbotReadTimeoutMs)))
+    public WebClient pickBotWebClient(WebClient.Builder builder) {
+        return builder.baseUrl(pickBotApiBaseUrl)
+                .clientConnector(new ReactorClientHttpConnector(httpClient(pickBotReadTimeoutMs)))
                 .build();
     }
 

@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatbotResult {
+public class PickBotResult {
     private Long   cafeId;
     private String cafeName;
     private String address;

@@ -1,12 +1,12 @@
 """
 MyPickCafe AI — 통합 FastAPI 서버
-ChatBot_AI + Review_Tag_AI 엔드포인트를 단일 서버에서 제공합니다.
+PickBot_AI + Review_Tag_AI 엔드포인트를 단일 서버에서 제공합니다.
 
 엔드포인트:
-  POST /chatbot/recommend   — AI 카페 추천 (RAG)
-  POST /chatbot/reindex     — ChromaDB 재인덱싱
-  POST /chatbot/index-one   — 단일 리뷰 ChromaDB upsert
-  POST /chatbot/delete-one  — 단일 리뷰 ChromaDB 삭제
+  POST /pickbot/recommend   — AI 카페 추천 (RAG)
+  POST /pickbot/reindex     — ChromaDB 재인덱싱
+  POST /pickbot/index-one   — 단일 리뷰 ChromaDB upsert
+  POST /pickbot/delete-one  — 단일 리뷰 ChromaDB 삭제
   POST /review/analyze      — 리뷰 분석 (태그 + 감성 추출)
   GET  /health              — 헬스체크
 """
@@ -23,17 +23,17 @@ from fastapi.responses import JSONResponse
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
-# ChatBot_AI 와 Review_Tag_AI 가 같은 이름의 모듈을 갖고 있어, 각 패키지를
+# PickBot_AI 와 Review_Tag_AI 가 같은 이름의 모듈을 갖고 있어, 각 패키지를
 # import 하기 직전에 캐시에서 지워야 올바른 쪽이 로드된다.
 #
-# ChatBot_AI 앞에서도 지우는 이유: `python app.py` 로 띄우면 이 파일이 먼저
+# PickBot_AI 앞에서도 지우는 이유: `python app.py` 로 띄우면 이 파일이 먼저
 # __main__ 으로 한 번 실행되고, uvicorn 이 "app:app" 문자열로 다시 import 한다.
 # 그때 sys.modules 에 1차 실행의 Review_Tag_AI 모듈이 남아 있어
-# `from schemas import ChatbotRequest` 가 Review_Tag_AI/schemas.py 를 집고 죽는다.
+# `from schemas import PickBotRequest` 가 Review_Tag_AI/schemas.py 를 집고 죽는다.
 #
-# 이름이 겹치는 모듈만 지운다. chatbot_rag 등은 모듈 레벨에서 로그 핸들러를
+# 이름이 겹치는 모듈만 지운다. pickbot_rag 등은 모듈 레벨에서 로그 핸들러를
 # 붙이므로, 지우고 재실행하면 핸들러가 중복돼 로그가 두 번씩 찍힌다.
-_CONFLICTING_MODULES = ["config", "schemas", "ollama_client"]
+_CONFLICTING_MODULES = ["config", "schemas", "llm_client"]
 
 
 def _purge_conflicting_modules() -> None:
@@ -41,13 +41,13 @@ def _purge_conflicting_modules() -> None:
         sys.modules.pop(_mod, None)
 
 
-# ── ChatBot_AI 모듈 로드 ─────────────────────────────────────────────────────
+# ── PickBot_AI 모듈 로드 ─────────────────────────────────────────────────────
 _purge_conflicting_modules()
-sys.path.insert(0, os.path.join(BASE, "ChatBot_AI"))
+sys.path.insert(0, os.path.join(BASE, "PickBot_AI"))
 
-from config import Settings as ChatbotSettings
-from schemas import ChatbotRequest, ChatbotResult, IndexOneRequest, DeleteOneRequest
-from chatbot_rag import CafeRAG
+from config import Settings as PickBotSettings
+from schemas import PickBotRequest, PickBotResponse, IndexOneRequest, DeleteOneRequest
+from pickbot_rag import CafeRAG
 
 # ── Review_Tag_AI 모듈 로드 (충돌 모듈 제거 후 재로드) ──────────────────────
 _purge_conflicting_modules()
@@ -55,7 +55,7 @@ sys.path.insert(0, os.path.join(BASE, "Review_Tag_AI"))
 
 from config import Settings as ReviewSettings
 from schemas import ReviewRequest, ReviewAnalyzeResponse
-from ollama_client import call_ollama
+from llm_client import call_llm
 from prompt_builder import (
     SYSTEM_PROMPT,
     build_user_message,
@@ -66,7 +66,7 @@ from prompt_builder import (
 )
 
 # ── 설정 및 로깅 ─────────────────────────────────────────────────────────────
-chatbot_settings = ChatbotSettings()
+pickbot_settings = PickBotSettings()
 review_settings  = ReviewSettings()
 
 logging.basicConfig(
@@ -81,14 +81,14 @@ cafe_rag: CafeRAG | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cafe_rag
-    cafe_rag = CafeRAG(chatbot_settings)
+    cafe_rag = CafeRAG(pickbot_settings)
     if cafe_rag.indexed_count == 0:
         logger.info("ChromaDB가 비어 있어 초기 인덱싱을 시작합니다.")
         try:
             n = await asyncio.to_thread(cafe_rag.index_from_db)
             logger.info("초기 인덱싱 완료: %d건", n)
         except Exception as e:
-            logger.error("초기 인덱싱 실패 (챗봇 비활성): %s", e)
+            logger.error("초기 인덱싱 실패 (픽봇 비활성): %s", e)
     else:
         logger.info("ChromaDB 기존 인덱스 로드: %d건", cafe_rag.indexed_count)
     yield
@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="MyPickCafe AI",
-    description="챗봇 추천 + 리뷰 태그 분석 통합 FastAPI 서버",
+    description="픽봇 추천 + 리뷰 태그 분석 통합 FastAPI 서버",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -104,22 +104,21 @@ app = FastAPI(
 _VALID_SENTIMENTS: frozenset[str] = frozenset({"GOOD", "BAD"})
 
 
-# ── ChatBot 엔드포인트 ────────────────────────────────────────────────────────
+# ── PickBot 엔드포인트 ────────────────────────────────────────────────────────
 
 @app.post(
-    "/chatbot/recommend",
-    response_model=list[ChatbotResult],
-    summary="AI 카페 추천 — RAG (임베딩 검색 + Qwen 생성)",
+    "/pickbot/recommend",
+    response_model=PickBotResponse,
+    summary="AI 카페 추천 — 질문 분해 + 지역 필터 + 리뷰 RAG + LLM 생성",
 )
-async def chatbot_recommend(request: ChatbotRequest) -> list[ChatbotResult]:
+async def pickbot_recommend(request: PickBotRequest) -> PickBotResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
-    results = await cafe_rag.recommend(request.query)
-    return [ChatbotResult(**r) for r in results]
+    return PickBotResponse(**await cafe_rag.recommend(request.query))
 
 
-@app.post("/chatbot/index-one", summary="단일 리뷰 ChromaDB upsert")
-async def chatbot_index_one(request: IndexOneRequest) -> JSONResponse:
+@app.post("/pickbot/index-one", summary="단일 리뷰 ChromaDB upsert")
+async def pickbot_index_one(request: IndexOneRequest) -> JSONResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
     try:
@@ -136,8 +135,8 @@ async def chatbot_index_one(request: IndexOneRequest) -> JSONResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/chatbot/delete-one", summary="단일 리뷰 ChromaDB 삭제")
-async def chatbot_delete_one(request: DeleteOneRequest) -> JSONResponse:
+@app.post("/pickbot/delete-one", summary="단일 리뷰 ChromaDB 삭제")
+async def pickbot_delete_one(request: DeleteOneRequest) -> JSONResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
     try:
@@ -147,8 +146,8 @@ async def chatbot_delete_one(request: DeleteOneRequest) -> JSONResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/chatbot/reindex", summary="ChromaDB 재인덱싱 (DB 변경 시 수동 갱신)")
-async def chatbot_reindex() -> JSONResponse:
+@app.post("/pickbot/reindex", summary="ChromaDB 재인덱싱 (DB 변경 시 수동 갱신)")
+async def pickbot_reindex() -> JSONResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
     try:
@@ -174,12 +173,13 @@ async def analyze_review(request: ReviewRequest) -> ReviewAnalyzeResponse:
     user_message = build_user_message(request)
 
     try:
-        raw: dict = await call_ollama(
+        raw: dict = await call_llm(
             system_prompt=SYSTEM_PROMPT,
             user_message=user_message,
-            model=review_settings.ollama_model,
+            model=review_settings.llm_model,
             base_url=review_settings.llm_base_url,
-            timeout=review_settings.ollama_timeout,
+            api_key=review_settings.llm_api_key,
+            timeout=review_settings.llm_timeout,
         )
     except Exception as exc:
         logger.warning("모델 호출 실패 — reviewId=%d, 빈 태그로 응답: %s", request.reviewId, exc)
@@ -229,10 +229,10 @@ async def health_check() -> JSONResponse:
     indexed = cafe_rag.indexed_count if cafe_rag else 0
     return JSONResponse({
         "status":        "ok",
-        "chatbot_model": chatbot_settings.ollama_model,
-        "embed_model":   chatbot_settings.embed_model,
+        "pickbot_model": pickbot_settings.llm_model,
+        "embed_model":   pickbot_settings.embed_model,
         "indexed":       indexed,
-        "review_model":  review_settings.ollama_model,
+        "review_model":  review_settings.llm_model,
     })
 
 

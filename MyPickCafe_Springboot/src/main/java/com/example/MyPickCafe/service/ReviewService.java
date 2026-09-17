@@ -5,7 +5,7 @@ import com.example.MyPickCafe.domain.FacilityTag;
 import com.example.MyPickCafe.domain.MenuTag;
 import com.example.MyPickCafe.domain.MoodTag;
 import com.example.MyPickCafe.domain.PurposeTag;
-import com.example.MyPickCafe.dto.ChatbotIndexRequest;
+import com.example.MyPickCafe.dto.PickBotIndexRequest;
 import com.example.MyPickCafe.dto.MyReviewItem;
 import com.example.MyPickCafe.dto.PythonTagRequest;
 import com.example.MyPickCafe.dto.PythonTagResponse;
@@ -45,7 +45,7 @@ public class ReviewService {
     private final CafeRepository cafeRepository;
     private final CafeTagRepository cafeTagRepository;
     private final PythonTagClient pythonTagClient;
-    private final ChatbotClient chatbotClient;
+    private final PickBotClient pickBotClient;
 
     @Transactional(readOnly = true)
     public List<Review> findAll() {
@@ -127,7 +127,7 @@ public class ReviewService {
             }
         });
 
-        chatbotClient.indexOneAsync(ChatbotIndexRequest.builder()
+        pickBotClient.indexOneAsync(PickBotIndexRequest.builder()
                 .reviewId(saved.getId())
                 .cafeId(saved.getCafe().getId())
                 .cafeName(saved.getCafe().getName())
@@ -173,7 +173,7 @@ public class ReviewService {
             }
         });
 
-        chatbotClient.indexOneAsync(ChatbotIndexRequest.builder()
+        pickBotClient.indexOneAsync(PickBotIndexRequest.builder()
                 .reviewId(saved.getId())
                 .cafeId(saved.getCafe().getId())
                 .cafeName(saved.getCafe().getName())

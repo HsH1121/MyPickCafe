@@ -11,13 +11,13 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 /**
  * 외부 AI 서버가 죽어 있을 때의 동작(graceful degradation)을 고정한다.
  *
- * <p>태그 분석·챗봇 색인은 부가 기능이므로, AI 서버 장애가 예외로 전파되어
+ * <p>태그 분석·픽봇 색인은 부가 기능이므로, AI 서버 장애가 예외로 전파되어
  * 리뷰 작성 같은 핵심 기능을 실패시키면 안 된다.
  *
  * <p>닫혀 있는 포트를 향해 실제로 호출해 실패 경로를 그대로 태운다.
  *
- * <p>챗봇 추천 조회는 사용자가 결과를 기다리는 요청이라 실패를 빈 목록으로 흡수하지 않는다.
- * 그 동작은 {@link ChatbotClientRecommendTest}에서 검증한다.
+ * <p>픽봇 추천 조회는 사용자가 결과를 기다리는 요청이라 실패를 빈 목록으로 흡수하지 않는다.
+ * 그 동작은 {@link PickBotClientRecommendTest}에서 검증한다.
  */
 @DisplayName("AI 클라이언트 장애 격리")
 class AiClientDegradationTest {
@@ -40,8 +40,8 @@ class AiClientDegradationTest {
 
     @Test
     @DisplayName("비동기 색인 호출은 서버가 죽어 있어도 호출부로 예외를 던지지 않는다")
-    void chatbotIndexingNeverThrowsToCaller() {
-        ChatbotClient client = new ChatbotClient(WebClient.create(DEAD_SERVER));
+    void pickBotIndexingNeverThrowsToCaller() {
+        PickBotClient client = new PickBotClient(WebClient.create(DEAD_SERVER));
 
         assertThatCode(() -> client.deleteOneAsync(1L))
                 .as("fire-and-forget 색인은 호출부에 영향을 주면 안 된다")
