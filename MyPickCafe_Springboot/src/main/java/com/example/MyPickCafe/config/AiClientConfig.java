@@ -22,6 +22,10 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>여기서는 연결/응답 타임아웃을 명시해 "빠르게 실패하고 태그 없이 진행"
  * 하도록 만든다. 타임아웃 값은 프로파일에서 조정할 수 있다.
+ *
+ * <p>챗봇은 응답 타임아웃을 따로 둔다. 리뷰 저장 흐름에 붙은 태그 분석과 달리
+ * 사용자가 로딩 문구를 보며 기다리는 기능이고, LLM 생성에 8~16초가 걸려
+ * 공용 타임아웃(10초)으로는 질의에 따라 매번 빈 결과가 됐다.
  */
 @Configuration
 public class AiClientConfig {
@@ -31,6 +35,9 @@ public class AiClientConfig {
 
     @Value("${ai.client.read-timeout-ms}")
     private int readTimeoutMs;
+
+    @Value("${ai.client.chatbot-read-timeout-ms}")
+    private int chatbotReadTimeoutMs;
 
     @Value("${python.api.base-url}")
     private String pythonApiBaseUrl;
@@ -42,7 +49,7 @@ public class AiClientConfig {
     @Bean
     public WebClient pythonTagWebClient(WebClient.Builder builder) {
         return builder.baseUrl(pythonApiBaseUrl)
-                .clientConnector(new ReactorClientHttpConnector(httpClient()))
+                .clientConnector(new ReactorClientHttpConnector(httpClient(readTimeoutMs)))
                 .build();
     }
 
@@ -50,11 +57,11 @@ public class AiClientConfig {
     @Bean
     public WebClient chatbotWebClient(WebClient.Builder builder) {
         return builder.baseUrl(chatbotApiBaseUrl)
-                .clientConnector(new ReactorClientHttpConnector(httpClient()))
+                .clientConnector(new ReactorClientHttpConnector(httpClient(chatbotReadTimeoutMs)))
                 .build();
     }
 
-    private HttpClient httpClient() {
+    private HttpClient httpClient(int readTimeoutMs) {
         return HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeoutMs)
                 .responseTimeout(Duration.ofMillis(readTimeoutMs))

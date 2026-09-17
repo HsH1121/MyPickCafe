@@ -39,7 +39,7 @@ public class ChatbotClient {
                     .block();
             return results != null ? results : Collections.emptyList();
         } catch (Exception e) {
-            log.warn("챗봇 추천 API 호출 실패 (빈 결과 반환): {}", e.getMessage());
+            log.warn("챗봇 추천 API 호출 실패 (빈 결과 반환): {}", e.toString());
             return Collections.emptyList();
         }
     }
@@ -59,7 +59,7 @@ public class ChatbotClient {
                 .bodyToMono(Void.class)
                 .subscribe(
                         ignored -> {},
-                        e -> log.warn("Chatbot index-one 호출 실패 (무시됨): {}", e.getMessage())
+                        e -> log.warn("Chatbot index-one 호출 실패 (무시됨): {}", e.toString())
                 );
     }
 
@@ -72,7 +72,7 @@ public class ChatbotClient {
                 .bodyToMono(Void.class)
                 .subscribe(
                         ignored -> {},
-                        e -> log.warn("Chatbot delete-one 호출 실패 (무시됨): {}", e.getMessage())
+                        e -> log.warn("Chatbot delete-one 호출 실패 (무시됨): {}", e.toString())
                 );
     }
 }
