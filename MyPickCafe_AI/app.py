@@ -33,7 +33,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 #
 # 이름이 겹치는 모듈만 지운다. chatbot_rag 등은 모듈 레벨에서 로그 핸들러를
 # 붙이므로, 지우고 재실행하면 핸들러가 중복돼 로그가 두 번씩 찍힌다.
-_CONFLICTING_MODULES = ["config", "schemas", "ollama_client"]
+_CONFLICTING_MODULES = ["config", "schemas", "llm_client"]
 
 
 def _purge_conflicting_modules() -> None:
@@ -55,7 +55,7 @@ sys.path.insert(0, os.path.join(BASE, "Review_Tag_AI"))
 
 from config import Settings as ReviewSettings
 from schemas import ReviewRequest, ReviewAnalyzeResponse
-from ollama_client import call_ollama
+from llm_client import call_llm
 from prompt_builder import (
     SYSTEM_PROMPT,
     build_user_message,
@@ -174,12 +174,13 @@ async def analyze_review(request: ReviewRequest) -> ReviewAnalyzeResponse:
     user_message = build_user_message(request)
 
     try:
-        raw: dict = await call_ollama(
+        raw: dict = await call_llm(
             system_prompt=SYSTEM_PROMPT,
             user_message=user_message,
-            model=review_settings.ollama_model,
+            model=review_settings.llm_model,
             base_url=review_settings.llm_base_url,
-            timeout=review_settings.ollama_timeout,
+            api_key=review_settings.llm_api_key,
+            timeout=review_settings.llm_timeout,
         )
     except Exception as exc:
         logger.warning("모델 호출 실패 — reviewId=%d, 빈 태그로 응답: %s", request.reviewId, exc)
@@ -229,10 +230,10 @@ async def health_check() -> JSONResponse:
     indexed = cafe_rag.indexed_count if cafe_rag else 0
     return JSONResponse({
         "status":        "ok",
-        "chatbot_model": chatbot_settings.ollama_model,
+        "chatbot_model": chatbot_settings.llm_model,
         "embed_model":   chatbot_settings.embed_model,
         "indexed":       indexed,
-        "review_model":  review_settings.ollama_model,
+        "review_model":  review_settings.llm_model,
     })
 
 

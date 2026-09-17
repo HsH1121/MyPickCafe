@@ -1,7 +1,7 @@
 """
 FastAPI 모델 세팅 심층 테스트 — 서버 없이 직접 호출
-- ollama_client.call_ollama() + prompt_builder 직접 사용
-- temperature=0.0, top_p=0.9, num_predict=1000, LLM 키: FACILITY/MENU/PURPOSE/MOOD
+- llm_client.call_llm() + prompt_builder 직접 사용
+- temperature=0.0, top_p=0.9, max_tokens=1000, LLM 키: FACILITY/MENU/PURPOSE/MOOD
 - test_deep.py 와 동일 15개 케이스로 성능 비교
 """
 
@@ -11,7 +11,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 
 import asyncio
 from schemas import ReviewRequest
-from ollama_client import call_ollama
+from llm_client import call_llm
 from prompt_builder import SYSTEM_PROMPT, build_user_message
 from prompt_builder import (
     ALLOWED_FACILITY_TAGS, ALLOWED_MENU_TAGS,
@@ -134,18 +134,19 @@ async def run() -> None:
 
     print("=" * 72)
     print(f"{'FastAPI 모델 세팅  심층 테스트  (15 cases)':^72}")
-    print(f"{'model=' + settings.ollama_model + '  temp=0.0  top_p=0.9  num_predict=1000':^72}")
+    print(f"{'model=' + settings.llm_model + '  temp=0.0  top_p=0.9  max_tokens=1000':^72}")
     print("=" * 72)
 
     for idx, (review, exp_tags, exp_sent) in enumerate(TEST_CASES, 1):
         req = ReviewRequest(reviewId=idx, reviewText=review)
         try:
-            raw = await call_ollama(
+            raw = await call_llm(
                 system_prompt=SYSTEM_PROMPT,
                 user_message=build_user_message(req),
-                model=settings.ollama_model,
+                model=settings.llm_model,
                 base_url=settings.llm_base_url,
-                timeout=settings.ollama_timeout,
+                api_key=settings.llm_api_key,
+                timeout=settings.llm_timeout,
             )
             res = _extract(raw)
         except Exception as e:

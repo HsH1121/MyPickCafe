@@ -2,7 +2,7 @@
 OpenAI 호환 /chat/completions 비동기 클라이언트
 - response_format 으로 JSON 포맷 붕괴 방지
 - stream: false 로 단일 응답 수신
-- Ollama / Fireworks 등 OpenAI 호환 엔드포인트를 base_url 로 전환
+- Fireworks 등 OpenAI 호환 엔드포인트를 base_url 로 전환
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ _MAX_ATTEMPTS = 3
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
-async def call_ollama(
+async def call_llm(
     *,
     system_prompt: str,
     user_message: str,
@@ -40,7 +40,7 @@ async def call_ollama(
 
     Args:
         base_url: OpenAI 호환 베이스 URL (예: https://api.fireworks.ai/inference/v1)
-        api_key:  Bearer 토큰. Ollama 등 인증이 없는 엔드포인트면 None.
+        api_key:  Bearer 토큰. 인증이 없는 엔드포인트면 None.
 
     Raises:
         httpx.ConnectError       — 서비스에 연결 불가 (재시도 후에도 실패 시)
@@ -83,7 +83,7 @@ async def call_ollama(
     except (httpx.HTTPStatusError, httpx.TransportError, ValueError, KeyError, IndexError) as exc:
         if _attempt < _MAX_ATTEMPTS - 1:
             logger.warning("LLM 호출 실패 (attempt=%d), 재시도: %s", _attempt + 1, exc)
-            return await call_ollama(
+            return await call_llm(
                 system_prompt=system_prompt,
                 user_message=user_message,
                 model=model,

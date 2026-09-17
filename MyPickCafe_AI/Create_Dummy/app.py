@@ -5,8 +5,6 @@ import os
 import re
 import time
 
-import ollama
-
 from src import create_cafe_dummy
 from src import create_cafeowner_dummy
 from src import create_user_dummy
@@ -23,17 +21,6 @@ CHECKPOINT_MEMBER    = "reviewer_dummy.sql"
 CHECKPOINT_CAFEOWNER = "cafeowner_dummy.sql"
 CHECKPOINT_CAFE      = "cafe_dummy.sql"
 CHECKPOINT_REVIEW    = "review_dummy.sql"
-
-# --- Ollama 연결 확인 ---
-print("  Ollama 연결 확인 중...")
-try:
-    ollama.list()
-
-except Exception:
-    print("❌ Ollama가 실행되지 않았습니다.")
-    print("   'ollama serve' 명령어 또는 Ollama 앱을 실행한 뒤 다시 시도하세요.")
-    sys.exit(1)
-
 
 def _owner_num(filename: str) -> int:
     m = re.match(r'^(\d+)_', filename)
