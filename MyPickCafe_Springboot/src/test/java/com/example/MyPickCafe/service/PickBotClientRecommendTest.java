@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.dto.PickBotResponse;
 import com.example.MyPickCafe.support.PickBotUnavailableException;
 import com.example.MyPickCafe.support.PickBotUnavailableException.Reason;
 import com.sun.net.httpserver.HttpServer;
@@ -46,19 +47,31 @@ class PickBotClientRecommendTest {
     }
 
     @Test
-    @DisplayName("서버가 빈 배열로 정상 응답하면 예외 없이 빈 목록을 반환한다")
+    @DisplayName("서버가 빈 결과로 정상 응답하면 예외 없이 빈 목록을 반환한다")
     void emptyResultIsNotAFailure() {
-        respond(200, "[]", 0);
+        respond(200, "{\"results\":[],\"notice\":null}", 0);
 
-        assertThat(client(Duration.ofSeconds(5)).recommend(QUERY)).isEmpty();
+        PickBotResponse response = client(Duration.ofSeconds(5)).recommend(QUERY);
+        assertThat(response.getResults()).isEmpty();
+        assertThat(response.getNotice()).isNull();
+    }
+
+    @Test
+    @DisplayName("결과가 빈 이유(notice)를 서버가 주면 그대로 전달한다")
+    void passesNoticeThrough() {
+        respond(200, "{\"results\":[],\"notice\":\"REGION_NOT_FOUND\"}", 0);
+
+        PickBotResponse response = client(Duration.ofSeconds(5)).recommend(QUERY);
+        assertThat(response.getResults()).isEmpty();
+        assertThat(response.getNotice()).isEqualTo(PickBotResponse.NOTICE_REGION_NOT_FOUND);
     }
 
     @Test
     @DisplayName("서버가 결과를 주면 그대로 반환한다")
     void returnsResults() {
-        respond(200, "[{\"cafeId\":1,\"cafeName\":\"카페\",\"address\":\"서울\",\"snippet\":\"조용해요\",\"score\":0.9}]", 0);
+        respond(200, "{\"results\":[{\"cafeId\":1,\"cafeName\":\"카페\",\"address\":\"서울\",\"snippet\":\"조용해요\",\"score\":0.9}],\"notice\":null}", 0);
 
-        assertThat(client(Duration.ofSeconds(5)).recommend(QUERY))
+        assertThat(client(Duration.ofSeconds(5)).recommend(QUERY).getResults())
                 .singleElement()
                 .satisfies(r -> assertThat(r.getCafeId()).isEqualTo(1L));
     }
@@ -74,7 +87,7 @@ class PickBotClientRecommendTest {
     @Test
     @DisplayName("응답 제한 시간을 넘기면 TIMEOUT")
     void timeout() {
-        respond(200, "[]", 2_000);
+        respond(200, "{\"results\":[]}", 2_000);
 
         assertReason(() -> client(Duration.ofMillis(300)).recommend(QUERY), Reason.TIMEOUT);
     }
@@ -90,7 +103,7 @@ class PickBotClientRecommendTest {
     @Test
     @DisplayName("응답 본문을 결과로 변환할 수 없으면 INVALID_RESPONSE")
     void invalidBody() {
-        respond(200, "[{\"cafeId\":\"not-a-number\"}]", 0);
+        respond(200, "{\"results\":[{\"cafeId\":\"not-a-number\"}]}", 0);
 
         assertReason(() -> client(Duration.ofSeconds(5)).recommend(QUERY), Reason.INVALID_RESPONSE);
     }

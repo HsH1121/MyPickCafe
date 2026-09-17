@@ -46,7 +46,7 @@ _purge_conflicting_modules()
 sys.path.insert(0, os.path.join(BASE, "PickBot_AI"))
 
 from config import Settings as PickBotSettings
-from schemas import PickBotRequest, PickBotResult, IndexOneRequest, DeleteOneRequest
+from schemas import PickBotRequest, PickBotResponse, IndexOneRequest, DeleteOneRequest
 from pickbot_rag import CafeRAG
 
 # ── Review_Tag_AI 모듈 로드 (충돌 모듈 제거 후 재로드) ──────────────────────
@@ -108,14 +108,13 @@ _VALID_SENTIMENTS: frozenset[str] = frozenset({"GOOD", "BAD"})
 
 @app.post(
     "/pickbot/recommend",
-    response_model=list[PickBotResult],
-    summary="AI 카페 추천 — RAG (임베딩 검색 + Qwen 생성)",
+    response_model=PickBotResponse,
+    summary="AI 카페 추천 — 질문 분해 + 지역 필터 + 리뷰 RAG + LLM 생성",
 )
-async def pickbot_recommend(request: PickBotRequest) -> list[PickBotResult]:
+async def pickbot_recommend(request: PickBotRequest) -> PickBotResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
-    results = await cafe_rag.recommend(request.query)
-    return [PickBotResult(**r) for r in results]
+    return PickBotResponse(**await cafe_rag.recommend(request.query))
 
 
 @app.post("/pickbot/index-one", summary="단일 리뷰 ChromaDB upsert")

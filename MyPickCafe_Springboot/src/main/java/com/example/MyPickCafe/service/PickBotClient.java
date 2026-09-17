@@ -1,7 +1,7 @@
 package com.example.MyPickCafe.service;
 
 import com.example.MyPickCafe.dto.PickBotIndexRequest;
-import com.example.MyPickCafe.dto.PickBotResult;
+import com.example.MyPickCafe.dto.PickBotResponse;
 import com.example.MyPickCafe.support.PickBotUnavailableException;
 import com.example.MyPickCafe.support.PickBotUnavailableException.Reason;
 import lombok.extern.slf4j.Slf4j;
@@ -13,8 +13,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.net.ConnectException;
 import java.net.UnknownHostException;
-import java.util.Collections;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -39,30 +38,38 @@ public class PickBotClient {
      * <p>호출 실패를 빈 목록으로 흡수하면 "조건에 맞는 카페 없음"과 구분할 수 없으므로,
      * 실패 원인을 분류해 로그로 남기고 {@link PickBotUnavailableException} 을 던진다.
      *
+     * <p>결과가 비었을 때 서버가 이유를 알려주면 {@link PickBotResponse#getNotice()} 에 담긴다.
+     *
      * @throws PickBotUnavailableException 픽봇 서버에서 추천 결과를 받지 못한 경우
      */
-    public List<PickBotResult> recommend(String query) {
+    public PickBotResponse recommend(String query) {
         long startedAt = System.currentTimeMillis();
-        List<PickBotResult> results;
+        PickBotResponse response;
         try {
-            results = webClient.post()
+            response = webClient.post()
                     .uri("/pickbot/recommend")
                     .bodyValue(Map.of("query", query))
                     .retrieve()
-                    .bodyToFlux(PickBotResult.class)
-                    .collectList()
+                    .bodyToMono(PickBotResponse.class)
                     .block();
         } catch (Exception e) {
             throw failure(query, System.currentTimeMillis() - startedAt, e);
         }
 
         long elapsedMs = System.currentTimeMillis() - startedAt;
-        if (results == null || results.isEmpty()) {
-            log.info("픽봇 추천 결과 없음 (서버 정상 응답) [{}ms] query=\"{}\"", elapsedMs, query);
-            return Collections.emptyList();
+        if (response == null) {
+            response = new PickBotResponse();
         }
-        log.debug("픽봇 추천 {}건 [{}ms] query=\"{}\"", results.size(), elapsedMs, query);
-        return results;
+        if (response.getResults() == null) {
+            response.setResults(new ArrayList<>());
+        }
+        if (response.getResults().isEmpty()) {
+            log.info("픽봇 추천 결과 없음 (서버 정상 응답) [{}ms] query=\"{}\" notice={}",
+                    elapsedMs, query, response.getNotice());
+        } else {
+            log.debug("픽봇 추천 {}건 [{}ms] query=\"{}\"", response.getResults().size(), elapsedMs, query);
+        }
+        return response;
     }
 
     private static PickBotUnavailableException failure(String query, long elapsedMs, Exception e) {
