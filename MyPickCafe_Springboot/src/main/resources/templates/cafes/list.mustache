@@ -179,11 +179,15 @@
     .then(r => r.ok ? r.json() : Promise.reject(r.status))
     .then(data => {
       loadingEl.remove();
-      if (!data || !data.length) {
-        appendMsg(`조건에 맞는 카페를 찾지 못했어요. 다른 표현으로 다시 시도해 보세요. (${elapsedSec()}초)`, 'bot');
+      const results = (data && data.results) || [];
+      if (!results.length) {
+        const msg = data && data.notice === 'REGION_NOT_FOUND'
+          ? '해당 지역에는 등록된 카페가 없어요.'
+          : '조건에 맞는 카페를 찾지 못했어요. 다른 표현으로 다시 시도해 보세요.';
+        appendMsg(`${msg} (${elapsedSec()}초)`, 'bot');
         return;
       }
-      const html = data.map(c => `
+      const html = results.map(c => `
         <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:8px">
           ${c.mainPhoto
             ? `<a href="/cafes/${esc(c.cafeId)}" style="flex-shrink:0">
@@ -201,7 +205,7 @@
           </div>
         </div>
       `).join('<hr style="border:none;border-top:1px solid var(--border);margin:6px 0">');
-      appendHtml(`<p style="margin:0 0 8px;font-size:13px;font-weight:600">추천 카페 ${data.length}곳을 찾았어요! <span style="font-weight:400;color:var(--text-muted)">(${elapsedSec()}초)</span></p>${html}`, 'bot');
+      appendHtml(`<p style="margin:0 0 8px;font-size:13px;font-weight:600">추천 카페 ${results.length}곳을 찾았어요! <span style="font-weight:400;color:var(--text-muted)">(${elapsedSec()}초)</span></p>${html}`, 'bot');
     })
     .catch(() => {
       loadingEl.remove();

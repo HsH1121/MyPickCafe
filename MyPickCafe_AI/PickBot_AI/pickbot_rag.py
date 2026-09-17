@@ -2,7 +2,7 @@
 카페 추천 RAG 파이프라인
 
 1. index_from_db()  — PostgreSQL 리뷰를 ChromaDB에 임베딩+저장
-2. recommend()      — 쿼리 임베딩 → 리뷰 유사도 검색 → LLM 추천 생성
+2. recommend()      — 질문 분해(LLM 1차) → 주소로 지역 필터 → 조건 문장으로 리뷰 유사도 검색 → LLM 2차 추천
 
 카페 이름·주소는 판단에 섞지 않는다. 임베딩 문서도, LLM 에 보여주는 내용도 리뷰 본문뿐이다.
 이름·주소를 섞으면 지역·이름 단어가 리뷰 내용과 무관하게 유사도를 끌어올리고,
@@ -14,14 +14,16 @@ import asyncio
 import json
 import logging
 import os
+import time
 
 import chromadb
 from chromadb import Documents, EmbeddingFunction, Embeddings
 import httpx
 
 from config import Settings
-from pickbot_db import fetch_reviews_for_index
+from pickbot_db import fetch_cafe_directory, fetch_representative_reviews, fetch_reviews_for_index
 from llm_client import call_llm
+from query_parser import ParsedQuery, parse_query
 
 
 # 이 개수 이하의 임베딩 요청(검색 쿼리, 리뷰 1건 upsert)은 CPU 로 돌린다.
@@ -109,6 +111,12 @@ _rag_logger.addHandler(_fh)
 
 _COLLECTION = "cafe_reviews"
 
+# 응답 notice 값 — 사용자가 말한 지역에 해당하는 카페가 데이터에 없음
+NOTICE_REGION_NOT_FOUND = "REGION_NOT_FOUND"
+
+# 카페 목록(주소·리뷰 수) 캐시 유지 시간. 요청마다 DB 를 조회하지 않기 위함.
+_DIRECTORY_TTL_SEC = 300
+
 _SYSTEM_PROMPT = """당신은 카페 추천 전문 AI입니다.
 검색된 카페들의 리뷰만을 근거로 사용자 질문에 맞는 카페를 추천합니다.
 카페 이름과 위치는 주어지지 않습니다. 추측해서 쓰지 마세요.
@@ -123,6 +131,8 @@ _SYSTEM_PROMPT = """당신은 카페 추천 전문 AI입니다.
 class CafeRAG:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self._directory: list[dict] = []
+        self._directory_loaded_at: float | None = None
         self._emb_fn = _OllamaEmbeddingFunction(
             base_url=settings.embed_base_url,
             model=settings.embed_model,
@@ -209,40 +219,107 @@ class CafeRAG:
     # ------------------------------------------------------------------
     # 추천
     # ------------------------------------------------------------------
-    async def recommend(self, query: str, top_n: int = 5) -> list[dict]:
-        """쿼리 → 리뷰 유사도 검색 → LLM 추천 → PickBotResult dict 목록 반환."""
+    async def recommend(self, query: str, top_n: int = 5) -> dict:
+        """질문 → 지역·조건 분해(LLM 1차) → 주소 필터 → 리뷰 유사도 검색 → LLM 2차 추천.
+
+        반환: {"results": [PickBotResult dict, ...], "notice": None | NOTICE_*}
+        """
         if self._col.count() == 0:
             logger.warning("ChromaDB가 비어 있습니다. 먼저 /pickbot/reindex를 호출하세요.")
-            return []
+            return {"results": [], "notice": None}
 
-        # 1. 벡터 검색 — 카페 다양성 보장을 위해 필요한 만큼만 추가 조회
+        # 1. 질문 분해 — 지역은 카페 주소에 실제로 있는 구·동 이름으로 받는다
+        directory = await self._cafe_directory()
+        allowed = sorted({t for c in directory for t in _region_tokens(c["address"])})
+        parsed = await parse_query(query, allowed, self.settings)
+        _rag_logger.debug(f"[질문 분해] 쿼리: {query!r}\n  {parsed}\n" + "=" * 70)
+
+        # 2. 주소 필터 — 포함 지역 중 하나라도 주소에 있고(OR), 제외 지역은 하나도 없는 카페
+        if parsed.wants_region and not parsed.regions:
+            return {"results": [], "notice": NOTICE_REGION_NOT_FOUND}
+        region_filtered = bool(parsed.regions or parsed.exclude_regions)
+        candidates = _filter_by_region(directory, parsed)
+        if region_filtered and not candidates:
+            return {"results": [], "notice": NOTICE_REGION_NOT_FOUND}
+
+        # 3-a. 지역 말고 다른 조건이 없으면 벡터 검색 없이 긍정 리뷰 수로 순위를 매긴다
+        if not parsed.purpose:
+            return {"results": await self._rank_without_purpose(candidates, top_n), "notice": None}
+
+        # 3-b. 조건 문장으로 리뷰 벡터 검색 (지역을 걸렀으면 후보 카페로 제한)
+        candidate_ids = [str(c["cafe_id"]) for c in candidates] if region_filtered else None
+        top_cafes = await self._search_top_cafes(parsed.purpose, candidate_ids, top_n)
+        if not top_cafes:
+            return {"results": [], "notice": None}
+
+        # 4. LLM 2차 호출 — 지역은 필터로 이미 반영했으므로 조건 문장만 넘긴다
+        return {"results": await self._pick_with_llm(parsed.purpose, top_cafes), "notice": None}
+
+    async def _cafe_directory(self) -> list[dict]:
+        """승인된 카페의 주소·리뷰 수 목록 (TTL 캐시). 조회에 실패하면 이전 캐시라도 쓴다."""
+        now = time.monotonic()
+        if self._directory_loaded_at is None or now - self._directory_loaded_at > _DIRECTORY_TTL_SEC:
+            try:
+                self._directory = await asyncio.to_thread(fetch_cafe_directory, self.settings)
+                self._directory_loaded_at = now
+            except Exception as e:
+                if self._directory_loaded_at is None:
+                    raise
+                logger.warning("카페 목록 갱신 실패, 이전 캐시 사용: %s", e)
+        return self._directory
+
+    async def _rank_without_purpose(self, candidates: list[dict], top_n: int) -> list[dict]:
+        """조건 문장이 없을 때 — 긍정(GOOD) 리뷰 수, 같으면 전체 리뷰 수 순. 추천 문구는 대표 리뷰."""
+        ranked = sorted(
+            (c for c in candidates if c["review_count"] > 0),
+            key=lambda c: (c["good_count"], c["review_count"]),
+            reverse=True,
+        )[:top_n]
+        if not ranked:
+            return []
+        reviews = await asyncio.to_thread(
+            fetch_representative_reviews, self.settings, [c["cafe_id"] for c in ranked]
+        )
+        return [
+            {
+                "cafeId":   c["cafe_id"],
+                "cafeName": c["cafe_name"],
+                "address":  c["address"],
+                "snippet":  (reviews.get(c["cafe_id"]) or "")[:150],
+                "score":    None,
+            }
+            for c in ranked
+        ]
+
+    async def _search_top_cafes(self, text: str, candidate_ids: list[str] | None, top_n: int) -> list[dict]:
+        """조건 문장과 비슷한 리뷰를 모아 카페별 최고 점수 기준 상위 top_n 카페를 고른다."""
+        # 카페 다양성 보장을 위해 필요한 만큼만 추가 조회
         # 캡: 1번째 카페 max 5, 2번째 max 4, …, 5번째 이후 max 1
         # 슬롯이 가득 찬 카페는 where 필터로 제외하고 부족분만 재조회
         target = top_n * 3  # 최종 목표 리뷰 수 (15)
-        query_emb = await asyncio.to_thread(self._emb_fn.embed_query, query)
+        query_emb = await asyncio.to_thread(self._emb_fn.embed_query, text)
+        total = self._col.count()
 
         cafe_order: list[str] = []
         cafe_counts: dict[str, int] = {}
         excluded: set[str] = set()
-        sel_docs, sel_metas, sel_distances = [], [], []
+        seen: set[str] = set()
+        sel_metas, sel_distances = [], []
 
-        while len(sel_docs) < target:
-            need = target - len(sel_docs)
-            where = {"cafe_id": {"$nin": list(excluded)}} if excluded else None
+        while len(sel_metas) < target:
+            need = target - len(sel_metas)
+            # 이미 본 리뷰(캡이 안 찬 카페의 리뷰)가 다시 상위에 오므로 그만큼 더 조회해 건너뛴다.
+            # 건너뛰지 않으면 같은 리뷰가 중복으로 담긴다.
             batch = self._col.query(
                 query_embeddings=[query_emb],
-                n_results=min(need, self._col.count()),
-                where=where,
+                n_results=min(need + len(seen), total),
+                where=_where(candidate_ids, excluded),
             )
-            batch_docs      = batch["documents"][0]
-            batch_metas     = batch["metadatas"][0]
-            batch_distances = batch["distances"][0]
-
-            if not batch_docs:
-                break
-
             added = 0
-            for doc, meta, dist in zip(batch_docs, batch_metas, batch_distances):
+            for rid, meta, dist in zip(batch["ids"][0], batch["metadatas"][0], batch["distances"][0]):
+                if rid in seen:
+                    continue
+                seen.add(rid)
                 cid = meta["cafe_id"]
                 if cid not in cafe_counts:
                     cafe_order.append(cid)
@@ -250,24 +327,23 @@ class CafeRAG:
                 cap = max(1, top_n - cafe_order.index(cid))  # 1등:5, 2등:4, …
                 if cafe_counts[cid] < cap:
                     cafe_counts[cid] += 1
-                    sel_docs.append(doc)
                     sel_metas.append(meta)
                     sel_distances.append(dist)
                     added += 1
+                    if len(sel_metas) >= target:
+                        break
                 if cafe_counts[cid] >= cap:
                     excluded.add(cid)
 
             if added == 0:
-                break  # 더 이상 추가 가능한 카페 없음
-
-        docs, metas, distances = sel_docs, sel_metas, sel_distances
+                break  # 더 이상 추가 가능한 리뷰 없음
 
         # --- 벡터 검색 결과 로그 ---
-        _log_retrieved_reviews(query, metas, distances)
+        _log_retrieved_reviews(text, sel_metas, sel_distances)
 
-        # 2. 카페별 최고 유사도 점수로 그룹핑
+        # 카페별 최고 유사도 점수로 그룹핑
         cafe_map: dict[str, dict] = {}
-        for meta, dist in zip(metas, distances):
+        for meta, dist in zip(sel_metas, sel_distances):
             cid   = meta["cafe_id"]
             score = 1.0 - dist  # cosine distance → similarity
             if cid not in cafe_map or cafe_map[cid]["score"] < score:
@@ -282,21 +358,23 @@ class CafeRAG:
         top_cafes = sorted(cafe_map.values(), key=lambda x: x["score"], reverse=True)[:top_n]
 
         # --- 최종 선별 카페 로그 (최대 5개) ---
-        _log_top_cafes(query, top_cafes)
+        _log_top_cafes(text, top_cafes)
+        return top_cafes
 
-        # 3. LLM 컨텍스트 구성 — 리뷰만 보여준다. 이름·주소는 판단에 섞지 않고 응답 변환 때 채운다.
+    async def _pick_with_llm(self, purpose: str, top_cafes: list[dict]) -> list[dict]:
+        """후보 카페의 리뷰만 보여주고 조건에 맞는 카페와 추천 이유를 LLM 에게 고르게 한다."""
+        # LLM 컨텍스트 — 리뷰만 보여준다. 이름·주소는 판단에 섞지 않고 응답 변환 때 채운다.
         context = "\n\n".join(
             f"[카페{i}] ID={c['cafe_id']}\n"
             f"리뷰: {c['review']}"
             for i, c in enumerate(top_cafes, 1)
         )
         user_msg = (
-            f"사용자 질문: {query}\n\n"
+            f"사용자 질문: {purpose}\n\n"
             f"검색된 카페 정보:\n{context}\n\n"
             "위 카페 중 사용자 질문에 가장 잘 맞는 카페를 JSON으로 반환하세요."
         )
 
-        # 4. LLM 호출
         try:
             raw = await call_llm(
                 system_prompt=_SYSTEM_PROMPT,
@@ -322,7 +400,7 @@ class CafeRAG:
                 for c in top_cafes
             ]
 
-        # 5. LLM 응답 → PickBotResult 형태로 변환
+        # LLM 응답 → PickBotResult 형태로 변환
         # 이름·주소는 LLM 에게 보여주지 않았으므로 검색 결과 메타데이터에서 cafeId 로 채운다.
         # 검색 결과에 없는 cafeId(LLM 이 지어낸 값)와 중복은 버린다.
         cafe_by_id = {c["cafe_id"]: c for c in top_cafes}
@@ -346,6 +424,44 @@ class CafeRAG:
             })
 
         return output
+
+
+# ---------------------------------------------------------------------------
+# 지역 필터 헬퍼
+# ---------------------------------------------------------------------------
+
+def _region_tokens(address: str) -> list[str]:
+    """주소에서 지역 단위(구·동)만 뽑는다. '서울시 마포구 연남동 48-37' → ['마포구', '연남동']
+
+    첫 토큰(시·도)과 숫자가 들어간 토큰(번지)은 뺀다.
+    """
+    return [p for p in address.split()[1:] if not any(ch.isdigit() for ch in p)]
+
+
+def _filter_by_region(directory: list[dict], parsed: ParsedQuery) -> list[dict]:
+    """포함 지역 중 하나라도 주소에 있고(OR), 제외 지역은 하나도 없는 카페. 지역 조건이 없으면 전체."""
+    include, exclude = set(parsed.regions), set(parsed.exclude_regions)
+    result = []
+    for cafe in directory:
+        tokens = set(_region_tokens(cafe["address"]))
+        if include and not tokens & include:
+            continue
+        if tokens & exclude:
+            continue
+        result.append(cafe)
+    return result
+
+
+def _where(candidate_ids: list[str] | None, excluded: set[str]) -> dict | None:
+    """ChromaDB where 조건 — 후보 카페로 제한 + 리뷰 상한이 찬 카페 제외."""
+    conds = []
+    if candidate_ids is not None:
+        conds.append({"cafe_id": {"$in": candidate_ids}})
+    if excluded:
+        conds.append({"cafe_id": {"$nin": sorted(excluded)}})
+    if not conds:
+        return None
+    return conds[0] if len(conds) == 1 else {"$and": conds}
 
 
 # ---------------------------------------------------------------------------
