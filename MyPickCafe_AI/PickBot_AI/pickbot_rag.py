@@ -114,18 +114,35 @@ _COLLECTION = "cafe_reviews"
 # 응답 notice 값 — 사용자가 말한 지역에 해당하는 카페가 데이터에 없음
 NOTICE_REGION_NOT_FOUND = "REGION_NOT_FOUND"
 
+# LLM 2차 호출(추천 선택)의 출력 토큰 한도. 추론 모델은 답 전에 추론 토큰을 쓰고 추천 5곳의
+# 이유 문장까지 쓰므로 공용 기본값 1000 에 자주 걸렸다(실측: deepseek 7/10, glm-5p3-flash 1/10).
+# 걸리면 content 가 비어 재시도로 지연이 몇 배가 되고 결국 검색 결과만 반환된다.
+# 한도는 상한일 뿐이라 실제로 생성한 만큼만 과금된다.
+_PICK_MAX_TOKENS = 3000
+
 # 카페 목록(주소·리뷰 수) 캐시 유지 시간. 요청마다 DB 를 조회하지 않기 위함.
 _DIRECTORY_TTL_SEC = 300
 
-_SYSTEM_PROMPT = """당신은 카페 추천 전문 AI입니다.
-검색된 카페들의 리뷰만을 근거로 사용자 질문에 맞는 카페를 추천합니다.
+_SYSTEM_PROMPT = """당신은 카페 리뷰가 사용자 조건을 충족하는지 판정하는 AI입니다.
 카페 이름과 위치는 주어지지 않습니다. 추측해서 쓰지 마세요.
 반드시 JSON 객체 하나만 반환하세요. 설명 텍스트 절대 금지.
 
-형식:
-{"results": [{"cafeId": <정수>, "snippet": "<리뷰에 근거한 추천 이유 1-2문장>"}]}
+## 할 일
+1. 사용자 조건을 서로 독립적인 요구사항으로 나눕니다.
+   예: "노트북 하기 좋고 조용한 카페" → ["노트북 하기 좋음", "조용함"]
+   "카페"처럼 모든 카페에 해당하는 말은 요구사항이 아닙니다.
+2. 검색된 카페마다 리뷰가 각 요구사항을 충족하는지 판정해 matched 와 missing 에 나눠 넣습니다.
+   - 글자가 달라도 뜻이 같으면 충족입니다. ("카공하기 좋아요" → "노트북 하기 좋음" 충족)
+   - 리뷰에 언급이 없으면 미충족입니다. 추측하지 마세요.
+   - 반대 내용("주차 불가", "시끄러워요")이면 미충족입니다.
+3. 카페마다 snippet 을 씁니다.
+   - matched 에 있는 요구사항만 근거로, 리뷰 내용에 기반한 추천 이유 1~2문장.
+   - missing 에 있는 요구사항은 충족한 것처럼 쓰지 마세요.
+   - matched 가 비어 있으면 리뷰에서 드러나는 장점을 1문장으로 씁니다.
+4. 검색된 카페를 하나도 빠뜨리지 말고 모두 cafes 에 넣습니다.
 
-조건에 맞는 카페가 없으면 {"results": []} 을 반환하세요."""
+## 형식
+{"requirements": ["<요구사항>"], "cafes": [{"cafeId": <정수>, "matched": ["<요구사항>"], "missing": ["<요구사항>"], "snippet": "<추천 이유>"}]}"""
 
 
 class CafeRAG:
@@ -363,30 +380,17 @@ class CafeRAG:
 
     async def _pick_with_llm(self, purpose: str, top_cafes: list[dict]) -> list[dict]:
         """후보 카페의 리뷰만 보여주고 조건에 맞는 카페와 추천 이유를 LLM 에게 고르게 한다."""
-        # LLM 컨텍스트 — 리뷰만 보여준다. 이름·주소는 판단에 섞지 않고 응답 변환 때 채운다.
-        context = "\n\n".join(
-            f"[카페{i}] ID={c['cafe_id']}\n"
-            f"리뷰: {c['review']}"
-            for i, c in enumerate(top_cafes, 1)
-        )
-        user_msg = (
-            f"사용자 질문: {purpose}\n\n"
-            f"검색된 카페 정보:\n{context}\n\n"
-            "위 카페 중 사용자 질문에 가장 잘 맞는 카페를 JSON으로 반환하세요."
-        )
-
         try:
             raw = await call_llm(
                 system_prompt=_SYSTEM_PROMPT,
-                user_message=user_msg,
+                user_message=build_pick_user_message(purpose, top_cafes),
                 model=self.settings.llm_model,
                 base_url=self.settings.llm_base_url,
                 api_key=self.settings.llm_api_key,
                 timeout=self.settings.llm_timeout,
+                max_tokens=_PICK_MAX_TOKENS,
             )
-            items = raw.get("results", [])
-            if not isinstance(items, list):
-                raise ValueError(f"results 필드가 리스트가 아님: {items!r}")
+            picks, stats = select_picks(raw, top_cafes)
         except Exception as e:
             logger.warning("LLM 호출 실패, 검색 결과 직접 반환: %s", e)
             return [
@@ -400,30 +404,94 @@ class CafeRAG:
                 for c in top_cafes
             ]
 
-        # LLM 응답 → PickBotResult 형태로 변환
-        # 이름·주소는 LLM 에게 보여주지 않았으므로 검색 결과 메타데이터에서 cafeId 로 채운다.
-        # 검색 결과에 없는 cafeId(LLM 이 지어낸 값)와 중복은 버린다.
-        cafe_by_id = {c["cafe_id"]: c for c in top_cafes}
-        output = []
-        for item in items:
-            try:
-                cid = int(item["cafeId"])
-            except (KeyError, ValueError, TypeError) as e:
-                logger.warning("LLM 응답 항목 파싱 오류: %s — %r", e, item)
-                continue
-            cafe = cafe_by_id.pop(cid, None)
-            if cafe is None:
-                logger.warning("검색 결과에 없거나 중복된 cafeId 라 제외: %r", item)
-                continue
-            output.append({
-                "cafeId":   cid,
-                "cafeName": cafe["cafe_name"],
-                "address":  cafe["address"],
-                "snippet":  str(item.get("snippet", "")),
-                "score":    round(cafe["score"], 4),
-            })
+        _rag_logger.debug(
+            f"[요구사항 판정] 조건: {purpose!r}\n"
+            f"  요구사항: {stats['requirements']}\n"
+            f"  모두 충족 {stats['full_match']}곳"
+            f"{' → 충족 카페가 없어 유사도 1위만 반환' if stats['fallback_top1'] else ''}"
+            f", 무시한 응답 항목 {stats['ignored']}개\n"
+            + "\n".join(f"  [{cid}] 충족={v['matched']} 누락={v['missing']}" for cid, v in stats["verdicts"].items())
+            + "\n" + "=" * 70
+        )
+        return picks
 
-        return output
+
+# ---------------------------------------------------------------------------
+# LLM 2차 호출 메시지
+# ---------------------------------------------------------------------------
+
+def build_pick_user_message(purpose: str, top_cafes: list[dict]) -> str:
+    """LLM 2차 호출의 사용자 메시지. 테스트(test_pick_llm.py)도 같은 함수를 쓴다.
+
+    리뷰만 보여준다. 이름·주소는 판단에 섞지 않고 응답 변환 때 검색 결과에서 채운다.
+    """
+    context = "\n\n".join(
+        f"[카페{i}] ID={c['cafe_id']}\n"
+        f"리뷰: {c['review']}"
+        for i, c in enumerate(top_cafes, 1)
+    )
+    return (
+        f"사용자 조건: {purpose}\n\n"
+        f"검색된 카페 정보:\n{context}\n\n"
+        "위 카페 각각의 리뷰가 사용자 조건의 요구사항을 모두 충족하는지 판정해 JSON으로 반환하세요."
+    )
+
+
+def select_picks(raw: dict, top_cafes: list[dict]) -> tuple[list[dict], dict]:
+    """LLM 요구사항 판정으로 반환할 카페를 고른다. 테스트(test_pick_llm.py)도 같은 함수를 쓴다.
+
+    - 요구사항을 하나도 빠짐없이 충족(missing 이 빈 배열)한 카페를 전부, 벡터 유사도 순으로 반환한다.
+    - 모두 충족한 카페가 없으면 벡터 유사도 1위 카페 하나만 반환한다.
+      이때 추천 이유는 LLM 이 충족한 조건만 근거로 쓴 snippet 이다.
+    - 후보에 없는 cafeId, 중복, 형식이 틀린 항목은 무시하고, 판정이 없는 후보는 미충족으로 본다.
+    - top_cafes 는 유사도 내림차순이고 비어 있지 않아야 한다.
+    """
+    cafes = raw.get("cafes")
+    if not isinstance(cafes, list):
+        raise ValueError(f"cafes 필드가 리스트가 아님: {cafes!r}")
+    requirements = [r for r in (raw.get("requirements") or []) if isinstance(r, str)]
+
+    candidate_ids = {c["cafe_id"] for c in top_cafes}
+    verdicts: dict[int, dict] = {}
+    ignored = 0
+    for item in cafes:
+        try:
+            cid = int(item["cafeId"])
+        except (KeyError, ValueError, TypeError):
+            ignored += 1
+            continue
+        if cid not in candidate_ids or cid in verdicts:
+            ignored += 1
+            continue
+        verdicts[cid] = item
+
+    def all_met(verdict: dict) -> bool:
+        missing = verdict.get("missing")
+        return isinstance(missing, list) and not missing
+
+    full = [c for c in top_cafes if c["cafe_id"] in verdicts and all_met(verdicts[c["cafe_id"]])]
+    chosen = full or top_cafes[:1]
+
+    picks = []
+    for c in chosen:
+        snippet = verdicts.get(c["cafe_id"], {}).get("snippet")
+        if not isinstance(snippet, str) or not snippet.strip():
+            snippet = c["review"][:150]
+        picks.append({
+            "cafeId":   c["cafe_id"],
+            "cafeName": c["cafe_name"],
+            "address":  c["address"],
+            "snippet":  snippet.strip(),
+            "score":    round(c["score"], 4),
+        })
+    stats = {
+        "requirements":  requirements,
+        "full_match":    len(full),
+        "fallback_top1": not full,
+        "ignored":       ignored,
+        "verdicts":      {cid: {"matched": v.get("matched"), "missing": v.get("missing")} for cid, v in verdicts.items()},
+    }
+    return picks, stats
 
 
 # ---------------------------------------------------------------------------

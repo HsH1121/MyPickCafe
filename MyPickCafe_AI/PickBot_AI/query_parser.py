@@ -48,6 +48,10 @@ __ALLOWED_REGIONS__
 4. purpose 에는 지역 표현을 뺀 나머지 조건(방문 목적, 분위기, 메뉴, 시설, 주차, 좌석 등)을 자연스러운 한 문장으로 적습니다.
    지역 말고 다른 조건이 없으면 빈 문자열로 둡니다.
 5. 지역을 말하지 않았으면 regions, unmatched_regions, exclude_regions 는 모두 빈 배열입니다.
+6. 모든 카페가 서울에 있으므로 "서울", "서울 전체", "서울 어디든", "아무 데나"는 지역 조건이 아닙니다.
+   세 배열 모두 비우고 unmatched_regions 에도 넣지 마세요.
+7. 음식·음료·메뉴·인테리어 스타일을 꾸미는 지명("스페인 츄러스", "프랑스식 인테리어")은 지역이 아닙니다.
+   지역 배열에 넣지 말고 purpose 에 그대로 남기세요.
 
 ## 형식
 {"regions": [], "unmatched_regions": [], "exclude_regions": [], "purpose": ""}
@@ -70,6 +74,12 @@ __ALLOWED_REGIONS__
 
 질문: 건대 카페 추천해줘
 {"regions": ["건대입구"], "unmatched_regions": [], "exclude_regions": [], "purpose": ""}
+
+질문: 서울 어디든 상관없으니 루프탑 카페
+{"regions": [], "unmatched_regions": [], "exclude_regions": [], "purpose": "루프탑이 있는 카페"}
+
+질문: 스페인 츄러스 파는 카페
+{"regions": [], "unmatched_regions": [], "exclude_regions": [], "purpose": "스페인 츄러스를 파는 카페"}
 
 질문: 창가 자리가 넓고 채광 좋은 카페
 {"regions": [], "unmatched_regions": [], "exclude_regions": [], "purpose": "창가 자리가 넓고 채광 좋은 카페"}"""
