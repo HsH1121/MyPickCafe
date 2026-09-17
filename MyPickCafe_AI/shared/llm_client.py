@@ -32,6 +32,7 @@ async def call_llm(
     base_url: str,
     api_key: str | None = None,
     timeout: int,
+    max_tokens: int = 1000,
     _attempt: int = 0,
 ) -> dict:
     """
@@ -58,7 +59,7 @@ async def call_llm(
         "response_format": {"type": "json_object"},
         "temperature": 0.0,
         "top_p": 0.9,
-        "max_tokens": 1000,
+        "max_tokens": max_tokens,
     }
 
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
@@ -90,6 +91,7 @@ async def call_llm(
                 base_url=base_url,
                 api_key=api_key,
                 timeout=timeout,
+                max_tokens=max_tokens,
                 _attempt=_attempt + 1,
             )
         logger.error("LLM 최종 실패 (attempt=%d): %s", _attempt + 1, exc)
