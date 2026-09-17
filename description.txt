@@ -78,13 +78,12 @@ D:/MyPickCafe/
 ----------------------------------------------------------------
 
   Spring Boot   :8080  (메인 웹서버)
-  FastAPI AI    :8000  (Review Tag AI  → /review/analyze)
-  FastAPI AI    :8001  (ChatBot AI     → /chatbot/recommend)
+  FastAPI AI    :8000  (통합 app.py → /review/analyze, /chatbot/recommend)
   Ollama        :11434 (LLM 로컬 서버)
   PostgreSQL    :5432  (Docker, docker-compose.yml)
 
-  ※ application.properties에 8000(review)과 8001(chatbot)이 분리
-     설정되어 있으나, app.py는 두 기능을 단일 서버로 통합한 상태입니다.
+  ※ application.properties의 python.api.base-url(review)과
+     chatbot.api.base-url(chatbot)은 모두 기본값 8000을 가리킵니다.
 
 ----------------------------------------------------------------
   더미 데이터

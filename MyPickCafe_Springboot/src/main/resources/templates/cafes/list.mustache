@@ -167,6 +167,9 @@
     sendBtn.disabled = true;
 
     const loadingEl = appendMsg('추천 카페를 찾는 중...', 'bot');
+    // 요청을 보낸 시점부터 응답을 받을 때까지 사용자가 실제로 기다린 시간
+    const startedAt = performance.now();
+    const elapsedSec = () => ((performance.now() - startedAt) / 1000).toFixed(1);
 
     fetch('/api/chatbot/recommend', {
       method: 'POST',
@@ -177,7 +180,7 @@
     .then(data => {
       loadingEl.remove();
       if (!data || !data.length) {
-        appendMsg('조건에 맞는 카페를 찾지 못했어요. 다른 표현으로 다시 시도해 보세요.', 'bot');
+        appendMsg(`조건에 맞는 카페를 찾지 못했어요. 다른 표현으로 다시 시도해 보세요. (${elapsedSec()}초)`, 'bot');
         return;
       }
       const html = data.map(c => `
@@ -198,11 +201,11 @@
           </div>
         </div>
       `).join('<hr style="border:none;border-top:1px solid var(--border);margin:6px 0">');
-      appendHtml(`<p style="margin:0 0 8px;font-size:13px;font-weight:600">추천 카페 ${data.length}곳을 찾았어요!</p>${html}`, 'bot');
+      appendHtml(`<p style="margin:0 0 8px;font-size:13px;font-weight:600">추천 카페 ${data.length}곳을 찾았어요! <span style="font-weight:400;color:var(--text-muted)">(${elapsedSec()}초)</span></p>${html}`, 'bot');
     })
     .catch(() => {
       loadingEl.remove();
-      appendMsg('일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.', 'error');
+      appendMsg(`일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요. (${elapsedSec()}초)`, 'error');
     })
     .finally(() => { sendBtn.disabled = false; });
   }

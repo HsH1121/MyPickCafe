@@ -20,20 +20,31 @@ from chatbot_db import fetch_reviews_for_index
 from ollama_client import call_ollama
 
 
+# 이 개수 이하의 임베딩 요청(검색 쿼리, 리뷰 1건 upsert)은 CPU 로 돌린다.
+# 로컬에서는 bge-m3 와 qwen2.5:14b 가 VRAM 에 함께 올라가지 못해, GPU 로 임베딩하면
+# 추천 요청마다 qwen 을 내리고 bge-m3 를 올렸다가 다시 qwen 을 올리느라 수 초가 든다.
+# CPU 로 돌리면 두 모델이 동시에 상주하고 쿼리 1건은 로드 후 약 0.12s 다.
+# CPU·GPU 임베딩의 코사인 유사도는 1.0 이라 GPU 로 만든 기존 인덱스를 그대로 쓴다.
+# 대량 인덱싱(500건 배치)은 GPU 로 둔다.
+_CPU_EMBED_MAX_BATCH = 16
+
+
 class _OllamaEmbeddingFunction(EmbeddingFunction):
     """Ollama /api/embed 엔드포인트용 범용 임베딩 함수."""
 
-    def __init__(self, base_url: str, model: str) -> None:
+    def __init__(self, base_url: str, model: str, small_batches_on_cpu: bool = False) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
+        self._small_batches_on_cpu = small_batches_on_cpu
+        # 요청마다 클라이언트를 만들면 생성(SSL 설정 로딩)에만 약 0.19s 가 든다.
+        self._http = httpx.Client(timeout=60)
 
     def _embed(self, texts: list[str]) -> Embeddings:
-        with httpx.Client(timeout=60) as client:
-            resp = client.post(
-                f"{self._base_url}/api/embed",
-                json={"model": self._model, "input": texts},
-            )
-            resp.raise_for_status()
+        body: dict = {"model": self._model, "input": texts}
+        if self._small_batches_on_cpu and len(texts) <= _CPU_EMBED_MAX_BATCH:
+            body["options"] = {"num_gpu": 0}
+        resp = self._http.post(f"{self._base_url}/api/embed", json=body)
+        resp.raise_for_status()
         return resp.json()["embeddings"]
 
     def __call__(self, input: Documents) -> Embeddings:
@@ -75,8 +86,9 @@ class CafeRAG:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._emb_fn = _OllamaEmbeddingFunction(
-            base_url=settings.model_api_url,
+            base_url=settings.embed_base_url,
             model=settings.embed_model,
+            small_batches_on_cpu=settings.embed_small_batches_on_cpu,
         )
         self._client = chromadb.PersistentClient(path=settings.chroma_path)
         self._col = self._client.get_or_create_collection(
@@ -253,7 +265,7 @@ class CafeRAG:
                 system_prompt=_SYSTEM_PROMPT,
                 user_message=user_msg,
                 model=self.settings.ollama_model,
-                base_url=self.settings.model_api_url,
+                base_url=self.settings.llm_base_url,
                 timeout=self.settings.ollama_timeout,
             )
             items = raw.get("results", [])

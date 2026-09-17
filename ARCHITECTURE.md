@@ -52,7 +52,7 @@
 | 구분 | 사용 기술 |
 |---|---|
 | 서버 | Python, FastAPI, Uvicorn |
-| 모델 실행 | Ollama (로컬, 기본 `http://localhost:11434`) — `/api/chat`, `/api/embed` HTTP 호출 |
+| 모델 실행 | Ollama (로컬, 기본 `http://127.0.0.1:11434`) — `/api/chat`, `/api/embed` HTTP 호출 |
 | 사용 모델 (코드 기본값) | 생성/분석: `qwen2.5:14b` · 임베딩: `bge-m3` |
 | 벡터 DB | ChromaDB (PersistentClient, cosine) |
 | 기타 | httpx, pydantic / pydantic-settings, psycopg (인덱싱용 PostgreSQL 조회) |
@@ -434,7 +434,7 @@ cp secret.properties.example secret.properties
 | `DB_URL` | | 기본값 `jdbc:postgresql://localhost:5432/mypickcafe` |
 | `JWT_SECRET` | 필수 | `JwtTokenProvider`가 **Base64로 디코딩**하므로 Base64 문자열이어야 합니다 (HS256, 32바이트 이상). 예: `openssl rand -base64 48` |
 | `KAKAO_JS_KEY` | | 지도 탐색 페이지용 |
-| `CHATBOT_API_BASE_URL` | 주의 | 기본값은 `http://localhost:8001`이지만 통합 FastAPI(`app.py`)는 **8000 포트 한 곳에서** 챗봇·태그 API를 모두 제공합니다. 통합 서버를 쓴다면 `http://localhost:8000`으로 지정하세요. |
+| `CHATBOT_API_BASE_URL` | | 기본값 `http://localhost:8000` (통합 FastAPI `app.py`가 챗봇·태그 API를 한 포트에서 제공) |
 | `PYTHON_API_BASE_URL` | | 기본값 `http://localhost:8000` |
 
 ```bash
@@ -473,8 +473,8 @@ python app.py            # uvicorn, 0.0.0.0:8000, reload
 
 - 헬스체크: `GET http://localhost:8000/health`
 - PostgreSQL 접속 정보는 `ChatBot_AI/config.py`의 `Settings` 필드(`db_host`, `db_port`, `db_name`, `db_user`, `db_password` 등)로 받습니다. 환경변수(`DB_PASSWORD` 등)로 지정하세요. 기본 비밀번호는 빈 문자열입니다.
-  - 두 `Settings` 클래스(ChatBot / Review)가 모두 실행 디렉터리의 `.env`를 읽도록 되어 있습니다. `.env` 방식으로 DB 값을 넣었을 때 동작하는지: `[여기 직접 확인/작성]`
-- ChromaDB 경로 기본값은 실행 디렉터리 기준 `./chroma_db`입니다. `ChatBot_AI/embed_all.py`를 `ChatBot_AI/` 안에서 실행하면 다른 경로에 인덱스가 생기므로 주의하세요.
+  - 두 `Settings` 클래스(ChatBot / Review)가 모두 `MyPickCafe_AI/.env` 하나를 읽습니다. 실행 위치와 무관하며, OS 환경변수가 `.env`보다 우선합니다.
+- ChromaDB 경로 기본값은 `./chroma_db`이고, 상대경로는 실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀립니다. `ChatBot_AI/embed_all.py`로 만든 인덱스를 통합 서버가 그대로 사용합니다. 서버가 떠 있을 때는 `embed_all.py` 대신 `POST /chatbot/reindex`를 쓰세요.
 - AI 서버를 띄우지 않아도 Spring 앱은 동작합니다. 태그 분석은 빈 결과를 반환하고, 픽봇 추천은 `503`(일시적인 오류)을 반환합니다.
 
 ---
