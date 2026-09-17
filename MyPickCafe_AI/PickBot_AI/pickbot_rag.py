@@ -120,6 +120,11 @@ NOTICE_REGION_NOT_FOUND = "REGION_NOT_FOUND"
 # 한도는 상한일 뿐이라 실제로 생성한 만큼만 과금된다.
 _PICK_MAX_TOKENS = 3000
 
+# LLM 2차 호출의 추론량. 카페 5곳 × 요구사항을 판정하는 프롬프트에서 glm-5p3-flash 가 추론만 하다
+# 한도를 다 썼다(실측: 29.8초, 출력 3000 전부 추론, 빈 응답 → 20초 타임아웃·재시도로 실패).
+# "low" 로 같은 입력이 3.4초·출력 394토큰에 정상 판정됐다. GLM-5.3 은 추론을 끌 수 없다("none" 은 400).
+_PICK_REASONING_EFFORT = "low"
+
 # 카페 목록(주소·리뷰 수) 캐시 유지 시간. 요청마다 DB 를 조회하지 않기 위함.
 _DIRECTORY_TTL_SEC = 300
 
@@ -389,6 +394,7 @@ class CafeRAG:
                 api_key=self.settings.llm_api_key,
                 timeout=self.settings.llm_timeout,
                 max_tokens=_PICK_MAX_TOKENS,
+                reasoning_effort=_PICK_REASONING_EFFORT,
             )
             picks, stats = select_picks(raw, top_cafes)
         except Exception as e:
