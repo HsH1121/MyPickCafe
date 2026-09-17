@@ -82,6 +82,7 @@ def call(model: str, user_message: str) -> dict:
         "temperature": 0.0,
         "top_p": 0.9,
         "max_tokens": pickbot_rag._PICK_MAX_TOKENS,  # 서비스의 2차 호출 한도와 같게
+        "reasoning_effort": pickbot_rag._PICK_REASONING_EFFORT,
     }
     headers = {"Authorization": f"Bearer {settings.llm_api_key}"} if settings.llm_api_key else {}
     t = time.perf_counter()

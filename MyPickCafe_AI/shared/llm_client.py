@@ -33,6 +33,7 @@ async def call_llm(
     api_key: str | None = None,
     timeout: int,
     max_tokens: int = 1000,
+    reasoning_effort: str | None = None,
     _attempt: int = 0,
 ) -> dict:
     """
@@ -61,6 +62,9 @@ async def call_llm(
         "top_p": 0.9,
         "max_tokens": max_tokens,
     }
+    # 추론 모델의 추론량 (예: "low"). 지원하지 않는 서버도 있어 지정했을 때만 보낸다.
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
 
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
@@ -83,7 +87,7 @@ async def call_llm(
 
     except (httpx.HTTPStatusError, httpx.TransportError, ValueError, KeyError, IndexError) as exc:
         if _attempt < _MAX_ATTEMPTS - 1:
-            logger.warning("LLM 호출 실패 (attempt=%d), 재시도: %s", _attempt + 1, exc)
+            logger.warning("LLM 호출 실패 (attempt=%d), 재시도: %s: %s", _attempt + 1, type(exc).__name__, exc)
             return await call_llm(
                 system_prompt=system_prompt,
                 user_message=user_message,
@@ -92,7 +96,8 @@ async def call_llm(
                 api_key=api_key,
                 timeout=timeout,
                 max_tokens=max_tokens,
+                reasoning_effort=reasoning_effort,
                 _attempt=_attempt + 1,
             )
-        logger.error("LLM 최종 실패 (attempt=%d): %s", _attempt + 1, exc)
+        logger.error("LLM 최종 실패 (attempt=%d): %s: %s", _attempt + 1, type(exc).__name__, exc)
         raise
