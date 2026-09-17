@@ -10,7 +10,9 @@ _ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 class Settings(BaseSettings):
     # LLM (OpenAI 호환 /chat/completions) — base_url 은 /chat/completions 바로 앞까지
     # Review_Tag_AI 는 임베딩을 쓰지 않으므로 embed_base_url 은 두지 않는다.
-    llm_base_url:   str = "http://localhost:11434/v1"
+    # 호스트를 localhost 가 아닌 127.0.0.1 로 둔다. Windows 에서 localhost 는 IPv6(::1) 부터
+    # 시도하는데 Ollama 는 IPv4 에서만 대기해, 새 연결마다 약 2.2s 가 붙는다.
+    llm_base_url:   str = "http://127.0.0.1:11434/v1"
     llm_api_key:    str = ""
     ollama_model:   str = "qwen2.5:14b"
     ollama_timeout: int = 60

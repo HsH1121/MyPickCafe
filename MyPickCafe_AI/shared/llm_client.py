@@ -8,13 +8,20 @@ OpenAI 호환 /chat/completions 비동기 클라이언트
 from __future__ import annotations
 import json
 import logging
+import ssl
 
+import certifi
 import httpx
 
 logger = logging.getLogger(__name__)
 
 
 _MAX_ATTEMPTS = 3
+
+# 호출마다 AsyncClient 를 만들면 SSL 설정을 새로 읽느라 생성에만 약 0.19s 가 든다.
+# 설정 객체만 공유해 그 비용을 없앤다. AsyncClient 자체는 이벤트 루프에 묶이므로
+# asyncio.run 을 반복 호출하는 Create_Dummy 를 위해 호출마다 새로 만든다.
+_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
 async def call_ollama(
@@ -59,7 +66,7 @@ async def call_ollama(
     logger.debug("LLM request payload (attempt=%d): %s", _attempt + 1, json.dumps(payload, ensure_ascii=False))
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), verify=_SSL_CONTEXT) as client:
             response = await client.post(
                 f"{base_url}/chat/completions",
                 json=payload,

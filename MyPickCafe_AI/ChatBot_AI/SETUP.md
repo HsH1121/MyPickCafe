@@ -29,8 +29,8 @@
 |------|-----|
 | 채팅 모델 | `qwen2.5:14b` |
 | 임베딩 모델 | `nomic-embed-text` |
-| LLM API URL (OpenAI 호환) | `http://localhost:11434/v1` |
-| 임베딩 API URL (Ollama) | `http://localhost:11434` |
+| LLM API URL (OpenAI 호환) | `http://127.0.0.1:11434/v1` |
+| 임베딩 API URL (Ollama) | `http://127.0.0.1:11434` |
 | VRAM 사용량 (qwen2.5:14b 로드 시) | 약 8.7GB (여유 ~3.3GB) |
 
 ---
@@ -67,8 +67,8 @@ ollama>=0.4.0       # embed_all.py 실행 시 필요
 
 | 설정 | 값 |
 |------|----|
-| LLM API URL (OpenAI 호환) | `http://localhost:11434/v1` |
-| 임베딩 API URL (Ollama) | `http://localhost:11434` |
+| LLM API URL (OpenAI 호환) | `http://127.0.0.1:11434/v1` |
+| 임베딩 API URL (Ollama) | `http://127.0.0.1:11434` |
 | 채팅 모델 | `qwen2.5:14b` |
 | 임베딩 모델 | `nomic-embed-text` |
 | 타임아웃 | 60초 |
