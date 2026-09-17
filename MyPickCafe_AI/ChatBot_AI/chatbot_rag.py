@@ -17,7 +17,7 @@ import httpx
 
 from config import Settings
 from chatbot_db import fetch_reviews_for_index
-from ollama_client import call_ollama
+from llm_client import call_llm
 
 
 # 이 개수 이하의 임베딩 요청(검색 쿼리, 리뷰 1건 upsert)은 CPU 로 돌린다.
@@ -261,12 +261,13 @@ class CafeRAG:
 
         # 4. Qwen 호출
         try:
-            raw = await call_ollama(
+            raw = await call_llm(
                 system_prompt=_SYSTEM_PROMPT,
                 user_message=user_msg,
-                model=self.settings.ollama_model,
+                model=self.settings.llm_model,
                 base_url=self.settings.llm_base_url,
-                timeout=self.settings.ollama_timeout,
+                api_key=self.settings.llm_api_key,
+                timeout=self.settings.llm_timeout,
             )
             items = raw.get("results", [])
             if not isinstance(items, list):

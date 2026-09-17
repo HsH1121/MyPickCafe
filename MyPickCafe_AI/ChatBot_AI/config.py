@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     # 시도하는데 Ollama 는 IPv4 에서만 대기해, 새 연결마다 약 2.2s 가 붙는다.
     llm_base_url:   str = "http://127.0.0.1:11434/v1"
     llm_api_key:    str = ""
-    ollama_model:   str = "qwen2.5:14b"
-    ollama_timeout: int = 60
+    llm_model:      str = "qwen2.5:14b"
+    llm_timeout:    int = 60
 
     # 임베딩 (Ollama 네이티브 /api/embed) — LLM 과 다른 서버를 가리킬 수 있다
     embed_base_url: str = "http://127.0.0.1:11434"
