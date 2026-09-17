@@ -13,7 +13,7 @@ _REVIEW_TAG_AI_DIR = os.path.abspath(
 sys.path.insert(0, _REVIEW_TAG_AI_DIR)
 
 from config import Settings
-from ollama_client import call_ollama
+from llm_client import call_llm
 from prompt_builder import (
     SYSTEM_PROMPT,
     ALLOWED_FACILITY_TAGS,
@@ -42,12 +42,13 @@ def _extract_tags_batch(contents: list[str], attempt: int = 0) -> list[dict]:
     user_message = f"리뷰 목록:\n{numbered}\n\n각 리뷰를 분석하여 JSON으로 반환하세요."
 
     try:
-        raw     = asyncio.run(call_ollama(
+        raw     = asyncio.run(call_llm(
             system_prompt=SYSTEM_PROMPT,
             user_message=user_message,
-            model=_settings.ollama_model,
+            model=_settings.llm_model,
             base_url=_settings.llm_base_url,
-            timeout=_settings.ollama_timeout,
+            api_key=_settings.llm_api_key,
+            timeout=_settings.llm_timeout,
         ))
         results = raw.get('results', [])
         while len(results) < len(contents):

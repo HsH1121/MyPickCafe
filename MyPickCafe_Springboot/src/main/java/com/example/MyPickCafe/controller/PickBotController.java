@@ -1,10 +1,11 @@
 package com.example.MyPickCafe.controller;
 
-import com.example.MyPickCafe.dto.ChatbotRequest;
-import com.example.MyPickCafe.dto.ChatbotResult;
+import com.example.MyPickCafe.dto.PickBotRequest;
+import com.example.MyPickCafe.dto.PickBotResponse;
+import com.example.MyPickCafe.dto.PickBotResult;
 import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.service.CafePhotoService;
-import com.example.MyPickCafe.service.ChatbotClient;
+import com.example.MyPickCafe.service.PickBotClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,21 +15,22 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/chatbot")
+@RequestMapping("/api/pickbot")
 @RequiredArgsConstructor
-public class ChatbotController {
+public class PickBotController {
 
-    private final ChatbotClient chatbotClient;
+    private final PickBotClient pickBotClient;
     private final CafePhotoService cafePhotoService;
 
     @PostMapping("/recommend")
-    public ResponseEntity<List<ChatbotResult>> recommend(@RequestBody ChatbotRequest req) {
+    public ResponseEntity<PickBotResponse> recommend(@RequestBody PickBotRequest req) {
         if (req.getQuery() == null || req.getQuery().isBlank()) {
             return ResponseEntity.badRequest().build();
         }
-        List<ChatbotResult> results = chatbotClient.recommend(req.getQuery());
+        PickBotResponse response = pickBotClient.recommend(req.getQuery());
+        List<PickBotResult> results = response.getResults();
         if (!results.isEmpty()) {
-            List<Long> cafeIds = results.stream().map(ChatbotResult::getCafeId).toList();
+            List<Long> cafeIds = results.stream().map(PickBotResult::getCafeId).toList();
             Map<Long, String> photoMap = cafePhotoService.findPhotosForCafeIdsMainFirst(cafeIds)
                     .stream()
                     .collect(Collectors.toMap(
@@ -38,6 +40,6 @@ public class ChatbotController {
                     ));
             results.forEach(r -> r.setMainPhoto(photoMap.get(r.getCafeId())));
         }
-        return ResponseEntity.ok(results);
+        return ResponseEntity.ok(response);
     }
 }

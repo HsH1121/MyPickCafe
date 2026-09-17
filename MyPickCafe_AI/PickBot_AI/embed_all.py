@@ -22,7 +22,7 @@ import logging
 import ollama
 
 from config import Settings
-from chatbot_rag import CafeRAG
+from pickbot_rag import CafeRAG
 
 logging.basicConfig(
     level=logging.INFO,

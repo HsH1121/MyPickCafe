@@ -99,7 +99,7 @@ _REVIEW_MAX_CHARS = 500  # Dummy 흐름과 동일한 절삭 기준
 
 
 def build_user_message(req: ReviewRequest) -> str:
-    """ReviewRequest → Ollama user 메시지 문자열 변환"""
+    """ReviewRequest → LLM user 메시지 문자열 변환"""
     text = req.reviewText[:_REVIEW_MAX_CHARS]
     return (
         f"[분석 대상 리뷰]\n{text}\n\n"
