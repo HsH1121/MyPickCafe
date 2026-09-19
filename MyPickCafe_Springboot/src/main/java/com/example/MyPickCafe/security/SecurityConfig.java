@@ -70,10 +70,10 @@ public class SecurityConfig {
                                         // 지오코딩/클러스터 등 XHR 대비
                                         "connect-src 'self' https://dapi.kakao.com https://*.daumcdn.net; " +
                                         // (필요 시) 폰트/스타일
-                                        "style-src 'self' 'unsafe-inline'; " +
+                                        // Pretendard 폰트 CSS 를 jsdelivr 에서 받는다(layout/header.mustache)
+                                        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
                                         "font-src 'self' https:; " +
-                                        "base-uri 'self'; frame-ancestors 'self'; object-src 'none'; " +
-                                        "upgrade-insecure-requests;"
+                                        "base-uri 'self'; frame-ancestors 'self'; object-src 'none';"
                         ))
                         .frameOptions(fo -> fo.sameOrigin())
                         .referrerPolicy(ref -> ref.policy(
