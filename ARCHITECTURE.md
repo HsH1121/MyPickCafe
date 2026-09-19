@@ -4,14 +4,13 @@
 
 리뷰 데이터를 기반으로 카페를 탐색하고 추천받는 웹 서비스입니다.
 
-- **구성**: Spring Boot(카페·리뷰·회원·인증) + FastAPI(리뷰 태그/감성 분석, 자연어 추천 RAG) + 로컬 LLM(Ollama)
-- **핵심 기술**: Java 17 / Spring Boot 3.5.5, Spring Security + JWT(stateless), JPA + PostgreSQL, FastAPI + ChromaDB + `qwen2.5:14b`·`bge-m3`
+- **구성**: Spring Boot(카페·리뷰·회원·인증) + FastAPI(리뷰 태그/감성 분석, 자연어 추천 RAG) + 임베딩(Ollama · `bge-m3`) + LLM(Fireworks AI · GLM 5.3 Flash)
+- **핵심 기술**: Java 17 / Spring Boot 3.5.5, Spring Security + JWT(stateless), JPA + PostgreSQL, FastAPI + ChromaDB, 임베딩 `bge-m3`(Ollama), LLM GLM 5.3 Flash(Fireworks AI), Docker Compose + AWS EC2
 - **성격**: 학교 팀 프로젝트(GoCafe)를 개인적으로 이어받아 재작업한 프로젝트입니다. → [비고](#비고)
 - **코드로 확인되는 작업**: JWT 인증·인가(`tokenVersion` 기반 토큰 무효화, DB 기준 권한 결정), 엔티티 대신 record 응답 DTO 사용, AI 서버 연동과 장애 격리, 인가·응답 노출·서비스 단위 테스트
 
-> **진행 상태: 로컬 실행 / 배포 진행 중**
-> 클라우드 배포는 아직 이루어지지 않았습니다. 저장소에는 운영용 프로파일 설정(`application-prod.properties`)만 있고, Dockerfile·CI 설정은 없습니다.
-> 배포 계획: `[여기 직접 확인/작성]`
+> **배포: AWS EC2 (t3.large, Ubuntu 24.04)** — http://15.165.218.187:8080
+> Docker Compose로 Spring Boot · FastAPI · PostgreSQL · Ollama 컨테이너를 구성해 배포했습니다. CI 설정은 아직 없습니다.
 
 ---
 
@@ -44,6 +43,7 @@
 | DB | PostgreSQL (런타임 드라이버), PostgreSQL 16 컨테이너 (`docker-compose.yml`) |
 | 뷰 | Mustache 서버 사이드 렌더링 + Vanilla JS (`static/js/cafego.js`) |
 | 지도 | Kakao Maps JavaScript SDK (지도 탐색 페이지) |
+| 배포 | Docker (멀티스테이지 빌드: JDK → JRE), Docker Compose, AWS EC2 |
 | 기타 | Lombok |
 | 테스트 | `spring-boot-starter-test`, `spring-security-test` (`@WithMockUser`), H2 (테스트 전용 인메모리 DB) |
 
@@ -52,13 +52,13 @@
 | 구분 | 사용 기술 |
 |---|---|
 | 서버 | Python, FastAPI, Uvicorn |
-| 모델 실행 | Ollama (로컬, 기본 `http://127.0.0.1:11434`) — `/api/chat`, `/api/embed` HTTP 호출 |
-| 사용 모델 (코드 기본값) | 생성/분석: `qwen2.5:14b` · 임베딩: `bge-m3` |
+| 모델 실행 | 임베딩: Ollama (`/api/embed`) · LLM: OpenAI 호환 외부 API (`/chat/completions`) |
+| 사용 모델 | 생성/분석: GLM 5.3 Flash (Fireworks AI) · 임베딩: `bge-m3` |
 | 벡터 DB | ChromaDB (PersistentClient, cosine) |
 | 기타 | httpx, pydantic / pydantic-settings, psycopg (인덱싱용 PostgreSQL 조회) |
 | 더미 데이터 생성 | ollama(Python 패키지), playwright, requests |
 
-> AI 기능은 Ollama로 띄운 공개 모델을 FastAPI 서버에서 HTTP로 호출하는 구조입니다.
+> GPU가 없는 배포 환경을 고려해 LLM 추론은 외부 API로 분리하고, 임베딩 모델은 서버 내 Ollama에 유지했습니다. LLM 클라이언트(`shared/llm_client.py`)가 OpenAI 호환 규격이라, `LLM_BASE_URL` 변경만으로 로컬 Ollama ↔ 외부 API 전환이 가능합니다. 임베딩을 서버 내에 유지한 것은 기존 ChromaDB 인덱스와 동일한 모델·설정을 보장하기 위해서입니다.
 
 ---
 
@@ -69,7 +69,7 @@
 ### 1. 리뷰 작성 → AI 태그·감성 분석 → 카페 태그 집계 (`ReviewService`)
 
 1. 리뷰를 DB에 먼저 저장합니다.
-2. FastAPI `POST /review/analyze`를 **동기** 호출해 태그와 감성을 받습니다. AI 서버는 few-shot 프롬프트로 `qwen2.5:14b`를 호출하고, 허용 목록에 있는 태그들을 받아옵니다.
+2. FastAPI `POST /review/analyze`를 **동기** 호출해 태그와 감성을 받습니다. AI 서버는 few-shot 프롬프트로 LLM을 호출하고, 허용 목록에 있는 태그들을 받아옵니다.
    - 태그 4개 카테고리: `FACILITY`(WIFI, PLUG, TERRACE, PET, PARKING) · `MENU`(AMERICANO, LATTE, COLDBREW, BAKERY, CAKE, ADE, DESSERT) · `PURPOSE`(STUDY, TALK, REST, DATE, PHOTO, MEETING) · `MOOD`(MODERN, RETRO, NATURE, INDUSTRIAL, CLASSIC)
    - 감성: `GOOD` / `BAD` / `null`
 3. 받은 태그를 `review_tag`에 저장합니다. 이어서 카페의 GOOD 리뷰 태그를 카테고리별로 집계해, **카테고리 1위 태그와, 그 개수의 85% 이상인 모든 태그들**을 카페 태그(`cafe_tag`)로 다시 반영합니다. 상위 N개로 자르지 않으므로 리뷰 수가 적은 카페에도 태그가 반드시 붙습니다.
@@ -93,6 +93,8 @@
 
 인덱스 관리: FastAPI 기동 시 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 인덱싱합니다. 그 밖에 `POST /pickbot/reindex`, `POST /pickbot/delete-one`, 독립 실행 스크립트 `PickBot_AI/embed_all.py`가 있습니다.
 
+> 배포 환경에서는 로컬에서 생성한 ChromaDB 인덱스를 Docker 볼륨으로 이관해, 최초 기동 시 초기 인덱싱을 건너뜁니다. GPU가 없는 인스턴스에서 전체 재인덱싱은 수십 분이 걸리고 메모리 사용량도 커지기 때문입니다.
+
 ### 3. 니즈 기반 추천
 
 사용자가 마이페이지에서 고른 니즈 태그 집합과 각 카페의 태그 집합 사이의 **자카드 유사도**를 계산해 높은 순으로 보여줍니다 (`RecommendService`). 메인 페이지와 `/cafes?sort=recommend`에서 사용합니다.
@@ -103,7 +105,7 @@
 2. 관리자는 승인 대기 목록과 증빙 문서를 확인하고 승인 또는 반려합니다.
 3. 승인 시 카페 소유자가 MEMBER면 CAFEOWNER로 바뀌고, 점주에게 승인/반려 알림이 갑니다.
 
-사진·메뉴·영업정보 수정은 URL 기반 역할 검사에 더해, 요청자가 해당 카페의 점주인지 리소스 단위로 확인합니다 (`CafeOwnershipGuard` 및 컨트롤러 내부 검증). 업로드 파일은 로컬 디스크(`file.upload-dir`, 기본 `./uploads`)에 저장되고 `/uploads/**`로 서빙됩니다.
+사진·메뉴·영업정보 수정은 URL 기반 역할 검사에 더해, 요청자가 해당 카페의 점주인지 리소스 단위로 확인합니다 (`CafeOwnershipGuard` 및 컨트롤러 내부 검증). 업로드 파일은 로컬 디스크(`file.upload-dir`, 기본 `./uploads`)에 저장되고 `/uploads/**`로 서빙됩니다. 컨테이너 환경에서는 `web-uploads` 볼륨에 저장됩니다.
 
 ### 5. 탐색 — 목록 · 검색 · 지도 · 알림
 
@@ -185,8 +187,10 @@
 | 대상 | 변경 | 근거 |
 |---|---|---|
 | 임베딩 모델 (`PickBot_AI/config.py`) | `nomic-embed-text` → `bge-m3` | git 커밋 `a43c7d7` |
+| LLM (생성·분석) | 로컬 `qwen2.5:14b`(Ollama) → GLM 5.3 Flash (Fireworks AI) | GPU 없는 EC2 배포 제약. 후보 모델들을 정답 태그가 있는 리뷰 15건으로 비교(JSON 형식 안정성 / 한국어 태그 F1 / 응답시간 / 단가)한 뒤 선정 |
 
-- 교체 이유 / 교체 전후 성능 비교: `[여기 직접 확인/작성]`
+- 임베딩 모델 교체 이유 / 교체 전후 성능 비교: `[여기 직접 확인/작성]`
+- LLM 후보 비교 결과 수치: `[여기 직접 확인/작성]`
 - 리뷰 태그 분석 정확도: `Review_Tag_AI/test_api.py`(15개 케이스, 카테고리별 Precision/Recall/F1 출력)로 측정할 수 있습니다. 측정 결과: `[여기 직접 확인/작성]`
 
 ---
@@ -200,16 +204,33 @@ flowchart LR
     B[Browser] -->|Mustache SSR / fetch| S[Spring Boot :8080]
     B -->|JS SDK| K[Kakao Maps]
     S -->|JPA| P[(PostgreSQL 16)]
-    S -->|파일 저장| U[./uploads]
+    S -->|파일 저장| U[web-uploads 볼륨]
     S -->|WebClient<br/>POST /review/analyze 동기| F[FastAPI app.py :8000]
     S -->|WebClient<br/>/pickbot/recommend 동기<br/>/pickbot/index-one 비동기| F
-    F -->|/api/chat, /api/embed| O[Ollama :11434<br/>qwen2.5:14b, bge-m3]
+    F -->|/api/embed| O[Ollama :11434<br/>bge-m3]
+    F -->|/chat/completions| L[Fireworks AI<br/>GLM 5.3 Flash]
     F -->|인덱싱용 리뷰 조회| P
-    F --> C[(ChromaDB ./chroma_db)]
+    F --> C[(ChromaDB 볼륨)]
 ```
 
 - `MyPickCafe_AI/app.py`는 `PickBot_AI`(RAG 추천)와 `Review_Tag_AI`(태그·감성 분석)의 엔드포인트를 **하나의 FastAPI 서버**로 묶은 통합 서버입니다.
 - 포트는 코드 기준입니다. Spring은 `server.port`를 따로 지정하지 않아 기본값 8080을 쓰고, FastAPI는 `app.py` `__main__` 기준 8000입니다.
+- 배포 환경에서는 컨테이너 간 서비스명(`postgres:5432`, `ollama:11434`, `mypickcafe-ai:8000`)으로 통신합니다. `localhost`는 컨테이너 자기 자신을 가리키므로 쓰지 않습니다.
+
+### 컨테이너 구성 (`docker-compose.yml`)
+
+| 서비스 | 이미지 | 역할 | 메모리 한도 |
+|---|---|---|---|
+| `mypickcafe-web` | 자체 빌드 (멀티스테이지: JDK 17 → JRE 17) | Spring Boot | 1GB (`-XX:MaxRAMPercentage=70`) |
+| `mypickcafe-ai` | 자체 빌드 (python:3.11-slim) | FastAPI 통합 서버 | 2GB |
+| `postgres` | `postgres:16-alpine` | DB | 1GB |
+| `ollama` | `ollama/ollama` | `bge-m3` 임베딩 서빙 | 2.5GB |
+| `ollama-init` | `ollama/ollama` | 최초 1회 `bge-m3` pull 후 종료 | — |
+
+- 볼륨: `pgdata`(DB), `chroma-index`(벡터 인덱스), `ollama-models`(임베딩 모델), `web-uploads`(업로드 파일). 컨테이너를 다시 만들어도 데이터가 유지됩니다.
+- 기동 순서: `postgres`는 `pg_isready` healthcheck 통과 후, `ollama`는 healthcheck → `ollama-init` 완료 후에 애플리케이션 컨테이너가 뜹니다. 모델이 없는 상태로 인덱싱이 시작되는 것을 막기 위해서입니다.
+- 두 애플리케이션 컨테이너는 비루트 사용자(uid 10001)로 실행됩니다.
+- `mypickcafe-ai`는 워커 1개로 고정합니다. ChromaDB 인덱스를 프로세스 안에 들고 있어, 워커를 늘리면 기동 시 초기 인덱싱이 워커 수만큼 중복 실행됩니다.
 
 ### Spring Boot 계층 구조
 
@@ -245,6 +266,8 @@ com.example.MyPickCafe
 
 - 프로파일별 CORS 허용 오리진(dev `*`, prod `CORS_ALLOWED_ORIGINS`), 노출 헤더 `Authorization`
 - CSP · HSTS · Referrer-Policy · X-Frame-Options(sameOrigin) · X-Content-Type-Options 헤더
+  - CSP의 `style-src`에 폰트 CDN(`cdn.jsdelivr.net`)을 허용합니다.
+  - `upgrade-insecure-requests`는 현재 비활성입니다. HTTP로 서비스 중인 상태에서 이 지시어가 켜져 있으면 정적 리소스 요청이 모두 HTTPS로 승격돼 실패합니다. HTTPS 적용 시 다시 켤 항목입니다.
 - XSS: `XssSanitizingFilter`가 요청 파라미터를 jsoup `Safelist.basic()`으로 정제
 
 ### 프로파일
@@ -254,6 +277,8 @@ com.example.MyPickCafe
 | `dev` (기본) | `ddl-auto=update` | 메시지·스택트레이스 포함 | off | on (`/swagger-ui.html`) |
 | `prod` | `ddl-auto=validate` | 내부 정보 미노출 | on | off |
 | `test` | H2 인메모리, `create-drop` | — | off | off |
+
+> 현재 배포 환경은 `dev` 프로파일로 기동 중입니다. `prod` 전환 시 스키마가 미리 준비되어 있어야 하고(`ddl-auto=validate`), `CORS_ALLOWED_ORIGINS`가 필수입니다.
 
 ---
 
@@ -339,8 +364,8 @@ sequenceDiagram
 | `AT` 쿠키 Max-Age | 7일 (`Duration.ofDays(7)`) |
 
 - 토큰 만료(1시간)와 쿠키 수명(7일)이 다르게 설정된 의도 / 만료 정책: `[직접 확인해서 작성]`
-- 시크릿 주입 방식(코드 기준): `JWT_SECRET` 환경변수, 또는 git에 올리지 않는 `secret.properties`(`spring.config.import=optional:file:./secret.properties`)
-- 운영 환경의 시크릿 보관·교체(rotation) 방식: `[직접 확인해서 작성]`
+- 시크릿 주입 방식(코드 기준): Docker 실행 시 루트 `.env` → compose 환경변수, IDE 실행 시 실행 설정의 환경변수, 또는 git에 올리지 않는 `secret.properties`(`spring.config.import=optional:file:./secret.properties`). 세 경로 모두 유효하며 환경변수가 우선합니다.
+- 운영 환경과 로컬 환경은 서로 다른 `JWT_SECRET`을 사용합니다. 시크릿 교체(rotation) 절차: `[직접 확인해서 작성]`
 
 | 클래스 | 역할 |
 |---|---|
@@ -397,45 +422,91 @@ sequenceDiagram
 
 ## 로컬 실행 방법
 
-> 저장소에 있는 파일(`docker-compose.yml`, `application*.properties`, `secret.properties.example`, `config.py`, `app.py`)을 기준으로 정리했습니다.
-> **Spring/FastAPI용 Dockerfile은 없고**, `docker-compose.yml`에는 PostgreSQL만 정의되어 있습니다.
+> Docker Compose로 전체 스택을 한 번에 띄울 수 있습니다. 컴포넌트를 개별 실행하는 방법은 아래에 따로 정리했습니다.
 
-### 사전 준비
+### Docker로 전체 실행 (권장)
+
+사전 준비: Docker / Docker Compose
+
+```bash
+# 저장소 루트
+cp .env.example .env
+```
+
+`.env`에 채울 값:
+
+| 키 | 필수 | 설명 |
+|---|---|---|
+| `POSTGRES_PASSWORD` | 필수 | DB 비밀번호. 기존 볼륨(`mypickcafe_pgdata`)에 데이터가 있다면 그때 쓴 값과 같아야 접속됩니다 |
+| `LLM_API_KEY` | 필수 | Fireworks AI API 키 |
+| `JWT_SECRET` | 필수 | Base64 문자열 (`openssl rand -base64 48`) |
+| `POSTGRES_DB`, `POSTGRES_USER` | | 기본값 `mypickcafe` |
+| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT` | | `.env.example`에 기본값 있음 |
+| `KAKAO_JS_KEY`, `KAKAO_REST_KEY` | | 없으면 지도만 동작하지 않습니다 |
+
+```bash
+docker compose up -d --build
+```
+
+- 접속: http://localhost:8080
+- 상태 확인: `docker compose ps`, 로그: `docker compose logs -f mypickcafe-ai`
+- 임베딩 주소는 compose가 `http://ollama:11434`로 주입합니다. `.env`에 별도로 적지 않습니다.
+- 최초 기동 시 ChromaDB 인덱스가 비어 있으면 DB의 승인된 리뷰 전체를 임베딩합니다. GPU 없이 CPU로 수행하면 수십 분이 걸립니다. 기존 인덱스를 볼륨으로 옮겨두면 이 과정을 건너뜁니다.
+
+<details>
+<summary>기존 ChromaDB 인덱스를 볼륨으로 옮기기</summary>
+
+```bash
+# 인덱스 디렉터리를 볼륨으로 복사 (컨테이너가 uid 10001로 실행되므로 소유권 변경 필요)
+docker volume create mypickcafe_chroma-index
+docker run --rm \
+  -v mypickcafe_chroma-index:/dest \
+  -v /경로/MyPickCafe_AI/chroma_db:/src:ro \
+  alpine sh -c "cp -a /src/. /dest/ && chown -R 10001:10001 /dest"
+```
+
+다른 장비로 옮길 때는 볼륨을 tar로 내보낸 뒤 전송해 같은 방식으로 풉니다.
+
+</details>
+
+### 개별 실행 (개발용)
+
+#### 사전 준비
 
 - JDK 17
 - Docker (PostgreSQL 컨테이너용)
 - Python — 저장소 `SETUP.md`에 기록된 개발 환경은 Python 3.11.9입니다.
-- [Ollama](https://ollama.com) (AI 기능을 쓸 경우)
+- [Ollama](https://ollama.com) (임베딩용)
+- Fireworks AI API 키 (LLM 기능을 쓸 경우)
 - Kakao Maps JavaScript 키 (지도 탐색 페이지를 쓸 경우, 선택)
 
-### 1. PostgreSQL 실행
+#### 1. PostgreSQL 실행
 
-`docker-compose.yml`은 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`를 환경변수로 받고 **기본값이 없습니다.** 따라서 값을 직접 지정해야 합니다. Spring dev 프로파일의 기본 접속 정보는 DB `mypickcafe`, 사용자 `mypickcafe`, `localhost:5432`입니다.
+`docker-compose.yml`은 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`를 환경변수로 받고 **기본값이 없습니다.** Spring dev 프로파일의 기본 접속 정보는 DB `mypickcafe`, 사용자 `mypickcafe`, `localhost:5432`입니다.
 
 ```bash
-# 저장소 루트 (docker-compose.yml 위치)
-# 루트에 .env 파일을 두거나 셸 환경변수로 지정
-#   POSTGRES_DB=mypickcafe
-#   POSTGRES_USER=mypickcafe
-#   POSTGRES_PASSWORD=<비밀번호>
-docker compose up -d
+docker compose up -d postgres
 ```
 
-### 2. Spring Boot 설정 및 실행
+#### 2. Spring Boot 설정 및 실행
+
+설정값은 다음 세 경로 중 하나로 공급합니다. 환경변수가 `secret.properties`보다 우선합니다.
+
+1. **IDE 실행 설정의 환경변수** — IntelliJ 실행 구성에 `DB_PASSWORD`, `JWT_SECRET`을 등록
+2. **셸 환경변수** — `export DB_PASSWORD=...` 후 `./gradlew bootRun`
+3. **`secret.properties`** — `application.properties`가 `optional:file:./secret.properties`로 읽습니다. 이 경우 **`MyPickCafe_Springboot` 디렉터리에서 실행**해야 합니다
 
 ```bash
 cd MyPickCafe_Springboot
-cp secret.properties.example secret.properties
+cp secret.properties.example secret.properties   # 3번 방식을 쓸 경우
 ```
-
-`secret.properties`에 넣을 값 (`application.properties`가 `optional:file:./secret.properties`로 읽으므로 **`MyPickCafe_Springboot` 디렉터리에서 실행**해야 합니다):
 
 | 키 | 필수 | 설명 |
 |---|---|---|
 | `DB_PASSWORD` | 필수 | 1단계에서 지정한 비밀번호 |
+| `JWT_SECRET` | 필수 | `JwtTokenProvider`가 **Base64로 디코딩**하므로 Base64 문자열이어야 합니다 (HS256, 32바이트 이상). 예: `openssl rand -base64 48` |
 | `DB_USERNAME` | | 기본값 `mypickcafe` |
 | `DB_URL` | | 기본값 `jdbc:postgresql://localhost:5432/mypickcafe` |
-| `JWT_SECRET` | 필수 | `JwtTokenProvider`가 **Base64로 디코딩**하므로 Base64 문자열이어야 합니다 (HS256, 32바이트 이상). 예: `openssl rand -base64 48` |
 | `KAKAO_JS_KEY` | | 지도 탐색 페이지용 |
 | `PICKBOT_API_BASE_URL` | | 기본값 `http://localhost:8000` (통합 FastAPI `app.py`가 픽봇·태그 API를 한 포트에서 제공) |
 | `PYTHON_API_BASE_URL` | | 기본값 `http://localhost:8000` |
@@ -450,7 +521,7 @@ cp secret.properties.example secret.properties
 - **초기 데이터는 자동으로 들어가지 않습니다.** `DataInitializer`의 `@Component`가 주석 처리되어 있습니다.
 - 가입은 항상 MEMBER로 생성되고, 회원 역할을 바꾸는 API(`/api/members`)는 ADMIN 전용입니다. 따라서 **최초 ADMIN 계정은 DB의 `member.role_kind`를 직접 변경**해야 합니다.
 
-#### (선택) 더미 데이터
+##### (선택) 더미 데이터
 
 `MyPickCafe_AI/Create_Dummy/`에 스크립트가 생성한 SQL이 들어 있습니다. SQL이 서브쿼리로 서로를 참조하므로 아래 순서대로 적재해야 합니다.
 
@@ -462,11 +533,10 @@ cp secret.properties.example secret.properties
 - 적재 절차 및 검증 여부: `[여기 직접 확인/작성]`
 - 원천 데이터(네이버 지도 리뷰 CSV)의 수집·이용 범위: `[여기 직접 확인/작성]`
 
-### 3. AI 서버 (FastAPI + Ollama)
+#### 3. AI 서버 (FastAPI)
 
 ```bash
-# 모델 준비 (config.py 기본값)
-ollama pull qwen2.5:14b
+# 임베딩 모델만 준비합니다. LLM은 외부 API를 호출하므로 pull이 필요 없습니다.
 ollama pull bge-m3
 
 cd MyPickCafe_AI
@@ -474,9 +544,20 @@ pip install -r requirements.txt
 python app.py            # uvicorn, 0.0.0.0:8000, reload
 ```
 
-- 헬스체크: `GET http://localhost:8000/health`
-- PostgreSQL 접속 정보는 `PickBot_AI/config.py`의 `Settings` 필드(`db_host`, `db_port`, `db_name`, `db_user`, `db_password` 등)로 받습니다. 환경변수(`DB_PASSWORD` 등)로 지정하세요. 기본 비밀번호는 빈 문자열입니다.
-  - 두 `Settings` 클래스(PickBot / Review)가 모두 `MyPickCafe_AI/.env` 하나를 읽습니다. 실행 위치와 무관하며, OS 환경변수가 `.env`보다 우선합니다.
+`MyPickCafe_AI/.env`에 필요한 값:
+
+| 키 | 설명 |
+|---|---|
+| `LLM_BASE_URL` | OpenAI 호환 엔드포인트. 예: `https://api.fireworks.ai/inference/v1` (로컬 Ollama로 돌리려면 `http://127.0.0.1:11434/v1`) |
+| `LLM_API_KEY` | 외부 API 키. Ollama로 돌릴 때는 비워도 됩니다 |
+| `LLM_MODEL` | 제공처 콘솔에 표기된 모델 ID를 그대로 사용합니다 |
+| `EMBED_BASE_URL` | 기본 `http://127.0.0.1:11434`. **`/v1`을 붙이지 않습니다** — 임베딩은 Ollama 고유 경로(`/api/embed`)를 씁니다 |
+| `EMBED_MODEL` | 기본 `bge-m3` |
+| `DB_PASSWORD` 등 | PostgreSQL 접속 정보. 기본 비밀번호는 빈 문자열입니다 |
+
+- 헬스체크: `GET http://localhost:8000/health` — 응답의 `indexed`로 인덱싱된 리뷰 건수를 확인할 수 있습니다.
+- LLM과 임베딩의 base URL은 **서로 다른 설정 키**입니다. 하나로 공유하면 LLM 쪽에 `/v1`을 붙이는 순간 임베딩 경로가 `/v1/api/embed`가 되어 검색이 통째로 실패합니다.
+- 두 `Settings` 클래스(PickBot / Review)가 모두 `MyPickCafe_AI/.env` 하나를 읽습니다. 실행 위치와 무관하며, OS 환경변수가 `.env`보다 우선합니다. **컨테이너로 실행할 때는 이 파일이 `.dockerignore`로 제외되며, compose가 주입한 환경변수를 사용합니다.**
 - ChromaDB 경로 기본값은 `./chroma_db`이고, 상대경로는 실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀립니다. `PickBot_AI/embed_all.py`로 만든 인덱스를 통합 서버가 그대로 사용합니다. 서버가 떠 있을 때는 `embed_all.py` 대신 `POST /pickbot/reindex`를 쓰세요.
 - AI 서버를 띄우지 않아도 Spring 앱은 동작합니다. 태그 분석은 빈 결과를 반환하고, 픽봇 추천은 `503`(일시적인 오류)을 반환합니다.
 
@@ -510,13 +591,14 @@ cd MyPickCafe_Springboot
 
 ## 현재 한계 (코드 기준)
 
-- **배포**: 로컬 실행만 가능합니다. Dockerfile·CI·클라우드 배포 설정은 없습니다.
+- **배포**: AWS EC2에 Docker Compose로 배포되어 있으나, HTTPS·도메인이 없어 IP + 포트(HTTP)로 접속합니다. CI/CD 파이프라인은 없고, 배포는 EC2에서 `git pull` 후 `docker compose up -d --build`로 수행합니다. 현재 `dev` 프로파일로 기동 중입니다.
 - **인증**: refresh 토큰이 없어 액세스 토큰이 만료되면 다시 로그인해야 합니다. 폼 로그인(`POST /login`)에는 평문 비교 폴백과 `Secure=false` 고정 쿠키가 남아 있습니다. ([인증 · 인가](#인증--인가) 참고)
+- **설정 관리**: 설정 공급 경로가 루트 `.env`(Docker) / IDE 실행 설정 / `secret.properties` 세 갈래로 나뉘어 있습니다. 같은 값을 여러 곳에 적어야 하는 구간이 있어 통합 여지가 있습니다.
 - **지도 탐색 페이지**: 초기 목록과 마커는 `MapController`에 하드코딩된 샘플 장소 2건입니다(DB 연동 아님). 검색 결과는 Kakao 키워드 검색을 사용합니다.
 - **카페 상세 지도 / 등록 폼 주소 찾기**: 템플릿에 지도 영역과 `daum.Postcode`·Kakao 지오코딩 호출 코드가 있지만, 해당 페이지에서 SDK 스크립트를 불러오는 태그가 없습니다.
 - **리뷰 사진**: 리뷰 작성 모달에 사진 입력란이 있지만 서버(`ReviewForm`/`ReviewController`)에서 파일을 처리하지 않습니다.
 - **리뷰 삭제**: 삭제 엔드포인트가 없습니다. `PickBotClient.deleteOneAsync`는 구현되어 있으나 호출하는 곳이 없습니다.
-- **파일 저장소**: 로컬 디스크 구현(`LocalFileStorageService`)만 있습니다.
+- **파일 저장소**: 로컬 디스크 구현(`LocalFileStorageService`)만 있습니다. 컨테이너에서는 볼륨에 저장되므로 인스턴스를 교체하면 별도 이관이 필요합니다.
 
 ---
 
@@ -537,3 +619,4 @@ cd MyPickCafe_Springboot
 | AI 서버(FastAPI) | `[내가 직접 확인해서 작성]` | `[내가 직접 확인해서 작성]` |
 | 더미 데이터 / 크롤링 | `[내가 직접 확인해서 작성]` | `[내가 직접 확인해서 작성]` |
 | 보안·테스트 리팩토링 | `[내가 직접 확인해서 작성]` | `[내가 직접 확인해서 작성]` |
+| 인프라 · 배포 | 해당 없음 (개인 작업) | Dockerfile 2종, Docker Compose 구성, LLM 외부 API 전환, EC2 배포 |
