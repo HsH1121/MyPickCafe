@@ -1,0 +1,30 @@
+# 빌드 컨텍스트: MyPickCafe_AI/
+
+# 설정·비밀값 — 환경변수로 주입합니다 (이미지에 넣지 않음)
+.env
+.env.*
+
+# 가상환경·캐시
+.venv/
+venv/
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+
+# 런타임 데이터 — 볼륨으로 붙입니다
+chroma_db/
+**/chroma_db/
+**/logs/
+
+# 더미 데이터 생성기 (크롤링 결과 CSV·이미지·SQL 덤프, 서비스 실행에 불필요)
+Create_Dummy/
+
+# 개발 도구 설정
+.idea/
+**/.idea/
+**/.claude/
+
+# 문서·컨테이너 파일
+**/*.md
+Dockerfile
+.dockerignore
