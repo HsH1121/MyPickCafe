@@ -1,3 +1,13 @@
+# MyPickCafe 로컬 개발 환경
+#   서비스: postgres, ollama(임베딩), mypickcafe-ai(통합 FastAPI)
+#   Spring Boot 는 아직 포함하지 않습니다.
+#
+# 값은 이 파일과 같은 위치의 .env 에서 읽습니다(.env.example 참고). .env 는 git 에 올라가지 않습니다.
+# 컨테이너끼리는 서비스 이름으로 통신합니다: postgres:5432, ollama:11434
+#
+# 프로젝트 이름을 고정합니다. 기존 데이터가 들어 있는 mypickcafe_pgdata 볼륨을 계속 쓰기 위함입니다.
+name: mypickcafe
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -11,6 +21,109 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # "컨테이너 시작"과 "접속 가능"은 다릅니다. AI 서버는 이 검사가 통과한 뒤에 뜹니다.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mypickcafe-ollama
+    restart: unless-stopped
+    volumes:
+      # 모델은 볼륨에 남습니다. 컨테이너를 다시 만들어도 다시 내려받지 않습니다.
+      - ollama-models:/root/.ollama
+    # 호스트에서 이미 Ollama 가 11434 를 쓰고 있으면 충돌하므로 기본적으로 포트를 열지 않습니다.
+    # 컨테이너 밖에서 확인하려면 아래 두 줄의 주석을 풀고 http://localhost:11435 로 접속하세요.
+    # ports:
+    #   - "11435:11434"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    # GPU 사용 (NVIDIA 드라이버 + WSL2/NVIDIA Container Toolkit 필요).
+    # 켜지 않으면 CPU 로 임베딩해 최초 전체 인덱싱이 수십 분 걸립니다.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # 임베딩 모델을 한 번만 받아 두는 일회성 작업입니다.
+  # ollama 서버의 볼륨에 저장되므로, 이미 있으면 즉시 끝나고 다시 받지 않습니다.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: mypickcafe-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${EMBED_MODEL:-bge-m3}"]
+    restart: "no"
+
+  mypickcafe-ai:
+    build:
+      context: ./MyPickCafe_AI
+    image: mypickcafe-ai:dev
+    container_name: mypickcafe-ai
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    environment:
+      # LLM (OpenAI 호환) — 원격 서비스라 컨테이너 밖입니다
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-60}
+      # 임베딩 — 같은 네트워크의 ollama 컨테이너
+      EMBED_BASE_URL: http://ollama:11434
+      EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
+      # 소량 임베딩을 CPU 로 돌리는 설정은 로컬에서 LLM 과 GPU 를 나눠 쓸 때를 위한 것입니다.
+      # 여기서는 LLM 이 원격이라 GPU 를 다투지 않으므로 끕니다(모델을 CPU/GPU 로 번갈아 올리지 않게).
+      EMBED_SMALL_BATCHES_ON_CPU: "false"
+      # PostgreSQL — 같은 네트워크의 postgres 컨테이너
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # ChromaDB 인덱스 위치 (아래 볼륨)
+      CHROMA_PATH: /app/chroma_db
+    ports:
+      - "8000:8000"
+    volumes:
+      # 인덱스를 볼륨에 두어야 컨테이너를 다시 만들어도 재인덱싱하지 않습니다.
+      - chroma-index:/app/chroma_db
+
+  # ChromaDB 서버 — 기본으로 뜨지 않습니다: docker compose --profile chroma-server up -d
+  #
+  # 지금 애플리케이션은 chromadb.PersistentClient 로 /app/chroma_db 파일을 직접 읽고 씁니다.
+  # 이 서버를 켜도 애플리케이션은 쓰지 않습니다. 쓰려면 CafeRAG 가 chromadb.HttpClient 를
+  # 쓰도록 코드를 바꿔야 해서(이번 범위의 "코드 수정 금지"에 걸림) 정의만 해 두고 꺼 둡니다.
+  # 둘을 동시에 켜면 인덱스가 두 곳(파일/서버)으로 갈려 헷갈립니다.
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: mypickcafe-chromadb
+    profiles: ["chroma-server"]
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    volumes:
+      - chroma-server-data:/data
 
 volumes:
-  pgdata:
+  pgdata:              # 기존 볼륨 (mypickcafe_pgdata) — DB 데이터가 이미 들어 있습니다
+  ollama-models:       # 임베딩 모델
+  chroma-index:        # 애플리케이션이 쓰는 ChromaDB 인덱스
+  chroma-server-data:  # chroma-server 프로필을 쓸 때만
