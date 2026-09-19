@@ -1,0 +1,27 @@
+# 빌드 컨텍스트: MyPickCafe_Springboot/
+
+# 로컬 빌드 산출물 — 이미지 안에서 다시 빌드합니다
+build/
+.gradle/
+out/
+bin/
+
+# 설정·비밀값 — 환경변수로 주입합니다 (이미지에 넣지 않음)
+secret.properties
+.env
+.env.*
+
+# 런타임 데이터 — 볼륨으로 붙입니다
+uploads/
+logs/
+
+# 개발 도구 설정
+.idea/
+**/.idea/
+**/.claude/
+.vscode/
+
+# 문서·컨테이너 파일
+**/*.md
+Dockerfile
+.dockerignore

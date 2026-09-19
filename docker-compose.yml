@@ -1,9 +1,8 @@
 # MyPickCafe 로컬 개발 환경
-#   서비스: postgres, ollama(임베딩), mypickcafe-ai(통합 FastAPI)
-#   Spring Boot 는 아직 포함하지 않습니다.
+#   서비스: postgres, ollama(임베딩), mypickcafe-ai(통합 FastAPI), mypickcafe-web(Spring Boot)
 #
 # 값은 이 파일과 같은 위치의 .env 에서 읽습니다(.env.example 참고). .env 는 git 에 올라가지 않습니다.
-# 컨테이너끼리는 서비스 이름으로 통신합니다: postgres:5432, ollama:11434
+# 컨테이너끼리는 서비스 이름으로 통신합니다: postgres:5432, ollama:11434, mypickcafe-ai:8000
 #
 # 프로젝트 이름을 고정합니다. 기존 데이터가 들어 있는 mypickcafe_pgdata 볼륨을 계속 쓰기 위함입니다.
 name: mypickcafe
@@ -106,6 +105,45 @@ services:
       # 인덱스를 볼륨에 두어야 컨테이너를 다시 만들어도 재인덱싱하지 않습니다.
       - chroma-index:/app/chroma_db
 
+  mypickcafe-web:
+    build:
+      context: ./MyPickCafe_Springboot
+    image: mypickcafe-web:dev
+    container_name: mypickcafe-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # AI 호출은 실패해도 서비스가 도는 부가 기능이라(빈 태그 / 503) 기동은 기다리지 않습니다.
+      # 초기 인덱싱 때문에 AI 가 healthy 가 되기까지 수 분 걸릴 수 있습니다.
+      mypickcafe-ai:
+        condition: service_started
+    environment:
+      # dev: ddl-auto=update, Swagger 켜짐 / prod: ddl-auto=validate, CORS_ALLOWED_ORIGINS 필요
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # PostgreSQL — 같은 네트워크의 postgres 컨테이너(호스트의 localhost 가 아님)
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # 통합 FastAPI — 리뷰 태그 분석과 픽봇 추천이 같은 주소를 씁니다
+      PYTHON_API_BASE_URL: http://mypickcafe-ai:8000
+      PICKBOT_API_BASE_URL: http://mypickcafe-ai:8000
+      # 인증·외부 키
+      JWT_SECRET: ${JWT_SECRET}
+      KAKAO_JS_KEY: ${KAKAO_JS_KEY:-}
+      KAKAO_REST_KEY: ${KAKAO_REST_KEY:-}
+      # prod 프로파일에서만 쓰입니다(dev 는 application-dev.properties 의 * 를 씁니다)
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # 힙은 아래 mem_limit 기준 비율로 잡힙니다. 기본값은 이미지의 JAVA_OPTS 참고.
+      JAVA_OPTS: ${SPRING_JAVA_OPTS:--XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    # 컨테이너 한도를 명시해야 JVM 이 호스트 전체 메모리를 기준으로 힙을 잡지 않습니다.
+    mem_limit: ${WEB_MEM_LIMIT:-1g}
+    volumes:
+      # 업로드된 카페·메뉴 사진. 볼륨이 없으면 컨테이너를 다시 만들 때 사라집니다.
+      - web-uploads:/app/uploads
+
   # ChromaDB 서버 — 기본으로 뜨지 않습니다: docker compose --profile chroma-server up -d
   #
   # 지금 애플리케이션은 chromadb.PersistentClient 로 /app/chroma_db 파일을 직접 읽고 씁니다.
@@ -126,4 +164,5 @@ volumes:
   pgdata:              # 기존 볼륨 (mypickcafe_pgdata) — DB 데이터가 이미 들어 있습니다
   ollama-models:       # 임베딩 모델
   chroma-index:        # 애플리케이션이 쓰는 ChromaDB 인덱스
+  web-uploads:         # Spring Boot 가 저장하는 업로드 파일(file.upload-dir)
   chroma-server-data:  # chroma-server 프로필을 쓸 때만
