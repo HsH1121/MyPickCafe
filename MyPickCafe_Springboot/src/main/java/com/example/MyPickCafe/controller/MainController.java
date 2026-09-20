@@ -91,7 +91,9 @@ public class MainController {
                          @RequestParam(value = "category", required = false) String category,
                          Model model) {
 
-        List<Cafe> results = cafeService.searchApproved(q);
+        // page/main 은 cafeCards(CafeCardForm)를 렌더링한다. 엔티티 목록을 다른 이름으로
+        // 넣으면 템플릿이 읽지 못해 결과가 있어도 "카페가 없습니다"만 보인다.
+        List<CafeCardForm> results = cafeService.searchApprovedCards(q);
 
         List<TagChipDto> tags = cafeTagService.findDistinctChips(24);
         List<Review> recent = reviewService.findAll().stream()
@@ -100,7 +102,7 @@ public class MainController {
                 .limit(6)
                 .collect(Collectors.toList());
 
-        model.addAttribute("trendingCafes", results);
+        model.addAttribute("cafeCards", results);
         model.addAttribute("cafeTags", tags);
         model.addAttribute("recentReviews", recent);
         model.addAttribute("query", q);

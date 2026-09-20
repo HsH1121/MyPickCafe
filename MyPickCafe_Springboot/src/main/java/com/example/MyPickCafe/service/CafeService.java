@@ -249,6 +249,12 @@ public class CafeService {
         return cafeRepository.findByStatusAndNameContainingOrStatusAndAddressContaining(
                 CafeStatus.APPROVED, keyword, CafeStatus.APPROVED, keyword);
     }
+    /** 검색 결과를 화면 카드(사진 포함)로 돌려준다 — `page/main` 이 렌더링하는 형태. */
+    @Transactional(readOnly = true)
+    public List<CafeCardForm> searchApprovedCards(String keyword) {
+        return enrichWithPhotos(searchApproved(keyword));
+    }
+
     @Transactional(readOnly = true)
     public long countByStatus(CafeStatus status) { return cafeRepository.countByStatus(status); }
 
