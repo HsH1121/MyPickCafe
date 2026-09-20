@@ -225,9 +225,12 @@ flowchart LR
 | `mypickcafe-ai` | 자체 빌드 (python:3.11-slim) | FastAPI 통합 서버 | 2GB |
 | `postgres` | `postgres:16-alpine` | DB | 1GB |
 | `ollama` | `ollama/ollama` | `bge-m3` 임베딩 서빙 | 2.5GB |
-| `ollama-init` | `ollama/ollama` | 최초 1회 `bge-m3` pull 후 종료 | — |
+| `ollama-init` | `ollama/ollama` | 최초 1회 `bge-m3` pull 후 종료 | 512MB |
+| `chromadb` | `chromadb/chroma` | 기본 미기동 — `--profile chroma-server`로만 뜨는 선택 서비스 | 1GB |
 
-- 볼륨: `pgdata`(DB), `chroma-index`(벡터 인덱스), `ollama-models`(임베딩 모델), `web-uploads`(업로드 파일). 컨테이너를 다시 만들어도 데이터가 유지됩니다.
+- 한도는 `.env`로 덮어쓸 수 있습니다(`WEB_MEM_LIMIT`, `AI_MEM_LIMIT`, `POSTGRES_MEM_LIMIT`, `OLLAMA_MEM_LIMIT` 등). 상시 실행 4개의 합은 6.5GB로, t3.large(8GB)에서 OS·페이지 캐시 몫을 남기도록 잡았습니다.
+- `chromadb` 서비스는 정의만 되어 있고 애플리케이션은 쓰지 않습니다. 지금 코드는 `chromadb.PersistentClient`로 볼륨의 인덱스 파일을 직접 읽고 씁니다.
+- 볼륨: `pgdata`(DB), `chroma-index`(벡터 인덱스), `ollama-models`(임베딩 모델), `web-uploads`(업로드 파일), `chroma-server-data`(`chroma-server` 프로필 전용). 컨테이너를 다시 만들어도 데이터가 유지됩니다.
 - 기동 순서: `postgres`는 `pg_isready` healthcheck 통과 후, `ollama`는 healthcheck → `ollama-init` 완료 후에 애플리케이션 컨테이너가 뜹니다. 모델이 없는 상태로 인덱싱이 시작되는 것을 막기 위해서입니다.
 - 두 애플리케이션 컨테이너는 비루트 사용자(uid 10001)로 실행됩니다.
 - `mypickcafe-ai`는 워커 1개로 고정합니다. ChromaDB 인덱스를 프로세스 안에 들고 있어, 워커를 늘리면 기동 시 초기 인덱싱이 워커 수만큼 중복 실행됩니다.
