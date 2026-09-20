@@ -9,7 +9,7 @@
 - **성격**: 학교 팀 프로젝트(GoCafe)를 개인적으로 이어받아 재작업한 프로젝트입니다. → [비고](#비고)
 - **코드로 확인되는 작업**: JWT 인증·인가(`tokenVersion` 기반 토큰 무효화, DB 기준 권한 결정), 엔티티 대신 record 응답 DTO 사용, AI 서버 연동과 장애 격리, 인가·응답 노출·서비스 단위 테스트
 
-> **배포: AWS EC2 (t3.large, Ubuntu 24.04)** — http://15.165.218.187:8080
+> **배포: AWS EC2 (t3.large, Ubuntu 24.04)** — http://15.165.105.231:8080
 > Docker Compose로 Spring Boot · FastAPI · PostgreSQL · Ollama 컨테이너를 구성해 배포했습니다. CI 설정은 아직 없습니다.
 
 ---
