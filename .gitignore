@@ -20,9 +20,7 @@
 **/chroma_db/
 **/logs/
 
-# 개인 면접 준비 노트 및 작업 메모 (저장소에 올리지 않음)
-/INTERVIEW-STUDY-notion.md
-/CORS-면접정리.md
-/산업기능요원-면접준비.md
-/TODO.md
-/GOCAFE-ROLE-notion.md
+# Markdown 문서는 로컬에서만 관리 (공개 문서 2개는 유지)
+*.[mM][dD]
+!/README.md
+!/ARCHITECTURE.md
