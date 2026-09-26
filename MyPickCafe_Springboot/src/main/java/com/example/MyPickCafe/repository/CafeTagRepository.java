@@ -18,17 +18,26 @@ public interface CafeTagRepository extends JpaRepository<CafeTag, Long> {
     @Query(value = "DELETE FROM cafe_tag WHERE cafe_id = :cafeId", nativeQuery = true)
     void deleteCafeTagsForCafeId(@Param("cafeId") Long cafeId);
 
+    /**
+     * 추천 후보가 되는 카페의 태그를 {@code 카테고리:코드} 문자열로 조회한다.
+     *
+     * <p>승인된(APPROVED) 카페만 대상으로 한다. 리뷰는 승인 전인 카페에도 달릴 수 있고
+     * 그때 {@code cafe_tag} 행이 생기므로, 조인 없이 {@code cafe_tag}만 읽으면
+     * 심사 대기·반려된 카페가 추천에 노출된다.
+     */
     @Query(value = """
-        SELECT cafe_id,
+        SELECT ct.cafe_id,
                COALESCE(
-                   CASE WHEN facility_tag IS NOT NULL THEN CONCAT('FACILITY:', facility_tag) END,
-                   CASE WHEN menu_tag     IS NOT NULL THEN CONCAT('MENU:',     menu_tag)     END,
-                   CASE WHEN purpose_tag  IS NOT NULL THEN CONCAT('PURPOSE:',  purpose_tag)  END,
-                   CASE WHEN mood_tag     IS NOT NULL THEN CONCAT('MOOD:',     mood_tag)     END
+                   CASE WHEN ct.facility_tag IS NOT NULL THEN CONCAT('FACILITY:', ct.facility_tag) END,
+                   CASE WHEN ct.menu_tag     IS NOT NULL THEN CONCAT('MENU:',     ct.menu_tag)     END,
+                   CASE WHEN ct.purpose_tag  IS NOT NULL THEN CONCAT('PURPOSE:',  ct.purpose_tag)  END,
+                   CASE WHEN ct.mood_tag     IS NOT NULL THEN CONCAT('MOOD:',     ct.mood_tag)     END
                ) AS tag_str
-          FROM cafe_tag
+          FROM cafe_tag ct
+          JOIN cafe c ON c.cafe_id = ct.cafe_id
+         WHERE c.status = 'APPROVED'
     """, nativeQuery = true)
-    List<Object[]> findAllCafeTagStrings();
+    List<Object[]> findApprovedCafeTagStrings();
 
     @Query(value = """
         SELECT DISTINCT cafe_id FROM cafe_tag

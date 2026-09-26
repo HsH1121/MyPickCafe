@@ -40,8 +40,10 @@ public class RecommendService {
                 .collect(Collectors.toSet());
 
         // cafeId -> 해당 카페의 태그 집합 (엔티티 전체 로드 없이 태그 문자열만 조회)
+        // 쿼리가 승인된 카페만 돌려주므로 후보군 자체에 미승인 카페가 들어오지 않는다.
+        // 여기서 걸러야 limit 개수가 승인된 카페로 채워진다.
         Map<Long, Set<String>> tagsByCafe = new HashMap<>();
-        for (Object[] row : cafeTagRepository.findAllCafeTagStrings()) {
+        for (Object[] row : cafeTagRepository.findApprovedCafeTagStrings()) {
             Long cafeId = ((Number) row[0]).longValue();
             String tagStr = (String) row[1];
             if (tagStr != null) {
