@@ -122,8 +122,9 @@ public class SecurityConfig {
                         // ADMIN 전용
                         .requestMatchers("/admin/**").hasRole("ADMIN")
 
-                        // CAFEOWNER 전용 (카페 등록·사진·메뉴 관리)
-                        .requestMatchers("/cafes/new", "/cafes/create").hasAnyRole("CAFEOWNER", "ADMIN")
+                        // CAFEOWNER 전용 (사진·메뉴 관리)
+                        // 카페 등록(/cafes/new, /cafes/create)은 MEMBER가 신청하므로 여기서 막지 않는다.
+                        // 위의 /cafes/{cafeId} permitAll에 걸리고, CafeController의 @PreAuthorize가 로그인 여부를 검사한다.
                         .requestMatchers("/api/cafes/*/photos", "/api/cafes/photos/**").hasAnyRole("CAFEOWNER", "ADMIN")
                         .requestMatchers("/api/menus/**").hasAnyRole("CAFEOWNER", "ADMIN")
 

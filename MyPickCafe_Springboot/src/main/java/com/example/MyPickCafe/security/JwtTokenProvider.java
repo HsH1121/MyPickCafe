@@ -11,6 +11,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.Duration;
 import java.util.Date;
 import java.util.Map;
 import java.util.function.Function;
@@ -27,6 +28,11 @@ public class JwtTokenProvider {
     ) {
         this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
         this.jwtExpirationMs = jwtExpirationMs;
+    }
+
+    /** 토큰 만료 시간. AT 쿠키 Max-Age도 이 값을 쓴다. */
+    public Duration getExpiration() {
+        return Duration.ofMillis(jwtExpirationMs);
     }
 
     public String generateToken(UserDetails user, Long version) {

@@ -16,7 +16,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-_MAX_ATTEMPTS = 3
+_MAX_ATTEMPTS = 2
 
 # 호출마다 AsyncClient 를 만들면 SSL 설정을 새로 읽느라 생성에만 약 0.19s 가 든다.
 # 설정 객체만 공유해 그 비용을 없앤다. AsyncClient 자체는 이벤트 루프에 묶이므로
@@ -38,7 +38,7 @@ async def call_llm(
 ) -> dict:
     """
     OpenAI 호환 Chat Completions API를 호출하고 파싱된 JSON dict를 반환합니다.
-    실패 시 최대 3회까지 재시도합니다.
+    실패 시 최대 2회까지 시도합니다.
 
     Args:
         base_url: OpenAI 호환 베이스 URL (예: https://api.fireworks.ai/inference/v1)

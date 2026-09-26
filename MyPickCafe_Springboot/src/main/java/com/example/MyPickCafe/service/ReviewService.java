@@ -108,12 +108,9 @@ public class ReviewService {
         }
 
         // 2. FastAPI 태그 추출 (저장 후 호출, 실패 시 태그 없이 진행)
-        PythonTagRequest pyReq = PythonTagRequest.builder()
-                .reviewId(saved.getId())
-                .reviewText(saved.getContent())
-                .build();
+        PythonTagRequest req = new PythonTagRequest(saved.getId(), saved.getContent());
 
-        pythonTagClient.analyze(pyReq).ifPresent(res -> {
+        pythonTagClient.analyze(req).ifPresent(res -> {
             saveEnumTags(saved, res);
             syncCafeTopTags(saved.getCafe().getId());
             if (res.getSentiment() != null) {
@@ -154,12 +151,9 @@ public class ReviewService {
         reviewTagRepository.deleteReviewTagsForReviewId(reviewId);
 
         // 3. FastAPI 태그 재추출
-        PythonTagRequest pyReq = PythonTagRequest.builder()
-                .reviewId(saved.getId())
-                .reviewText(saved.getContent())
-                .build();
+        PythonTagRequest req = new PythonTagRequest(saved.getId(), saved.getContent());
 
-        pythonTagClient.analyze(pyReq).ifPresent(res -> {
+        pythonTagClient.analyze(req).ifPresent(res -> {
             saveEnumTags(saved, res);
             syncCafeTopTags(saved.getCafe().getId());
             if (res.getSentiment() != null) {
@@ -187,7 +181,7 @@ public class ReviewService {
     private void syncCafeTopTags(Long cafeId) {
         List<Object[]> rows = reviewTagRepository.findTagCountsForCafeId(cafeId);
 
-        // category -> [(code, count)] 이미 cnt 내림차순 정렬된 상태
+        // category -> [(category, code, count)] 이미 cnt 내림차순 정렬된 상태
         Map<String, List<Object[]>> byCategory = new LinkedHashMap<>();
         for (Object[] row : rows) {
             byCategory.computeIfAbsent((String) row[0], k -> new ArrayList<>()).add(row);

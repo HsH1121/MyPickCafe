@@ -14,7 +14,6 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
@@ -82,7 +81,7 @@ public class AuthApiController {
                 .secure(cookieSecure)
                 .sameSite("Lax")
                 .path("/")
-                .maxAge(Duration.ofDays(7))
+                .maxAge(jwtTokenProvider.getExpiration())
                 .build();
 
         return ResponseEntity.ok()

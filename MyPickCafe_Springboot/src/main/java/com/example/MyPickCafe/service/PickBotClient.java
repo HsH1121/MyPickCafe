@@ -44,9 +44,9 @@ public class PickBotClient {
      */
     public PickBotResponse recommend(String query) {
         long startedAt = System.currentTimeMillis();
-        PickBotResponse response;
+        PickBotResponse res;
         try {
-            response = webClient.post()
+            res = webClient.post()
                     .uri("/pickbot/recommend")
                     .bodyValue(Map.of("query", query))
                     .retrieve()
@@ -57,19 +57,19 @@ public class PickBotClient {
         }
 
         long elapsedMs = System.currentTimeMillis() - startedAt;
-        if (response == null) {
-            response = new PickBotResponse();
+        if (res == null) {
+            res = new PickBotResponse();
         }
-        if (response.getResults() == null) {
-            response.setResults(new ArrayList<>());
+        if (res.getResults() == null) {
+            res.setResults(new ArrayList<>());
         }
-        if (response.getResults().isEmpty()) {
+        if (res.getResults().isEmpty()) {
             log.info("픽봇 추천 결과 없음 (서버 정상 응답) [{}ms] query=\"{}\" notice={}",
-                    elapsedMs, query, response.getNotice());
+                    elapsedMs, query, res.getNotice());
         } else {
-            log.debug("픽봇 추천 {}건 [{}ms] query=\"{}\"", response.getResults().size(), elapsedMs, query);
+            log.debug("픽봇 추천 {}건 [{}ms] query=\"{}\"", res.getResults().size(), elapsedMs, query);
         }
-        return response;
+        return res;
     }
 
     private static PickBotUnavailableException failure(String query, long elapsedMs, Exception e) {
