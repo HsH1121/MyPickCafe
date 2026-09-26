@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "review")
+// 메인·검색 페이지가 최근 리뷰를 created_at 내림차순으로 6건만 읽는다.
+// 인덱스가 없으면 전 행을 top-N 정렬해야 해서 LIMIT 를 걸어도 느리다.
+@Table(name = "review", indexes = @Index(name = "idx_review_created_at", columnList = "created_at DESC"))
 public class Review {
 
     @Id

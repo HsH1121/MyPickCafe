@@ -54,11 +54,7 @@ public class MainController {
 
         List<TagChipDto> cafeTags = cafeTagService.findDistinctChips(24);
 
-        List<Review> recentReviews = reviewService.findAll().stream()
-                .sorted(Comparator.comparing(Review::getCreatedAt,
-                        Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .limit(6)
-                .collect(Collectors.toList());
+        List<Review> recentReviews = reviewService.findRecent();
 
         model.addAttribute("cafeCards", cafeCards);
         model.addAttribute("cafeTags", cafeTags);
@@ -89,11 +85,7 @@ public class MainController {
         List<CafeCardForm> results = cafeService.searchApprovedCards(q);
 
         List<TagChipDto> tags = cafeTagService.findDistinctChips(24);
-        List<Review> recent = reviewService.findAll().stream()
-                .sorted(Comparator.comparing(Review::getCreatedAt,
-                        Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .limit(6)
-                .collect(Collectors.toList());
+        List<Review> recent = reviewService.findRecent();
 
         model.addAttribute("cafeCards", results);
         model.addAttribute("cafeTags", tags);
