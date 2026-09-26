@@ -47,9 +47,10 @@ public class ReviewService {
     private final PythonTagClient pythonTagClient;
     private final PickBotClient pickBotClient;
 
+    /** 메인·검색 페이지의 "최근 후기" 6건. 정렬과 개수 제한은 DB 가 맡는다. */
     @Transactional(readOnly = true)
-    public List<Review> findAll() {
-        return reviewRepository.findAll();
+    public List<Review> findRecent() {
+        return reviewRepository.findTop6ByOrderByCreatedAtDesc();
     }
 
     @Transactional(readOnly = true)
