@@ -37,6 +37,7 @@ public class CafeService {
 
     private final CafeRepository cafeRepository;
     private final CafePhotoRepository cafePhotoRepository;
+    private final CafePhotoService cafePhotoService;
     private final CafeInfoRepository cafeInfoRepository;
     private final CafeTagRepository cafeTagRepository;
     private final MemberRepository memberRepository;
@@ -299,10 +300,7 @@ public class CafeService {
     private List<CafeCardForm> enrichWithPhotos(List<Cafe> cafes) {
         if (cafes.isEmpty()) return List.of();
         Set<Long> ids = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
-        Map<Long, String> photoMap = new HashMap<>();
-        for (CafePhoto p : cafePhotoRepository.findPhotosForCafeIdsMainFirst(ids)) {
-            photoMap.putIfAbsent(p.getCafe().getId(), p.getUrl());
-        }
+        Map<Long, String> photoMap = cafePhotoService.findMainPhotoUrls(ids);
         return cafes.stream()
                 .map(c -> new CafeCardForm(
                         c.getId(), c.getName(), c.getAddress(),

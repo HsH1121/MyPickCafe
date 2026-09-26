@@ -2,9 +2,7 @@ package com.example.MyPickCafe.service;
 
 import com.example.MyPickCafe.dto.CafeCardForm;
 import com.example.MyPickCafe.entity.Cafe;
-import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.entity.UserNeeds;
-import com.example.MyPickCafe.repository.CafePhotoRepository;
 import com.example.MyPickCafe.repository.CafeRepository;
 import com.example.MyPickCafe.repository.CafeTagRepository;
 import com.example.MyPickCafe.repository.NeedsRepository;
@@ -22,7 +20,7 @@ public class RecommendService {
     private final NeedsRepository needsRepository;
     private final CafeTagRepository cafeTagRepository;
     private final CafeRepository cafeRepository;
-    private final CafePhotoRepository cafePhotoRepository;
+    private final CafePhotoService cafePhotoService;
 
     private static final String PLACEHOLDER = "/images/placeholder-cafe.jpg";
 
@@ -66,11 +64,8 @@ public class RecommendService {
         Map<Long, Cafe> cafeMap = cafeRepository.findAllById(topCafeIds).stream()
                 .collect(Collectors.toMap(Cafe::getId, c -> c));
 
-        // 대표 사진 조회
-        Map<Long, String> photoMap = new HashMap<>();
-        for (CafePhoto p : cafePhotoRepository.findPhotosForCafeIdsMainFirst(topCafeIds)) {
-            photoMap.putIfAbsent(p.getCafe().getId(), p.getUrl());
-        }
+        // 대표 사진 조회 (카페당 한 행만 오므로 그대로 쓴다)
+        Map<Long, String> photoMap = cafePhotoService.findMainPhotoUrls(topCafeIds);
 
         return topCafeIds.stream()
                 .map(cafeMap::get)

@@ -3,7 +3,6 @@ package com.example.MyPickCafe.controller;
 import com.example.MyPickCafe.dto.PickBotRequest;
 import com.example.MyPickCafe.dto.PickBotResponse;
 import com.example.MyPickCafe.dto.PickBotResult;
-import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.service.CafePhotoService;
 import com.example.MyPickCafe.service.PickBotClient;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/pickbot")
@@ -31,13 +29,7 @@ public class PickBotController {
         List<PickBotResult> results = response.getResults();
         if (!results.isEmpty()) {
             List<Long> cafeIds = results.stream().map(PickBotResult::getCafeId).toList();
-            Map<Long, String> photoMap = cafePhotoService.findPhotosForCafeIdsMainFirst(cafeIds)
-                    .stream()
-                    .collect(Collectors.toMap(
-                            p -> p.getCafe().getId(),
-                            CafePhoto::getUrl,
-                            (first, second) -> first
-                    ));
+            Map<Long, String> photoMap = cafePhotoService.findMainPhotoUrls(cafeIds);
             results.forEach(r -> r.setMainPhoto(photoMap.get(r.getCafeId())));
         }
         return ResponseEntity.ok(response);

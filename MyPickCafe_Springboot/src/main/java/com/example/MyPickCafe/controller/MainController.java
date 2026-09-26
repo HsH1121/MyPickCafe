@@ -3,7 +3,6 @@ package com.example.MyPickCafe.controller;
 import com.example.MyPickCafe.dto.CafeCardForm;
 import com.example.MyPickCafe.dto.TagChipDto;
 import com.example.MyPickCafe.entity.Cafe;
-import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.entity.Review;
 import com.example.MyPickCafe.service.CafePhotoService;
@@ -38,13 +37,7 @@ public class MainController {
     public String home(Model model, Authentication authentication) {
         List<Cafe> cafes = cafeService.findApprovedTopByViews(8);
         Set<Long> topIds = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
-        List<CafePhoto> mainPhotos = cafePhotoService.findPhotosForCafeIdsMainFirst(topIds);
-
-        Map<Long, String> photoByCafeId = new HashMap<>();
-        for (CafePhoto p : mainPhotos) {
-            Long cafeId = p.getCafe().getId();
-            photoByCafeId.putIfAbsent(cafeId, p.getUrl());
-        }
+        Map<Long, String> photoByCafeId = cafePhotoService.findMainPhotoUrls(topIds);
 
         final String PLACEHOLDER = "/images/placeholder-cafe.jpg";
         List<CafeCardForm> cafeCards = cafes.stream()

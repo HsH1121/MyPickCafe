@@ -1,7 +1,6 @@
 // src/main/java/com/example/MyPickCafe/controller/FavoritePageController.java
 package com.example.MyPickCafe.controller;
 
-import com.example.MyPickCafe.entity.CafePhoto;
 import com.example.MyPickCafe.service.CafePhotoService;
 import com.example.MyPickCafe.service.FavoriteService;
 import com.example.MyPickCafe.service.MemberService;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,14 +32,7 @@ public class FavoritePageController {
 
         List<Long> cafeIds = page.stream().map(c -> c.getId()).toList();
 
-        Map<Long, String> mainUrlByCafeId = new LinkedHashMap<>();
-        if (!cafeIds.isEmpty()) {
-            List<CafePhoto> ordered = cafePhotoService.findPhotosForCafeIdsMainFirst(cafeIds);
-            for (CafePhoto p : ordered) {
-                Long cid = p.getCafe().getId();
-                mainUrlByCafeId.putIfAbsent(cid, p.getUrl());
-            }
-        }
+        Map<Long, String> mainUrlByCafeId = cafePhotoService.findMainPhotoUrls(cafeIds);
 
         List<CafeDto> favorites = page.stream()
                 .map(cafe -> new CafeDto(

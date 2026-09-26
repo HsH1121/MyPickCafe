@@ -11,7 +11,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -20,8 +22,20 @@ public class CafePhotoService {
     private final CafePhotoRepository cafePhotoRepository;
     private final FileStorageService fileStorageService;
 
-    public List<CafePhoto> findPhotosForCafeIdsMainFirst(Collection<Long> cafeIds) {
-        return cafePhotoRepository.findPhotosForCafeIdsMainFirst(cafeIds);
+    /**
+     * 카페 여러 건의 대표 사진 URL을 {@code cafeId -> url} 맵으로 돌려준다.
+     *
+     * <p>쿼리가 카페당 한 행만 주므로 호출부에서 중복을 걸러낼 필요가 없다.
+     * 사진이 없는 카페는 키가 없으니 호출부에서 기본 이미지로 대체한다.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, String> findMainPhotoUrls(Collection<Long> cafeIds) {
+        if (cafeIds == null || cafeIds.isEmpty()) return Map.of();
+        Map<Long, String> urlByCafeId = new HashMap<>();
+        for (Object[] row : cafePhotoRepository.findMainPhotoUrlsForCafeIds(cafeIds)) {
+            urlByCafeId.put(((Number) row[0]).longValue(), (String) row[1]);
+        }
+        return urlByCafeId;
     }
 
     public CafePhoto findById(Long photoId) {
