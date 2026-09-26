@@ -314,48 +314,33 @@ class CafeRAG:
         ]
 
     async def _search_top_cafes(self, text: str, candidate_ids: list[str] | None, top_n: int) -> list[dict]:
-        """조건 문장과 비슷한 리뷰를 모아 카페별 최고 점수 기준 상위 top_n 카페를 고른다."""
-        # 카페 다양성 보장을 위해 필요한 만큼만 추가 조회
-        # 캡: 1번째 카페 max 5, 2번째 max 4, …, 5번째 이후 max 1
-        # 슬롯이 가득 찬 카페는 where 필터로 제외하고 부족분만 재조회
-        target = top_n * 3  # 최종 목표 리뷰 수 (15)
+        """카페당 가장 유사한 리뷰 1개씩, 최대 top_n개를 모아 모두 LLM에 전달한다."""
+        # 선택한 카페는 제외하고 부족분만 재조회해 서로 다른 카페를 확보한다.
+        target = top_n  # 기본값: 카페 5곳의 리뷰 5개
         query_emb = await asyncio.to_thread(self._emb_fn.embed_query, text)
         total = self._col.count()
 
-        cafe_order: list[str] = []
-        cafe_counts: dict[str, int] = {}
         excluded: set[str] = set()
-        seen: set[str] = set()
         sel_metas, sel_distances = [], []
 
         while len(sel_metas) < target:
             need = target - len(sel_metas)
-            # 이미 본 리뷰(캡이 안 찬 카페의 리뷰)가 다시 상위에 오므로 그만큼 더 조회해 건너뛴다.
-            # 건너뛰지 않으면 같은 리뷰가 중복으로 담긴다.
             batch = self._col.query(
                 query_embeddings=[query_emb],
-                n_results=min(need + len(seen), total),
+                n_results=min(need, total),
                 where=_where(candidate_ids, excluded),
             )
             added = 0
-            for rid, meta, dist in zip(batch["ids"][0], batch["metadatas"][0], batch["distances"][0]):
-                if rid in seen:
-                    continue
-                seen.add(rid)
+            for meta, dist in zip(batch["metadatas"][0], batch["distances"][0]):
                 cid = meta["cafe_id"]
-                if cid not in cafe_counts:
-                    cafe_order.append(cid)
-                    cafe_counts[cid] = 0
-                cap = max(1, top_n - cafe_order.index(cid))  # 1등:5, 2등:4, …
-                if cafe_counts[cid] < cap:
-                    cafe_counts[cid] += 1
-                    sel_metas.append(meta)
-                    sel_distances.append(dist)
-                    added += 1
-                    if len(sel_metas) >= target:
-                        break
-                if cafe_counts[cid] >= cap:
-                    excluded.add(cid)
+                if cid in excluded:
+                    continue
+                excluded.add(cid)
+                sel_metas.append(meta)
+                sel_distances.append(dist)
+                added += 1
+                if len(sel_metas) >= target:
+                    break
 
             if added == 0:
                 break  # 더 이상 추가 가능한 리뷰 없음
