@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -80,7 +79,7 @@ public class AuthController {
         String token = jwtTokenProvider.generateToken(ud, member.getTokenVersion());
         ResponseCookie cookie = ResponseCookie.from("AT", token)
                 .httpOnly(true).secure(false).sameSite("Lax")
-                .path("/").maxAge(Duration.ofDays(7))
+                .path("/").maxAge(jwtTokenProvider.getExpiration())
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 

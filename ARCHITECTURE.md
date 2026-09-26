@@ -383,12 +383,9 @@ sequenceDiagram
 | 7 | `/api/members/**` | `hasRole('ADMIN')` |
 | 8 | `GET /api/cafes/**`, `GET /api/**` | permitAll |
 | 9 | `/admin/**` | `hasRole('ADMIN')` |
-| 10 | `/cafes/new`, `/cafes/create` | `hasAnyRole('CAFEOWNER','ADMIN')` |
-| 11 | `/api/cafes/*/photos`, `/api/cafes/photos/**`, `/api/menus/**` | `hasAnyRole('CAFEOWNER','ADMIN')` (GET은 8번에서 먼저 허용) |
-| 12 | `/reviews/**`, `/favorites/**`, `/member/**`, `/api/favorites/**`, `/api/private/**` | authenticated |
-| 13 | 그 외 모든 요청 | authenticated |
-
-- 10번 경로(`/cafes/new`, `/cafes/create`)는 먼저 선언된 3번 패턴 `/cafes/{cafeId}`와도 형태가 일치합니다. 그 경우 10번 대신 3번(permitAll)이 적용되고, 실제 제한은 컨트롤러의 `@PreAuthorize("hasAnyRole('MEMBER','CAFEOWNER','ADMIN')")`가 맡게 됩니다. 실제 동작: `[직접 확인해서 작성]`
+| 10 | `/api/cafes/*/photos`, `/api/cafes/photos/**`, `/api/menus/**` | `hasAnyRole('CAFEOWNER','ADMIN')` (GET은 8번에서 먼저 허용) |
+| 11 | `/reviews/**`, `/favorites/**`, `/member/**`, `/api/favorites/**`, `/api/private/**` | authenticated |
+| 12 | 그 외 모든 요청 | authenticated |
 
 **메서드 보안 (`@EnableMethodSecurity` + `@PreAuthorize`)**
 - 클래스 단위 ADMIN: `AdminCafeController`, `MemberApiController`, `AdminPageController`
@@ -409,11 +406,8 @@ sequenceDiagram
 | 클레임 | `sub` = 이메일, `roles` = 권한 문자열 (로그인 시 `ROLE_<역할>` 하나), `ver` = `tokenVersion`, `iat`, `exp` |
 | 토큰 만료 | `app.jwt.expiration-ms=3600000` (1시간, `application.properties`) |
 | 검증 시 허용 시계 오차 | 60초 (`setAllowedClockSkewSeconds(60)`) |
-| `AT` 쿠키 Max-Age | 7일 (`Duration.ofDays(7)`) |
 
-- 토큰 만료(1시간)와 쿠키 수명(7일)이 다르게 설정된 의도 / 만료 정책: `[직접 확인해서 작성]`
 - 시크릿 주입 방식(코드 기준): Docker 실행 시 루트 `.env` → compose 환경변수, IDE 실행 시 실행 설정의 환경변수, 또는 git에 올리지 않는 `secret.properties`(`spring.config.import=optional:file:./secret.properties`). 세 경로 모두 유효하며 환경변수가 우선합니다.
-- 운영 환경과 로컬 환경은 서로 다른 `JWT_SECRET`을 사용합니다. 시크릿 교체(rotation) 절차: `[직접 확인해서 작성]`
 
 | 클래스 | 역할 |
 |---|---|
