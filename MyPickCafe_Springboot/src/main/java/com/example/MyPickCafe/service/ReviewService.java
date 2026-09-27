@@ -1,6 +1,7 @@
 // src/main/java/com/example/MyPickCafe/service/ReviewService.java
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.FacilityTag;
 import com.example.MyPickCafe.domain.MenuTag;
 import com.example.MyPickCafe.domain.MoodTag;
@@ -177,6 +178,16 @@ public class ReviewService {
                 .build());
 
         return saved;
+    }
+
+    /** 승인된 모든 카페의 대표 태그를 다시 계산한다. SQL로 직접 넣은 리뷰처럼 리뷰 작성 흐름을 거치지 않은 데이터용. */
+    @Transactional
+    public int updateAllCafeTags() {
+        List<Cafe> cafes = cafeRepository.findByStatus(CafeStatus.APPROVED);
+        for (Cafe cafe : cafes) {
+            syncCafeTopTags(cafe.getId());
+        }
+        return cafes.size();
     }
 
     private void syncCafeTopTags(Long cafeId) {
