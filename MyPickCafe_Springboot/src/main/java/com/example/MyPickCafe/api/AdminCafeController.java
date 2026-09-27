@@ -4,6 +4,7 @@ package com.example.MyPickCafe.api;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.dto.CafeResponse;
 import com.example.MyPickCafe.service.CafeService;
+import com.example.MyPickCafe.service.ReviewService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
@@ -23,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -31,6 +33,13 @@ import java.util.List;
 public class AdminCafeController {
 
     private final CafeService cafeService;
+    private final ReviewService reviewService;
+
+    /** 승인된 모든 카페의 대표 태그를 리뷰 태그 기준으로 다시 계산한다. */
+    @PostMapping("/tags/recalculate")
+    public Map<String, Integer> recalculateTags() {
+        return Map.of("cafes", reviewService.updateAllCafeTags());
+    }
 
     @GetMapping("/pending")
     public List<CafeResponse> pending() {
