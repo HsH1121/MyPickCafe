@@ -2,6 +2,7 @@
 package com.example.MyPickCafe.security;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -51,6 +52,23 @@ public class SecurityConfig {
                 "/images/**", "/img/**",
                 "/uploads/**", "/files/**"
         );
+    }
+
+    // 두 필터는 @Component라 Spring Boot가 일반 서블릿 필터로도 자동 등록한다.
+    // 그러면 보안 체인 밖에서 한 번 더 실행되고, 위 ignoring() 경로에서도 실행된다.
+    // 보안 체인 안에서만 실행되도록 서블릿 자동 등록을 끈다.
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration(JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<XssSanitizingFilter> xssFilterRegistration(XssSanitizingFilter filter) {
+        FilterRegistrationBean<XssSanitizingFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean
