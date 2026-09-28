@@ -166,6 +166,7 @@
 | 승인 대기 카페 조회 | `GET /admin/cafes/pending` |
 | 승인 / 반려 | `POST /admin/cafes/{id}/approve`, `POST /admin/cafes/{id}/reject` |
 | 사업자 증빙 문서 열람 | `GET /admin/cafes/{id}/bizdoc` |
+| 카페 대표 태그 일괄 재계산 | `POST /admin/cafes/tags/recalculate` |
 
 **리뷰 · 추천**
 
@@ -442,9 +443,6 @@ sequenceDiagram
 - `formLogin()`을 설정하지 않았으므로, 여기서 `UsernamePasswordAuthenticationFilter`는 순서를 정하는 기준점으로만 쓰입니다.
 - JWT 필터가 인증 정보를 채운 뒤, 뒤이은 인가 단계(`authorizeHttpRequests`)와 메서드 보안(`@PreAuthorize`)이 이를 사용합니다.
 - `WebSecurityCustomizer.ignoring()`에 지정한 경로(`/favicon.ico`, `/webjars/**`, `/css/**`, `/js/**`, `/images/**`, `/img/**`, `/uploads/**`, `/files/**`)는 보안 필터 체인을 아예 거치지 않습니다.
-- 확인 필요:
-  - 두 필터가 `@Component` 빈이라 Spring Boot가 보안 체인과 별개로 일반 서블릿 필터로도 자동 등록할 수 있습니다. 코드에 이를 막는 `FilterRegistrationBean` 설정은 없습니다. 체인 밖에서 중복 실행되는지: `[직접 확인해서 작성]`
-  - 실제 기동 시 구성되는 전체 필터 목록: `[직접 확인해서 작성]`
 
 </details>
 
@@ -464,7 +462,7 @@ sequenceDiagram
 - 로그인에 성공하면 브라우저에 `AT` HttpOnly 쿠키가 설정됩니다. 같은 출처로 보내는 요청은 이 쿠키로 인증됩니다.
 - `static/js/cafego.js`는 REST 로그인 응답의 토큰을 `localStorage`의 `cafego_token` 키에 저장하고 `Authorization: Bearer` 헤더로도 보냅니다.
 - `admin/main`, `cafes/detail`, `cafes/manage`, `member/edit` 템플릿 스크립트는 `localStorage`의 `accessToken` 키를 읽습니다. 하지만 이 키에 값을 저장하는 코드는 없으므로, 해당 요청은 사실상 `AT` 쿠키로 인증됩니다.
-- CSRF 보호는 비활성화(`csrf.disable()`)되어 있고 인증 쿠키는 `SameSite=Lax`입니다. 쿠키 기반 인증과 CSRF 비활성화를 함께 쓰는 것에 대한 판단·대응: `[직접 확인해서 작성]`
+- CSRF 토큰 대신 `SameSite=Lax` 쿠키로 다른 사이트에서 보낸 요청에 인증 쿠키가 실리지 않게 합니다.
 
 </details>
 
@@ -571,18 +569,6 @@ cp secret.properties.example secret.properties   # 3번 방식을 쓸 경우
 - **초기 데이터는 자동으로 들어가지 않습니다.** `DataInitializer`의 `@Component`가 주석 처리되어 있습니다.
 - 가입은 항상 MEMBER로 생성되고, 회원 역할을 바꾸는 API(`/api/members`)는 ADMIN 전용입니다. 따라서 **최초 ADMIN 계정은 DB의 `member.role_kind`를 직접 변경**해야 합니다.
 
-##### (선택) 더미 데이터
-
-`MyPickCafe_AI/Create_Dummy/`에 스크립트가 생성한 SQL이 들어 있습니다. SQL이 서브쿼리로 서로를 참조하므로 아래 순서대로 적재해야 합니다.
-
-1. `reviewer_dummy.sql` (리뷰 작성자 회원)
-2. `cafeowner_dummy.sql` (점주 회원)
-3. `cafe_dummy.sql`
-4. `review_dummy.sql` (리뷰 + 리뷰 태그)
-
-- 적재 절차 및 검증 여부: `[여기 직접 확인/작성]`
-- 원천 데이터(네이버 지도 리뷰 CSV)의 수집·이용 범위: `[여기 직접 확인/작성]`
-
 #### 3. AI 서버 (FastAPI)
 
 ```bash
@@ -659,6 +645,7 @@ cd MyPickCafe_Springboot
 - 팀 원본 프로젝트 저장소 / 기간 / 팀 구성: `[내가 직접 확인해서 작성]`
 - 코드에 남아 있는 원본 명칭: 정적 리소스 `cafego.css`·`cafego.js`, localStorage 키 `cafego_token`
 - 이 저장소의 git 이력은 2026-05-29 첫 커밋부터 시작하며, 팀 원본 저장소의 커밋 이력은 포함되어 있지 않습니다.
+- 서비스의 리뷰 데이터는 2025년 9월 네이버 지도의 카페 방문자 리뷰를 크롤링해 수집했습니다.
 
 ### 팀 원본과 개인 작업의 경계
 
