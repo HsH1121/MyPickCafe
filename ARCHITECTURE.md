@@ -618,10 +618,11 @@ cd MyPickCafe_Springboot
 | `controller/PickBotControllerTest` | 픽봇 서버 장애 시 `503`과 실패 사유 반환 |
 | `service/CafeServiceTest` | 카페 등록 시 PENDING 강제, 소유자 지정, 중복 이름 거부 |
 | `service/MemberServiceTest` | 비밀번호 해시 저장, 기본 역할, 중복/잘못된 역할 거부, null 필드 미덮어쓰기 |
+| `controller/SearchRenderingTest` | 검색 결과가 화면 모델(`cafeCards`)로 전달되고, 미승인 카페는 검색되지 않음 |
 
 - 인가 테스트(`ApiAuthorizationTest` 등)는 `@WithMockUser`로 인증 주체를 주입합니다. JWT 발급(`JwtTokenProvider`)이나 `JwtAuthenticationFilter`를 직접 검증하는 테스트는 없습니다.
 
-테스트 실행 결과: `[여기 직접 확인/작성]`
+테스트 실행 결과: 31개 전부 통과 (2026-09-28, `./gradlew test`)
 
 ---
 
