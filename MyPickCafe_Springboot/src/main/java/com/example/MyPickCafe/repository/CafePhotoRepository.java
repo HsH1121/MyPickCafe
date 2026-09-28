@@ -27,7 +27,8 @@ public interface CafePhotoRepository extends JpaRepository<CafePhoto, Long> {
      *
      * <p>예전에는 해당 카페들의 사진을 전부 엔티티로 읽어(`main desc, sortIndex asc` 정렬)
      * 호출부마다 첫 장만 남기고 버렸다. 카드 목록에 필요한 건 대표 사진 한 장뿐이라
-     * {@code DISTINCT ON}으로 DB에서 카페당 한 행만 받는다. 호출부의 중복 제거도 필요 없다.
+     * {@code ROW_NUMBER()}로 카페마다 순위를 매겨 DB에서 카페당 한 행만 받는다. 호출부의 중복 제거도 필요 없다.
+     * PostgreSQL 전용인 {@code DISTINCT ON}은 테스트용 H2가 받지 않아 표준 윈도우 함수를 쓴다.
      *
      * <p>정렬 기준은 {@code is_main}이 true인 사진 우선, 그다음 {@code sort_index} 오름차순.
      * {@code is_main}은 nullable이라 {@code is_main DESC}를 쓰면 안 된다 — PostgreSQL의
@@ -38,12 +39,18 @@ public interface CafePhotoRepository extends JpaRepository<CafePhoto, Long> {
      * {@code CafePhotoService.findMainPhotoUrls}가 빈 컬렉션을 걸러 준다.
      */
     @Query(value = """
-        SELECT DISTINCT ON (p.cafe_id) p.cafe_id, p.url
-          FROM cafe_photo p
-         WHERE p.cafe_id IN (:cafeIds)
-         ORDER BY p.cafe_id,
-                  CASE WHEN p.is_main = true THEN 0 ELSE 1 END,
-                  p.sort_index ASC
+        SELECT ranked.cafe_id, ranked.url
+          FROM (
+                SELECT p.cafe_id, p.url,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY p.cafe_id
+                           ORDER BY CASE WHEN p.is_main = true THEN 0 ELSE 1 END,
+                                    p.sort_index ASC
+                       ) AS rn
+                  FROM cafe_photo p
+                 WHERE p.cafe_id IN (:cafeIds)
+               ) ranked
+         WHERE ranked.rn = 1
     """, nativeQuery = true)
     List<Object[]> findMainPhotoUrlsForCafeIds(@Param("cafeIds") Collection<Long> cafeIds);
 
