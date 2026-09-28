@@ -2,3 +2,8 @@ all_dummy.sql
 __pycache__/
 *.pyc
 .idea/
+
+# 크롤링 원본 데이터 (로컬에만 보관)
+src/naver/
+review_dummy.sql
+src/crawlling/*.png
