@@ -7,6 +7,7 @@
       <nav class="cg-sidenav">
         <a href="/admin" class="is-active">대시보드</a>
         <a href="#section-cafes">카페 관리</a>
+        <a href="#section-tags">태그 관리</a>
       </nav>
     </aside>
 
@@ -79,6 +80,24 @@
         </div>
       </article>
 
+      <!-- 태그 관리 -->
+      <article id="section-tags" class="cg-panel">
+        <div class="cg-panel__head">
+          <div>
+            <p class="cg-eyebrow">태그 관리</p>
+            <h2 class="cg-panel__title">카페 대표 태그 재계산</h2>
+          </div>
+        </div>
+
+        <div class="cg-panel__body" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+          <p style="margin:0;flex:1;min-width:240px;color:var(--text-sub);font-size:14px">
+            승인된 모든 카페의 대표 태그를 리뷰 태그 집계 기준으로 다시 계산합니다.
+          </p>
+          <span id="tag-recalc-result" style="color:var(--text-muted);font-size:13px"></span>
+          <button id="tag-recalc-btn" class="cg-btn cg-btn--sm">전체 재계산</button>
+        </div>
+      </article>
+
     </section>
   </div>
 </main>
@@ -104,6 +123,24 @@
       await postWithJwt(btn.dataset.post);
       location.reload();
     } catch (err) {
+      alert('요청 실패: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('tag-recalc-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const result = document.getElementById('tag-recalc-result');
+    if (!confirm('승인된 모든 카페의 대표 태그를 다시 계산할까요?')) return;
+    btn.disabled = true;
+    result.textContent = '재계산 중...';
+    try {
+      const res = await postWithJwt('/admin/cafes/tags/recalculate');
+      const data = await res.json();
+      result.textContent = `카페 ${data.cafes}곳 재계산 완료`;
+    } catch (err) {
+      result.textContent = '';
       alert('요청 실패: ' + err.message);
     } finally {
       btn.disabled = false;
