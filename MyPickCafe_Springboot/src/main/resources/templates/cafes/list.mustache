@@ -150,6 +150,11 @@
   tabBtn.addEventListener('click', () => {
     mainContent.style.display    = 'none';
     pickBotSection.style.display = 'block';
+    // 서버가 그린 정렬 탭의 선택 표시를 해제해 픽봇 탭만 선택된 상태로 보이게 함
+    tabBtn.parentElement.querySelectorAll('a').forEach(tab => {
+      tab.style.background = 'none';
+      tab.style.color      = 'var(--text-sub)';
+    });
     tabBtn.style.background = 'var(--accent)';
     tabBtn.style.color      = '#fff';
     input.focus();
