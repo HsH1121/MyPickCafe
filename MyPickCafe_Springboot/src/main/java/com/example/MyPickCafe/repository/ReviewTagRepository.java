@@ -24,13 +24,13 @@ public interface ReviewTagRepository extends JpaRepository<ReviewTag, Long> {
 """, nativeQuery = true)
     List<Object[]> findGoodLikeTagCountsForCafeId(@Param("cafeId") Long cafeId);
 
-    /* 카페의 긍정(GOOD) 리뷰 태그를 카테고리·코드별 집계 (cnt 내림차순) */
+    /* 카페의 부정(BAD)이 아닌 리뷰(GOOD·NULL) 태그를 카테고리·코드별 집계 (cnt 내림차순) */
     @Query(value = """
         SELECT t.category_code, t.code, COUNT(*) AS cnt
           FROM review_tag t
           JOIN review r ON r.review_id = t.review_id
          WHERE r.cafe_id = :cafeId
-           AND r.sentiment = 'GOOD'
+           AND r.sentiment IS DISTINCT FROM 'BAD'
            AND t.category_code IN ('FACILITY','MENU','PURPOSE','MOOD')
          GROUP BY t.category_code, t.code
          ORDER BY t.category_code, cnt DESC
