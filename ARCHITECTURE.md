@@ -337,7 +337,7 @@ com.example.MyPickCafe
 | `prod` | `ddl-auto=validate` | 내부 정보 미노출 | on | off |
 | `test` | H2 인메모리, `create-drop` | — | off | off |
 
-> 기존 배포 기록은 `dev` 프로파일입니다. 현재 서버의 실제 프로파일은 이번 코드 점검에서 재확인하지 않았습니다. `prod` 전환 시 스키마가 미리 준비되어 있어야 하고(`ddl-auto=validate`), `CORS_ALLOWED_ORIGINS`가 필수입니다.
+> 배포 서버는 `prod` 프로파일로 변경했습니다(2026-09-29 운영자 확인). 저장소 Compose의 기본값과 로컬 개발 설정은 `dev`이므로 배포 서버 설정과 구분합니다. `prod`는 준비된 스키마를 검증하고(`ddl-auto=validate`), `CORS_ALLOWED_ORIGINS` 설정이 필요합니다.
 
 ---
 
@@ -632,7 +632,7 @@ cd MyPickCafe_Springboot
 
 ## 현재 한계 (코드 기준)
 
-- **배포**: AWS EC2에 Docker Compose로 배포되어 있으나, HTTPS·도메인이 없어 IP + 포트(HTTP)로 접속합니다. CI/CD 파이프라인은 없고, 배포는 EC2에서 `git pull` 후 `docker compose up -d --build`로 수행합니다. 기존 기록상 `dev` 프로파일을 사용하며, 현재 서버 상태·접속 가능 여부는 별도 확인이 필요합니다.
+- **배포**: AWS EC2에 Docker Compose로 배포되어 있으나, HTTPS·도메인이 없어 IP + 포트(HTTP)로 접속합니다. CI/CD 파이프라인은 없고, 배포는 EC2에서 `git pull` 후 `docker compose up -d --build`로 수행합니다. 배포 서버 프로파일은 `prod`로 변경했습니다(2026-09-29 운영자 확인). 현재 서버 상태·접속 가능 여부와 HTTPS 적용 여부는 이번 문서 수정에서 직접 재확인하지 않았습니다.
 - **인증**: refresh 토큰이 없어 액세스 토큰이 만료되면 다시 로그인해야 합니다. 폼 로그인(`POST /login`)에는 평문 비교 폴백과 `Secure=false` 고정 쿠키가 남아 있습니다. ([인증 · 인가](#인증--인가) 참고)
 - **설정 관리**: 설정 공급 경로가 루트 `.env`(Docker) / IDE 실행 설정 / `secret.properties` 세 갈래로 나뉘어 있습니다. 같은 값을 여러 곳에 적어야 하는 구간이 있어 통합 여지가 있습니다.
 - **지도 탐색 페이지**: 초기 목록과 마커는 `MapController`에 하드코딩된 샘플 장소 2건입니다(DB 연동 아님). 검색 결과는 Kakao 키워드 검색을 사용합니다.
