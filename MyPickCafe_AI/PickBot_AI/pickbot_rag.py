@@ -266,11 +266,11 @@ class CafeRAG:
 
         # 3-a. 지역 말고 다른 조건이 없으면 벡터 검색 없이 긍정 리뷰 수로 순위를 매긴다
         if not parsed.purpose:
-            return {"results": await self._rank_without_purpose(candidates, top_n), "notice": None}
+            return {"results": await self._rank_with_only_region(candidates, top_n), "notice": None}
 
         # 3-b. 조건 문장으로 리뷰 벡터 검색 (지역을 걸렀으면 후보 카페로 제한)
         candidate_ids = [str(c["cafe_id"]) for c in candidates] if region_filtered else None
-        top_cafes = await self._search_top_cafes(parsed.purpose, candidate_ids, top_n)
+        top_cafes = await self._rag_cafes(parsed.purpose, candidate_ids, top_n)
         if not top_cafes:
             return {"results": [], "notice": None}
 
@@ -290,7 +290,7 @@ class CafeRAG:
                 logger.warning("카페 목록 갱신 실패, 이전 캐시 사용: %s", e)
         return self._directory
 
-    async def _rank_without_purpose(self, candidates: list[dict], top_n: int) -> list[dict]:
+    async def _rank_with_only_region(self, candidates: list[dict], top_n: int) -> list[dict]:
         """조건 문장이 없을 때 — 긍정(GOOD) 리뷰 수, 같으면 전체 리뷰 수 순. 추천 문구는 대표 리뷰."""
         ranked = sorted(
             (c for c in candidates if c["review_count"] > 0),
@@ -313,7 +313,7 @@ class CafeRAG:
             for c in ranked
         ]
 
-    async def _search_top_cafes(self, text: str, candidate_ids: list[str] | None, top_n: int) -> list[dict]:
+    async def _rag_cafes(self, text: str, candidate_ids: list[str] | None, top_n: int) -> list[dict]:
         """카페당 가장 유사한 리뷰 1개씩, 최대 top_n개를 모아 모두 LLM에 전달한다."""
         # 선택한 카페는 제외하고 부족분만 재조회해 서로 다른 카페를 확보한다.
         target = top_n  # 기본값: 카페 5곳의 리뷰 5개
@@ -324,18 +324,18 @@ class CafeRAG:
         sel_metas, sel_distances = [], []
 
         while len(sel_metas) < target:
-            need = target - len(sel_metas)
+            necessary = target - len(sel_metas)
             batch = self._col.query(
                 query_embeddings=[query_emb],
-                n_results=min(need, total),
+                n_results=min(necessary, total),
                 where=_where(candidate_ids, excluded),
             )
             added = 0
             for meta, dist in zip(batch["metadatas"][0], batch["distances"][0]):
-                cid = meta["cafe_id"]
-                if cid in excluded:
+                cafe_id = meta["cafe_id"]
+                if cafe_id in excluded:
                     continue
-                excluded.add(cid)
+                excluded.add(cafe_id)
                 sel_metas.append(meta)
                 sel_distances.append(dist)
                 added += 1
@@ -351,11 +351,11 @@ class CafeRAG:
         # 카페별 최고 유사도 점수로 그룹핑
         cafe_map: dict[str, dict] = {}
         for meta, dist in zip(sel_metas, sel_distances):
-            cid   = meta["cafe_id"]
+            cafe_id   = meta["cafe_id"]
             score = 1.0 - dist  # cosine distance → similarity
-            if cid not in cafe_map or cafe_map[cid]["score"] < score:
-                cafe_map[cid] = {
-                    "cafe_id":   int(cid),
+            if cafe_id not in cafe_map or cafe_map[cafe_id]["score"] < score:
+                cafe_map[cafe_id] = {
+                    "cafe_id":   int(cafe_id),
                     "cafe_name": meta["cafe_name"],
                     "address":   meta["address"],
                     "review":    meta["review"],
@@ -381,7 +381,7 @@ class CafeRAG:
                 max_tokens=_PICK_MAX_TOKENS,
                 reasoning_effort=_PICK_REASONING_EFFORT,
             )
-            picks, stats = select_picks(raw, top_cafes)
+            picks, stats = validate_llm_response_and_select_cafes(raw, top_cafes)
         except Exception as e:
             logger.warning("LLM 호출 실패, 검색 결과 직접 반환: %s", e)
             return [
@@ -399,7 +399,8 @@ class CafeRAG:
             f"[요구사항 판정] 조건: {purpose!r}\n"
             f"  요구사항: {stats['requirements']}\n"
             f"  모두 충족 {stats['full_match']}곳"
-            f"{' → 충족 카페가 없어 유사도 1위만 반환' if stats['fallback_top1'] else ''}"
+            f"{' → 일부 충족 후보 중 유사도 1위만 반환' if stats['fallback_top1'] else ''}"
+            f"{' → 충족 조건이 있는 후보가 없어 빈 목록 반환' if not picks else ''}"
             f", 무시한 응답 항목 {stats['ignored']}개\n"
             + "\n".join(f"  [{cid}] 충족={v['matched']} 누락={v['missing']}" for cid, v in stats["verdicts"].items())
             + "\n" + "=" * 70
@@ -428,12 +429,13 @@ def build_pick_user_message(purpose: str, top_cafes: list[dict]) -> str:
     )
 
 
-def select_picks(raw: dict, top_cafes: list[dict]) -> tuple[list[dict], dict]:
+def validate_llm_response_and_select_cafes(raw: dict, top_cafes: list[dict]) -> tuple[list[dict], dict]:
     """LLM 요구사항 판정으로 반환할 카페를 고른다. 테스트(test_pick_llm.py)도 같은 함수를 쓴다.
 
     - 요구사항을 하나도 빠짐없이 충족(missing 이 빈 배열)한 카페를 전부, 벡터 유사도 순으로 반환한다.
-    - 모두 충족한 카페가 없으면 벡터 유사도 1위 카페 하나만 반환한다.
+    - 모두 충족한 카페가 없으면 일부 조건을 충족한 후보 중 벡터 유사도 1위만 반환한다.
       이때 추천 이유는 LLM 이 충족한 조건만 근거로 쓴 snippet 이다.
+    - 조건을 하나라도 충족한 후보가 없으면 빈 목록을 반환한다.
     - 후보에 없는 cafeId, 중복, 형식이 틀린 항목은 무시하고, 판정이 없는 후보는 미충족으로 본다.
     - top_cafes 는 유사도 내림차순이고 비어 있지 않아야 한다.
     """
@@ -460,8 +462,18 @@ def select_picks(raw: dict, top_cafes: list[dict]) -> tuple[list[dict], dict]:
         missing = verdict.get("missing")
         return isinstance(missing, list) and not missing
 
-    full = [c for c in top_cafes if c["cafe_id"] in verdicts and all_met(verdicts[c["cafe_id"]])]
-    chosen = full or top_cafes[:1]
+    def any_met(verdict: dict) -> bool:
+        matched = verdict.get("matched")
+        return isinstance(matched, list) and any(
+            isinstance(condition, str) and condition.strip() for condition in matched
+        )
+
+    matched_cafes = [
+        c for c in top_cafes
+        if c["cafe_id"] in verdicts and any_met(verdicts[c["cafe_id"]])
+    ]
+    full = [c for c in matched_cafes if all_met(verdicts[c["cafe_id"]])]
+    chosen = full or matched_cafes[:1]
 
     picks = []
     for c in chosen:
@@ -478,7 +490,7 @@ def select_picks(raw: dict, top_cafes: list[dict]) -> tuple[list[dict], dict]:
     stats = {
         "requirements":  requirements,
         "full_match":    len(full),
-        "fallback_top1": not full,
+        "fallback_top1": bool(chosen) and not full,
         "ignored":       ignored,
         "verdicts":      {cid: {"matched": v.get("matched"), "missing": v.get("missing")} for cid, v in verdicts.items()},
     }
