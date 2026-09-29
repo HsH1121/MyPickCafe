@@ -9,6 +9,10 @@ from src import create_cafe_dummy
 from src import create_cafeowner_dummy
 from src import create_user_dummy
 from src import create_review_dummy
+from local_llm import ensure_local_qwen
+
+# 체크포인트·SQL 파일을 건드리기 전에, 로컬 Ollama qwen 환경이 아니면 여기서 멈춘다.
+ensure_local_qwen()
 
 # -----------------------------------------------
 # 옵션: 생성 횟수 설정

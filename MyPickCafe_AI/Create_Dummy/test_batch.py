@@ -4,6 +4,10 @@ sys.stdout.reconfigure(encoding='utf-8')
 import json
 import ollama
 
+from local_llm import ensure_local_qwen
+
+ensure_local_qwen()  # 로컬 Ollama qwen 환경이 아니면 여기서 멈춘다
+
 _SYSTEM_PROMPT = """당신은 한국 카페 리뷰를 분석하는 전문 AI입니다.
 
 ## 임무
