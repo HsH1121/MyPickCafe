@@ -268,6 +268,7 @@ public class CafeController {
 
         // 4) 기본 모델
         model.addAttribute("cafe", cafe);
+        model.addAttribute("ownerNickname", cafe.getOwner() != null ? cafe.getOwner().getNickname() : "");
         model.addAttribute("mainPhoto", mainPhoto);
         model.addAttribute("isOwner", isOwner);
         model.addAttribute("isAdmin", isAdmin);
