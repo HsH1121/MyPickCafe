@@ -11,11 +11,14 @@ _REVIEW_TAG_AI_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'Review_Tag_AI')
 )
 sys.path.insert(0, _REVIEW_TAG_AI_DIR)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from config import Settings
-from llm_client import call_llm
+# LLM 은 local_llm 을 거쳐 로컬 Ollama qwen 으로만 부른다(.env 의 LLM_* 는 쓰지 않는다).
+from local_llm import call_qwen
+from schemas import ReviewRequest
 from prompt_builder import (
     SYSTEM_PROMPT,
+    build_user_message,
     ALLOWED_FACILITY_TAGS,
     ALLOWED_MENU_TAGS,
     ALLOWED_PURPOSE_TAGS,
@@ -33,39 +36,32 @@ ALLOWED_TAGS = {
     "MOOD":     ALLOWED_MOOD_TAGS,
 }
 
-_settings         = Settings()
 _VALID_SENTIMENTS = frozenset({"GOOD", "BAD"})
 
 
-def _extract_tags_batch(contents: list[str], attempt: int = 0) -> list[dict]:
-    numbered     = "\n".join(f"{i+1}. {c}" for i, c in enumerate(contents))
-    user_message = f"리뷰 목록:\n{numbered}\n\n각 리뷰를 분석하여 JSON으로 반환하세요."
-
+async def _extract_tags(content: str) -> dict:
+    # 서비스(/review/analyze)와 같은 프롬프트·메시지로 리뷰 1건씩 분석한다.
+    # SYSTEM_PROMPT 가 리뷰 1건 → 객체 1개 형식이라, 여러 건을 묶어 보내면 결과가 합쳐진다.
+    # 재시도는 call_llm 내부에서 한다.
     try:
-        raw     = asyncio.run(call_llm(
+        raw = await call_qwen(
             system_prompt=SYSTEM_PROMPT,
-            user_message=user_message,
-            model=_settings.llm_model,
-            base_url=_settings.llm_base_url,
-            api_key=_settings.llm_api_key,
-            timeout=_settings.llm_timeout,
-        ))
-        results = raw.get('results', [])
-        while len(results) < len(contents):
-            results.append({})
-        return [
-            {
-                **{cat: [tag for tag in (r.get(cat) or []) if tag in allowed]
-                   for cat, allowed in ALLOWED_TAGS.items()},
-                'sentiment': r.get('sentiment') if r.get('sentiment') in _VALID_SENTIMENTS else None,
-            }
-            for r in results[:len(contents)]
-        ]
+            user_message=build_user_message(ReviewRequest(reviewId=0, reviewText=content)),
+        )
     except Exception as e:
-        if attempt < 2:
-            return _extract_tags_batch(contents, attempt + 1)
-        print(f"  [경고] 배치 태그 추출 실패, 빈 태그로 처리: {e}")
-        return [{**{cat: [] for cat in ALLOWED_TAGS}, 'sentiment': None} for _ in contents]
+        print(f"  [경고] 태그 추출 실패, 빈 태그로 처리: {e}")
+        return {**{cat: [] for cat in ALLOWED_TAGS}, 'sentiment': None}
+    return {
+        **{cat: [tag for tag in (raw.get(cat) or []) if tag in allowed]
+           for cat, allowed in ALLOWED_TAGS.items()},
+        'sentiment': raw.get('sentiment') if raw.get('sentiment') in _VALID_SENTIMENTS else None,
+    }
+
+
+def _extract_tags_batch(contents: list[str]) -> list[dict]:
+    async def _run() -> list[dict]:
+        return list(await asyncio.gather(*(_extract_tags(c) for c in contents)))
+    return asyncio.run(_run())
 
 
 def count_reviews(min_length: int = MIN_LENGTH) -> tuple[int, int]:

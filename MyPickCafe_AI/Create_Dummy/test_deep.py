@@ -10,6 +10,10 @@ sys.stdout.reconfigure(encoding='utf-8')
 import json
 import ollama
 
+from local_llm import ensure_local_qwen
+
+ensure_local_qwen()  # 로컬 Ollama qwen 환경이 아니면 여기서 멈춘다
+
 MODEL        = "qwen2.5:14b"
 NUM_PREDICT  = 1000
 TEMPERATURE  = 0.0
