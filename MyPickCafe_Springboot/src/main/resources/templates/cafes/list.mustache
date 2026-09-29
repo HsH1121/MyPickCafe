@@ -146,19 +146,51 @@
   const input      = document.getElementById('chatInput');
   const sendBtn    = document.getElementById('chatSendBtn');
   const messages   = document.getElementById('chatMessages');
+  const sortTabs   = tabBtn.parentElement.querySelectorAll('a');
 
-  tabBtn.addEventListener('click', () => {
+  // 픽봇 대화와 탭 상태를 브라우저 탭이 닫힐 때까지 유지 (새로고침·상세 페이지 왕복에도 복원)
+  const STORAGE_KEY = 'pickbot.state';
+  const state = loadState();
+
+  function loadState() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+      if (saved && Array.isArray(saved.history)) return saved;
+    } catch (e) { /* 저장소를 쓸 수 없으면 빈 상태로 시작 */ }
+    return { active: false, history: [] };
+  }
+
+  function saveState() {
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* 무시 */ }
+  }
+
+  function showPickBot() {
     mainContent.style.display    = 'none';
     pickBotSection.style.display = 'block';
     // 서버가 그린 정렬 탭의 선택 표시를 해제해 픽봇 탭만 선택된 상태로 보이게 함
-    tabBtn.parentElement.querySelectorAll('a').forEach(tab => {
+    sortTabs.forEach(tab => {
       tab.style.background = 'none';
       tab.style.color      = 'var(--text-sub)';
     });
     tabBtn.style.background = 'var(--accent)';
     tabBtn.style.color      = '#fff';
+  }
+
+  tabBtn.addEventListener('click', () => {
+    showPickBot();
+    state.active = true;
+    saveState();
     input.focus();
   });
+
+  // 정렬 탭으로 이동하면 다음 로드 때 픽봇 탭을 다시 열지 않음
+  sortTabs.forEach(tab => tab.addEventListener('click', () => {
+    state.active = false;
+    saveState();
+  }));
+
+  state.history.forEach(renderEntry);
+  if (state.active) showPickBot();
 
   sendBtn.addEventListener('click', sendMessage);
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
@@ -167,7 +199,7 @@
     const query = input.value.trim();
     if (!query) return;
 
-    appendMsg(query, 'user');
+    addEntry({ kind: 'user', text: query });
     input.value = '';
     sendBtn.disabled = true;
 
@@ -189,34 +221,50 @@
         const msg = data && data.notice === 'REGION_NOT_FOUND'
           ? '해당 지역에는 등록된 카페가 없어요.'
           : '조건에 맞는 카페를 찾지 못했어요. 다른 표현으로 다시 시도해 보세요.';
-        appendMsg(`${msg} (${elapsedSec()}초)`, 'bot');
+        addEntry({ kind: 'bot', text: `${msg} (${elapsedSec()}초)` });
         return;
       }
-      const html = results.map(c => `
-        <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:8px">
-          ${c.mainPhoto
-            ? `<a href="/cafes/${esc(c.cafeId)}" style="flex-shrink:0">
-                 <img src="${esc(c.mainPhoto)}" alt="${esc(c.cafeName)}"
-                      style="width:80px;height:80px;object-fit:cover;border-radius:8px;display:block"/>
-               </a>`
-            : `<div style="flex-shrink:0;width:80px;height:80px;border-radius:8px;
-                           background:var(--surface-alt,#f3f4f6);display:flex;align-items:center;
-                           justify-content:center;font-size:24px">☕</div>`}
-          <div style="min-width:0">
-            <a href="/cafes/${esc(c.cafeId)}"
-               style="font-weight:700;color:var(--accent);text-decoration:none;font-size:14px">${esc(c.cafeName)}</a>
-            <p style="margin:2px 0 0;font-size:12px;color:var(--text-muted)">${esc(c.address || '')}</p>
-            ${c.snippet ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">"${esc(c.snippet)}"</p>` : ''}
-          </div>
-        </div>
-      `).join('<hr style="border:none;border-top:1px solid var(--border);margin:6px 0">');
-      appendHtml(`<p style="margin:0 0 8px;font-size:13px;font-weight:600">추천 카페 ${results.length}곳을 찾았어요! <span style="font-weight:400;color:var(--text-muted)">(${elapsedSec()}초)</span></p>${html}`, 'bot');
+      addEntry({ kind: 'results', results, elapsed: elapsedSec() });
     })
     .catch(() => {
       loadingEl.remove();
-      appendMsg(`일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요. (${elapsedSec()}초)`, 'error');
+      addEntry({ kind: 'error', text: `일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요. (${elapsedSec()}초)` });
     })
     .finally(() => { sendBtn.disabled = false; });
+  }
+
+  // 대화 한 건을 화면에 그리고 저장
+  function addEntry(entry) {
+    state.history.push(entry);
+    saveState();
+    renderEntry(entry);
+  }
+
+  function renderEntry(entry) {
+    if (entry.kind === 'results') renderResults(entry.results, entry.elapsed);
+    else appendMsg(entry.text, entry.kind);
+  }
+
+  function renderResults(results, elapsed) {
+    const html = results.map(c => `
+      <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:8px">
+        ${c.mainPhoto
+          ? `<a href="/cafes/${esc(c.cafeId)}" style="flex-shrink:0">
+               <img src="${esc(c.mainPhoto)}" alt="${esc(c.cafeName)}"
+                    style="width:80px;height:80px;object-fit:cover;border-radius:8px;display:block"/>
+             </a>`
+          : `<div style="flex-shrink:0;width:80px;height:80px;border-radius:8px;
+                         background:var(--surface-alt,#f3f4f6);display:flex;align-items:center;
+                         justify-content:center;font-size:24px">☕</div>`}
+        <div style="min-width:0">
+          <a href="/cafes/${esc(c.cafeId)}"
+             style="font-weight:700;color:var(--accent);text-decoration:none;font-size:14px">${esc(c.cafeName)}</a>
+          <p style="margin:2px 0 0;font-size:12px;color:var(--text-muted)">${esc(c.address || '')}</p>
+          ${c.snippet ? `<p style="margin:4px 0 0;font-size:12px;color:var(--text);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">"${esc(c.snippet)}"</p>` : ''}
+        </div>
+      </div>
+    `).join('<hr style="border:none;border-top:1px solid var(--border);margin:6px 0">');
+    appendHtml(`<p style="margin:0 0 8px;font-size:13px;font-weight:600">추천 카페 ${results.length}곳을 찾았어요! <span style="font-weight:400;color:var(--text-muted)">(${esc(elapsed)}초)</span></p>${html}`, 'bot');
   }
 
   function appendMsg(text, type) {
