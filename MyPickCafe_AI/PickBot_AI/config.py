@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     llm_api_key:    str = ""
     llm_model:      str = "qwen2.5:14b"
     llm_timeout:    int = 60
+    # LLM 2차 호출(추천 선택)의 추론량. 추론 모델(glm-5p3-flash)은 "low" 가 필요하고
+    # (pickbot_rag._PICK_MAX_TOKENS 주석 참고), 비추론 모델(qwen2.5)은 이 값을 보내면 400 이 난다.
+    # 그래서 기본값은 비워 로컬 Ollama 에 맞추고, 배포 환경은 compose 가 "low" 를 주입한다.
+    llm_reasoning_effort: str = ""
 
     # 임베딩 (Ollama 네이티브 /api/embed) — LLM 과 다른 서버를 가리킬 수 있다
     embed_base_url: str = "http://127.0.0.1:11434"

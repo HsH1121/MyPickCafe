@@ -490,6 +490,7 @@ cp .env.example .env
 | `JWT_SECRET` | 필수 | Base64 문자열 (`openssl rand -base64 48`) |
 | `POSTGRES_DB`, `POSTGRES_USER` | | 기본값 `mypickcafe` |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT` | | `.env.example`에 기본값 있음 |
+| `LLM_REASONING_EFFORT` | | 픽봇 2차 호출의 추론량. 생략하면 `low`(glm-5p3-flash에 필요). 비추론 모델이면 빈 값 |
 | `KAKAO_JS_KEY`, `KAKAO_REST_KEY` | | 없으면 지도만 동작하지 않습니다 |
 
 ```bash
@@ -572,15 +573,16 @@ cp secret.properties.example secret.properties   # 3번 방식을 쓸 경우
 #### 3. AI 서버 (FastAPI)
 
 ```bash
-# 임베딩 모델만 준비합니다. LLM은 외부 API를 호출하므로 pull이 필요 없습니다.
+# 로컬은 LLM도 Ollama에서 돌립니다(qwen2.5:14b). 배포 환경만 외부 API(GLM 5.3 Flash)를 씁니다.
 ollama pull bge-m3
+ollama pull qwen2.5:14b
 
 cd MyPickCafe_AI
 pip install -r requirements.txt
 python app.py            # uvicorn, 0.0.0.0:8000, reload
 ```
 
-`MyPickCafe_AI/.env`에 필요한 값:
+`MyPickCafe_AI/.env`에 필요한 값 (`LLM_*`는 적지 않으면 코드 기본값인 로컬 Ollama · `qwen2.5:14b`를 씁니다. 배포 환경은 compose가 루트 `.env` 값을 주입합니다):
 
 | 키 | 설명 |
 |---|---|
