@@ -2,18 +2,18 @@
 
 리뷰 데이터를 기반으로 카페를 탐색하고 추천받는 웹 서비스입니다.
 
-**🔗 배포 주소: http://15.165.105.231:8080** (배포 일시중지)
+**🔗 배포 주소: http://15.165.105.231:8080**
 
 ## 개요
 
-Spring Boot 웹 애플리케이션이 카페·리뷰·회원 기능을 제공하고, FastAPI 서버가 RAG 파이프라인으로 리뷰 태그 분석과 카페 추천을 담당합니다. 임베딩은 서버 내 Ollama에서, LLM 추론은 외부 API에서 처리합니다.
+Spring Boot 웹 애플리케이션이 카페·리뷰·회원 기능을 제공하고, FastAPI 서버가 리뷰 태그 분석과 RAG 기반 카페 추천(픽봇)을 담당합니다. 임베딩은 서버 내 Ollama에서, LLM 추론은 외부 API에서 처리합니다.
 
 전체 서비스는 Docker Compose로 컨테이너 5개를 구성해 AWS EC2에 배포되어 있습니다.
 
 ## 핵심 기술
 
 - Java 17 / Spring Boot 3.5.5 (`web`, `data-jpa`, `validation`, `mustache`)
-- Spring Security + JWT(stateless), BCrypt
+- Spring Security + JWT(세션 미사용), BCrypt
 - JPA + PostgreSQL 16 (`docker-compose.yml`)
 - FastAPI + ChromaDB
 - 임베딩: `bge-m3` (Ollama 셀프 호스팅)
@@ -38,22 +38,28 @@ flowchart LR
 
 ## 설계 포인트
 
-- **JWT stateless + 토큰 무효화** — 세션을 쓰지 않고(`SessionCreationPolicy.STATELESS`) JWT로 요청마다 인증합니다. 로그아웃하면 회원의 `tokenVersion`을 1 올려, 이미 발급된 토큰도 즉시 무효가 됩니다. → [상세](ARCHITECTURE.md#인증--인가)
-- **지역은 필터로, 조건은 검색으로 — LLM 2회 호출** — 리뷰 본문만 임베딩한 인덱스로는 "건대입구" 같은 지역을 벡터로 찾을 수 없어(리뷰에 지역 언급이 거의 없고 "홍대입구"와도 구분되지 않음), 1차 호출로 질문을 지역과 그 밖의 조건으로 나눕니다. 지역은 카페 주소로 먼저 걸러 후보를 좁히고, 조건 문장만 `bge-m3`로 임베딩해 ChromaDB에서 유사 리뷰를 찾습니다. 2차 호출은 후보 카페가 조건을 충족하는지 판정만 하고, 반환할 카페는 코드가 정합니다. 서로 다른 카페에서 가장 유사한 리뷰를 1개씩, 기본 최대 5개 선정해 모두 2차 호출에 전달합니다. 선택한 카페는 제외하고 부족분을 추가 검색하며, 후보가 부족하면 확보된 리뷰만 전달합니다. → [상세](ARCHITECTURE.md#주요-동작-흐름)
+- **세션 미사용 JWT 인증 + `tokenVersion` 기반 즉시 무효화** — Spring Security 세션을 만들지 않고(`SessionCreationPolicy.STATELESS`) 요청마다 JWT로 인증합니다. 토큰에 담긴 `tokenVersion`을 요청마다 DB의 회원 값과 비교하므로, 로그아웃 시 이 값을 1 올리면 이미 발급된 토큰도 즉시 무효가 됩니다. 세션은 두지 않되 무효화를 위해 요청마다 DB 조회를 감수한 선택입니다. → [상세](ARCHITECTURE.md#인증--인가)
+- **지역은 필터로, 조건은 검색으로 — LLM 2회 호출** — 리뷰 본문 중심의 벡터 검색만으로는 "건대입구" 같은 지역 조건을 안정적으로 보장하기 어렵기 때문에(리뷰에 지역 언급이 거의 없고, 의미상 "홍대입구"와 잘 구분되지 않음) 1차 호출로 질문을 지역과 그 밖의 조건으로 나눕니다. 지역은 카페 주소 기반 정형 필터로 먼저 걸러 후보를 좁히고, 조건 문장만 `bge-m3`로 임베딩해 ChromaDB에서 유사 리뷰를 찾습니다. 2차 호출은 후보 카페가 조건을 충족하는지 판정만 하고, 반환할 카페는 코드가 정합니다. 서로 다른 카페에서 가장 유사한 리뷰를 1개씩, 기본 최대 5개 선정해 모두 2차 호출에 전달합니다. 선택한 카페는 제외하고 부족분을 추가 검색하며, 후보가 부족하면 확보된 리뷰만 전달합니다. → [상세](ARCHITECTURE.md#주요-동작-흐름)
 - **니즈 태그 기반 자카르드 추천** — 사용자 니즈와 카페 태그의 교집합 크기를 합집합 크기로 나눠 순위를 정합니다. 점수 계산 전에 DB에서 승인된(`APPROVED`) 카페의 태그만 조회하고, 점수가 0인 카페는 제외합니다. 추천 카드의 대표 사진도 DB에서 카페당 한 행만 조회합니다. → [상세](ARCHITECTURE.md#3-니즈-기반-추천)
-- **역할이 아닌 리소스 단위 인가** — "카페 점주"인지가 아니라 "이 카페의 점주"인지를 `CafeOwnershipGuard`와 컨트롤러 내부 검증이 확인합니다. → [상세](ARCHITECTURE.md#인증--인가)
+- **역할 + 리소스 소유권 기반 인가** — "카페 점주(`CAFEOWNER`)"인지는 역할로 먼저 검사하고, 그에 더해 "이 카페의 점주"인지를 `CafeOwnershipGuard` 등 리소스 소유권 검증으로 확인합니다(관리자는 소유권 검증 예외). → [상세](ARCHITECTURE.md#인증--인가)
 - **AI 서버 장애 격리** — 리뷰 태그 분석은 `WebClient`에 연결 2초·응답 10초 타임아웃을 두고, 호출이 실패하면 예외 대신 빈 결과를 돌려줍니다. 리뷰는 태그 없이 정상 저장됩니다 (`AiClientDegradationTest`로 검증). 반면 사용자가 결과를 기다리는 픽봇 추천은 실패를 빈 결과로 흡수하면 "조건에 맞는 카페 없음"과 구분되지 않으므로, 실패 원인을 분류해 로그로 남기고 `503`을 반환합니다. → [상세](ARCHITECTURE.md#주요-동작-흐름)
-- **LLM 추론과 임베딩의 분리 배치** — 개발 단계에서는 로컬 Ollama로 LLM과 임베딩을 모두 처리했으나, GPU가 없는 EC2 환경에서는 14B 모델 서빙이 불가능했습니다. 무거운 LLM 추론은 OpenAI 호환 외부 API로 분리하고, 가벼운 임베딩 모델(`bge-m3`)은 서버 내 Ollama에 유지해 기존 벡터 인덱스와의 일관성을 확보했습니다. 클라이언트를 OpenAI 호환 규격으로 작성해 `base_url` 변경만으로 로컬/원격 전환이 가능합니다.
+- **LLM 추론과 임베딩의 분리 배치** — 개발 단계에서는 로컬 Ollama로 LLM과 임베딩을 모두 처리했으나, GPU가 없는 EC2 환경에서는 14B 모델 서빙이 불가능했습니다. 무거운 LLM 추론은 OpenAI 호환 외부 API로 분리하고, 가벼운 임베딩 모델(`bge-m3`)은 서버 내 Ollama에 유지해 기존 벡터 인덱스와의 일관성을 확보했습니다. 클라이언트를 OpenAI 호환 인터페이스로 통일해, 코드 수정 없이 환경변수(`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` 등) 변경만으로 로컬/원격 모델을 전환할 수 있습니다.
 
 ## 실행 방법
 
 ```bash
-cp .env.example .env    # POSTGRES_PASSWORD, LLM_API_KEY, JWT_SECRET 입력
+cp .env.example .env
+# .env에 POSTGRES_PASSWORD, LLM_API_KEY, JWT_SECRET 입력
+
 docker compose up -d --build
-# http://localhost:8080
 ```
 
-루트 `.env`에 `POSTGRES_PASSWORD`, `LLM_API_KEY`, `JWT_SECRET`이 필요합니다. 자세한 실행법은 [ARCHITECTURE.md](ARCHITECTURE.md#로컬-실행-방법)를 참고하세요.
+실행 후 http://localhost:8080 으로 접속합니다.
+
+- 임베딩 모델(`bge-m3`)은 compose의 `ollama-init` 컨테이너가 자동으로 내려받으므로 `ollama pull`을 따로 실행할 필요가 없습니다. 모델은 볼륨에 저장되어 재실행 시 다시 받지 않습니다.
+- 지도 탐색 페이지를 쓰려면 `KAKAO_JS_KEY`, `KAKAO_REST_KEY`도 입력합니다. 비워 두면 지도만 동작하지 않습니다.
+
+자세한 실행법은 [ARCHITECTURE.md](ARCHITECTURE.md#로컬-실행-방법)를 참고하세요.
 
 ---
 
