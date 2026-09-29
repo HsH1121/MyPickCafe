@@ -52,9 +52,7 @@
 
           <div class="cg-chips" style="margin-bottom:16px">
             {{#cafeTags}}
-              <button class="cg-chip" data-category="{{cafe.code}}" data-tag="{{code}}">
-                {{code}}{{#count}}<span class="cg-badge cg-badge--accent" style="margin-left:4px">{{count}}</span>{{/count}}
-              </button>
+              <button class="cg-chip" data-category="{{categoryCode}}" data-tag="{{code}}">{{label}}</button>
             {{/cafeTags}}
             {{^cafeTags}}<span class="cg-muted">등록된 태그 없음</span>{{/cafeTags}}
           </div>

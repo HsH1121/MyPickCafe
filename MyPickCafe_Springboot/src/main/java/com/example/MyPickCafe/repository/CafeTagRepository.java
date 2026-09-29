@@ -18,6 +18,9 @@ public interface CafeTagRepository extends JpaRepository<CafeTag, Long> {
     @Query(value = "DELETE FROM cafe_tag WHERE cafe_id = :cafeId", nativeQuery = true)
     void deleteCafeTagsForCafeId(@Param("cafeId") Long cafeId);
 
+    /** 카페 상세 화면용 — 해당 카페의 대표 태그 행 전부. */
+    List<CafeTag> findByCafe_Id(Long cafeId);
+
     /**
      * 추천 후보가 되는 카페의 태그를 {@code 카테고리:코드} 문자열로 조회한다.
      *

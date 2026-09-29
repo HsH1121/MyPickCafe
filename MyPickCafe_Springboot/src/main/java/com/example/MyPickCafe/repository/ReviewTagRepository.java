@@ -11,19 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 public interface ReviewTagRepository extends JpaRepository<ReviewTag, Long> {
-    /* 좋아요 태그 집계 (GOOD 리뷰만) */
-    @Query(value = """
-    SELECT t.code AS code, COUNT(*) AS cnt
-      FROM review_tag t
-      JOIN review r ON r.review_id = t.review_id
-     WHERE r.cafe_id = :cafeId
-       AND t.category_code = 'LIKE'
-       AND r.sentiment = 'GOOD'
-     GROUP BY t.code
-     ORDER BY cnt DESC
-""", nativeQuery = true)
-    List<Object[]> findGoodLikeTagCountsForCafeId(@Param("cafeId") Long cafeId);
-
     /* 카페의 부정(BAD)이 아닌 리뷰(GOOD·NULL) 태그를 카테고리·코드별 집계 (cnt 내림차순) */
     @Query(value = """
         SELECT t.category_code, t.code, COUNT(*) AS cnt
