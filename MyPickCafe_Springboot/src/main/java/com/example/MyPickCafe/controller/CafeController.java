@@ -192,6 +192,12 @@ public class CafeController {
                 .collect(Collectors.toList());
 
         var cafeInfoOpt = cafeInfoService.findByCafeId(cafeId);
+        // 상세 정보가 아직 없어도 관리 화면의 입력 필드는 렌더링되어야 한다.
+        model.addAttribute("infoOpenTime", "");
+        model.addAttribute("infoCloseTime", "");
+        model.addAttribute("infoHoliday", "");
+        model.addAttribute("infoNotice", "");
+        model.addAttribute("infoInfo", "");
         cafeInfoOpt.ifPresent(ci -> {
             model.addAttribute("infoId",        ci.getId());
             model.addAttribute("infoOpenTime",  ci.getOpenTime() != null  ? ci.getOpenTime()  : "");
