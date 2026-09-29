@@ -270,8 +270,7 @@
 <script>
 (function () {
   const CAFE_ID = {{cafe.id}};
-  const token   = () => localStorage.getItem('accessToken');
-  const headers = () => ({ 'Authorization': `Bearer ${token()}` });
+  // 페이지 로그인과 동일한 HttpOnly AT 쿠키로 인증한다.
 
   // ── 기본 정보 저장 ──
   document.getElementById('btnSaveInfo').addEventListener('click', async () => {
@@ -288,7 +287,8 @@
     try {
       const res = await fetch(`/api/cafe-infos/upsert/${CAFE_ID}`, {
         method: 'POST',
-        headers: { ...headers(), 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error(await res.text());
@@ -311,7 +311,7 @@
     const fd = new FormData();
     fd.append('files', file);
     const res = await fetch(`/api/cafes/${CAFE_ID}/photos`, {
-      method: 'POST', headers: headers(), body: fd
+      method: 'POST', credentials: 'same-origin', body: fd
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
@@ -363,7 +363,7 @@
     if (!btn) return;
     const photoId = btn.dataset.id;
     try {
-      await fetch(`/api/cafes/photos/${photoId}/main`, { method: 'PATCH', headers: headers() });
+      await fetch(`/api/cafes/photos/${photoId}/main`, { method: 'PATCH', credentials: 'same-origin' });
       location.reload();
     } catch { alert('대표 사진 설정 실패'); }
   });
@@ -375,7 +375,7 @@
     if (!confirm('이 사진을 삭제하시겠습니까?')) return;
     const photoId = btn.dataset.id;
     try {
-      await fetch(`/api/cafes/photos/${photoId}`, { method: 'DELETE', headers: headers() });
+      await fetch(`/api/cafes/photos/${photoId}`, { method: 'DELETE', credentials: 'same-origin' });
       btn.closest('.photo-manage-item').remove();
     } catch { alert('사진 삭제 실패'); }
   });
@@ -412,7 +412,7 @@
     const btn = document.getElementById('btnAddMenu');
     btn.disabled = true;
     try {
-      const res = await fetch('/api/menus', { method: 'POST', headers: headers(), body: fd });
+      const res = await fetch('/api/menus', { method: 'POST', credentials: 'same-origin', body: fd });
       if (!res.ok) throw new Error(await res.text());
       const menu = await res.json();
       addMenuToList(menu);
@@ -457,7 +457,7 @@
     if (!confirm('이 메뉴를 삭제하시겠습니까?')) return;
     const menuId = btn.dataset.id;
     try {
-      const res = await fetch(`/api/menus/${menuId}`, { method: 'DELETE', headers: headers() });
+      const res = await fetch(`/api/menus/${menuId}`, { method: 'DELETE', credentials: 'same-origin' });
       if (!res.ok) throw new Error(await res.text());
       btn.closest('.menu-manage-item').remove();
     } catch (e) {
