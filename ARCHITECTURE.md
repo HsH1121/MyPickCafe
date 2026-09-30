@@ -44,7 +44,6 @@
 | API 문서 | springdoc-openapi 2.8.6 (Swagger UI, **dev 프로파일에서만** 활성) |
 | DB | PostgreSQL (런타임 드라이버), PostgreSQL 16 컨테이너 (`docker-compose.yml`) |
 | 뷰 | Mustache 서버 사이드 렌더링 + Vanilla JS (`static/js/cafego.js`) |
-| 지도 | Kakao Maps JavaScript SDK (지도 탐색 페이지) |
 | 배포 | Docker (멀티스테이지 빌드: JDK → JRE), Docker Compose, AWS EC2 |
 | 기타 | Lombok |
 | 테스트 | `spring-boot-starter-test`, `spring-security-test` (`@WithMockUser`), H2 (테스트 전용 인메모리 DB) |
@@ -117,12 +116,11 @@
 
 사진·메뉴·영업정보 수정은 URL 기반 역할 검사에 더해, 요청자가 해당 카페의 점주인지 리소스 단위로 확인합니다 (`CafeOwnershipGuard` 및 컨트롤러 내부 검증). 업로드 파일은 로컬 디스크(`file.upload-dir`, 기본 `./uploads`)에 저장되고 `/uploads/**`로 서빙됩니다. 컨테이너 환경에서는 `web-uploads` 볼륨에 저장됩니다.
 
-### 5. 탐색 — 목록 · 검색 · 지도 · 알림
+### 5. 탐색 — 목록 · 검색 · 알림
 
 - 메인은 저장된 `views` 값 기준 상위 8개, 사용 중인 태그 칩, 최근 리뷰 6개를 보여주고, 로그인 상태면 니즈 기반 추천 6개를 함께 노출합니다. 방문 시 `views`를 증가시키는 집계 로직은 아직 미구현이며, 실제 방문량에 따른 인기 순위는 아닙니다. 로컬 변경에서는 카드의 조회수 표시만 제거했고 정렬 기준은 유지했습니다.
 - 목록은 `views` / `likes`(GOOD 리뷰 비율) / `newest` / `recommend` 정렬과 `CATEGORY:CODE` 태그 필터를 지원하며 최대 40개를 반환합니다.
 - 검색은 승인된 카페의 이름·주소 부분 일치입니다.
-- 지도 탐색은 Kakao Maps로 홍대입구·상수·연트럴파크·합정 반경 1.2km로 범위를 제한합니다.
 - 알림은 `CAFE_REGISTERED`(관리자), `CAFE_APPROVED`·`CAFE_REJECTED`(점주), `REVIEW`(점주) 네 종류이며, 헤더 드롭다운이 12초 간격으로 안 읽은 수를 갱신합니다.
 
 ### API 목록
@@ -178,7 +176,7 @@
 | 리뷰 수정 (본인만) | `POST /reviews/{id}/edit` |
 | 픽봇 추천 | `POST /api/pickbot/recommend` |
 
-**즐겨찾기 · 알림 · 지도**
+**즐겨찾기 · 알림**
 
 | 기능 | 엔드포인트 | 비고 |
 |---|---|---|
@@ -187,7 +185,6 @@
 | 카페별 즐겨찾기 수 | `GET /api/favorites/cafes/{cafeId}/count` | |
 | 알림 목록 / 안 읽은 수 | `GET /api/notifications` (최근 20건), `GET /api/notifications/unread-count` | 12초 간격 갱신 |
 | 읽음 처리 | `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all` | |
-| 지도 탐색 | `GET /index/map` | Kakao Maps, 4개 지역 반경 1.2km 제한 |
 
 </details>
 
@@ -258,7 +255,6 @@
 ```mermaid
 flowchart LR
     B[Browser] -->|Mustache SSR / fetch| S[Spring Boot :8080]
-    B -->|JS SDK| K[Kakao Maps]
     S -->|JPA| P[(PostgreSQL 16)]
     S -->|파일 저장| U[web-uploads 볼륨]
     S -->|WebClient<br/>POST /review/analyze 동기| F[FastAPI app.py :8000]
@@ -495,7 +491,6 @@ cp .env.example .env
 | `POSTGRES_DB`, `POSTGRES_USER` | | 기본값 `mypickcafe` |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT` | | `.env.example`에 기본값 있음 |
 | `LLM_REASONING_EFFORT` | | 픽봇 2차 호출의 추론량. 생략하면 `low`(glm-5p3-flash에 필요). 비추론 모델이면 빈 값 |
-| `KAKAO_JS_KEY`, `KAKAO_REST_KEY` | | 없으면 지도만 동작하지 않습니다 |
 
 ```bash
 docker compose up -d --build
@@ -531,7 +526,6 @@ docker run --rm \
 - Python — 개발 환경 기준 Python 3.11.9입니다.
 - [Ollama](https://ollama.com) (임베딩용)
 - 외부 API 키 (Fireworks AI 등 인증이 필요한 외부 LLM을 선택할 경우; 로컬 Ollama는 불필요)
-- Kakao Maps JavaScript 키 (지도 탐색 페이지를 쓸 경우, 선택)
 
 #### 1. PostgreSQL 실행
 
@@ -560,7 +554,6 @@ cp secret.properties.example secret.properties   # 3번 방식을 쓸 경우
 | `JWT_SECRET` | 필수 | `JwtTokenProvider`가 **Base64로 디코딩**하므로 Base64 문자열이어야 합니다 (HS256, 32바이트 이상). 예: `openssl rand -base64 48` |
 | `DB_USERNAME` | | 기본값 `mypickcafe` |
 | `DB_URL` | | 기본값 `jdbc:postgresql://localhost:5432/mypickcafe` |
-| `KAKAO_JS_KEY` | | 지도 탐색 페이지용 |
 | `PICKBOT_API_BASE_URL` | | 기본값 `http://localhost:8000` (통합 FastAPI `app.py`가 픽봇·태그 API를 한 포트에서 제공) |
 | `PYTHON_API_BASE_URL` | | 기본값 `http://localhost:8000` |
 
@@ -645,8 +638,6 @@ cd MyPickCafe_Springboot
 - **화면 인증**: 관리 화면은 쿠키 인증으로 수정했지만, 회원 수정 화면에는 `Bearer null`이 유효한 쿠키 인증을 가로막을 수 있는 문제가 남아 있습니다. 관리자·상세 화면도 저장된 오래된 Bearer 토큰이 있으면 쿠키보다 우선합니다.
 - **조회수**: 저장된 `views`로 정렬하지만 방문 집계 로직은 미구현입니다.
 - **설정 관리**: 설정 공급 경로가 루트 `.env`(Docker) / IDE 실행 설정 / `secret.properties` 세 갈래로 나뉘어 있습니다. 같은 값을 여러 곳에 적어야 하는 구간이 있어 통합 여지가 있습니다.
-- **지도 탐색 페이지**: 초기 목록과 마커는 `MapController`에 하드코딩된 샘플 장소 2건입니다(DB 연동 아님). 검색 결과는 Kakao 키워드 검색을 사용합니다.
-- **등록 폼 주소 찾기**: `cafes/create`에 `daum.Postcode`·Kakao 지오코딩 호출 코드가 있지만, 해당 페이지와 공통 레이아웃에 SDK 스크립트를 불러오는 태그가 없습니다. 상세 페이지의 지도 영역은 제거되었으며, 좌표가 있을 때의 외부 길찾기 링크는 남아 있습니다.
 - **리뷰 사진**: 리뷰 작성 모달에 사진 입력란이 있지만 서버(`ReviewForm`/`ReviewController`)에서 파일을 처리하지 않습니다.
 - **태그 집계 정합성**: 작성·수정 시 감성 저장보다 태그 집계가 앞서, BAD 리뷰 태그가 다음 재집계 전까지 포함됩니다. AI 실패 시 갱신 정책과 집계 순서를 보완하고 DB 기반 회귀 테스트가 필요합니다.
 - **색인 정합성**: 비동기 색인 요청과 DB 커밋은 원자적으로 처리되지 않으며, `reindex`는 누락 ID 추가만 수행합니다. 실패 재처리·수정 및 삭제 반영을 별도 검증해야 합니다.

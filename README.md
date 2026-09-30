@@ -27,7 +27,6 @@ Docker Compose로 전체 서비스를 구성해 AWS EC2에 배포한 프로젝�
 ```mermaid
 flowchart LR
     B[Browser] -->|Mustache SSR / fetch| S[Spring Boot :8080]
-    B -->|JS SDK| K[Kakao Maps]
     S -->|JPA| P[(PostgreSQL 16)]
     S -->|파일 저장| U[web-uploads 볼륨]
     S -->|WebClient<br/>POST /review/analyze 동기| F[FastAPI app.py :8000]
@@ -57,11 +56,6 @@ docker compose up -d --build
 ```
 
 실행 후 http://localhost:8080 으로 접속합니다.
-
-- 로컬 Docker 실행은 `.env.example` 기준 `dev` 프로파일입니다. EC2 배포는 2026-09-29 운영자 확인 당시 `prod`로 정상 기동했습니다. 현재 운영 상태는 재확인하지 않았습니다.
-
-- 임베딩 모델(`bge-m3`)은 compose의 `ollama-init` 컨테이너가 자동으로 내려받으므로 `ollama pull`을 따로 실행할 필요가 없습니다. 모델은 볼륨에 저장되어 재실행 시 다시 받지 않습니다.
-- 지도 탐색 페이지를 쓰려면 `KAKAO_JS_KEY`, `KAKAO_REST_KEY`도 입력합니다. 비워 두면 지도만 동작하지 않습니다.
 
 자세한 실행법은 [ARCHITECTURE.md](ARCHITECTURE.md#로컬-실행-방법)를 참고하세요.
 
