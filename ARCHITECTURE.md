@@ -2,7 +2,7 @@
 
 # MyPickCafe
 
-> 코드 대조 기준: `63d5b97` (2026-09-29). 배포 환경 정보와 테스트 통과 수치는 기존 기록이며, 이번 문서 점검에서 서버 접속이나 테스트를 다시 실행하지 않았습니다.
+> 코드 대조 기준: main `11e4381` 및 로컬 변경(메인 카드 조회수 표시 제거, 2026-09-30). 배포 환경 정보는 기존 기록이며, 이번 문서 점검에서는 서버 접속이나 테스트를 다시 실행하지 않았습니다. 테스트 실행 시점과 범위는 [테스트](#테스트)에 구분했습니다.
 
 리뷰 데이터를 기반으로 카페를 탐색하고 추천받는 웹 서비스입니다.
 
@@ -95,7 +95,7 @@
 
 인덱스 관리: FastAPI 기동 시 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 인덱싱합니다. 그 밖에 `POST /pickbot/reindex`, `POST /pickbot/delete-one`, 독립 실행 스크립트 `PickBot_AI/embed_all.py`가 있습니다. `reindex`가 호출하는 `index_from_db()`는 기존 리뷰 ID를 건너뛰고 누락된 ID만 추가합니다. 기존 리뷰 수정·삭제까지 동기화하는 전체 재구축은 아니며, 수정은 단건 upsert, 삭제는 단건 삭제 또는 별도의 초기화·전체 색인 절차가 필요합니다.
 
-> 배포 환경에서는 로컬에서 생성한 ChromaDB 인덱스를 Docker 볼륨으로 이관해, 최초 기동 시 초기 인덱싱을 건너뜁니다. GPU가 없는 인스턴스에서 전체 재인덱싱은 수십 분이 걸리고 메모리 사용량도 커지기 때문입니다.
+> 기존 배포 문서에는 로컬 ChromaDB 인덱스를 Docker 볼륨으로 이관한 것으로 기록되어 있으나, 현재 운영 볼륨의 이관 상태는 확인하지 않았습니다. 인덱스가 비어 있지 않으면 기동 시 초기 인덱싱을 건너뜁니다. CPU 환경에서는 전체 인덱싱이 오래 걸릴 수 있으며, 소요 시간은 데이터량과 실행 자원에 따라 달라집니다.
 
 ### 3. 니즈 기반 추천
 
@@ -119,7 +119,7 @@
 
 ### 5. 탐색 — 목록 · 검색 · 지도 · 알림
 
-- 메인은 조회수 상위 8개, 사용 중인 태그 칩, 최근 리뷰 6개를 보여주고, 로그인 상태면 니즈 기반 추천 6개를 함께 노출합니다.
+- 메인은 저장된 `views` 값 기준 상위 8개, 사용 중인 태그 칩, 최근 리뷰 6개를 보여주고, 로그인 상태면 니즈 기반 추천 6개를 함께 노출합니다. 방문 시 `views`를 증가시키는 집계 로직은 아직 미구현이며, 실제 방문량에 따른 인기 순위는 아닙니다. 로컬 변경에서는 카드의 조회수 표시만 제거했고 정렬 기준은 유지했습니다.
 - 목록은 `views` / `likes`(GOOD 리뷰 비율) / `newest` / `recommend` 정렬과 `CATEGORY:CODE` 태그 필터를 지원하며 최대 40개를 반환합니다.
 - 검색은 승인된 카페의 이름·주소 부분 일치입니다.
 - 지도 탐색은 Kakao Maps로 홍대입구·상수·연트럴파크·합정 반경 1.2km로 범위를 제한합니다.
@@ -149,7 +149,7 @@
 
 | 기능 | 엔드포인트 | 비고 |
 |---|---|---|
-| 메인 | `GET /` | 조회수 상위 8개, 태그 칩, 최근 리뷰 6개, 로그인 시 추천 6개 |
+| 메인 | `GET /` | 저장된 `views` 상위 8개(방문 집계 미구현), 태그 칩, 최근 리뷰 6개, 로그인 시 추천 6개 |
 | 검색 | `GET /search?q=` | 승인된 카페의 이름/주소 부분 일치 |
 | 목록 | `GET /cafes?sort=views\|likes\|newest\|recommend&tag=CATEGORY:CODE` | 최대 40개 |
 | 상세 | `GET /cafes/{cafeId}` | 영업정보·메뉴·리뷰·사진·GOOD/BAD 집계·즐겨찾기 수 |
@@ -463,7 +463,9 @@ sequenceDiagram
 - `GET /api/auth/me`: `GET /api/**` permitAll에 해당하며, 인증이 없으면 컨트롤러가 401을 반환합니다.
 - 로그인에 성공하면 브라우저에 `AT` HttpOnly 쿠키가 설정됩니다. 같은 출처로 보내는 요청은 이 쿠키로 인증됩니다.
 - `static/js/cafego.js`는 REST 로그인 응답의 토큰을 `localStorage`의 `cafego_token` 키에 저장하고 `Authorization: Bearer` 헤더로도 보냅니다.
-- `admin/main`, `cafes/detail`, `cafes/manage`, `member/edit` 템플릿 스크립트는 `localStorage`의 `accessToken` 키를 읽습니다. 하지만 이 키에 값을 저장하는 코드는 없으므로, 해당 요청은 사실상 `AT` 쿠키로 인증됩니다.
+- `cafes/manage`는 Authorization 헤더 없이 `credentials: same-origin`으로 `AT` 쿠키를 사용합니다.
+- `admin/main`은 localStorage, `cafes/detail`은 localStorage 또는 sessionStorage의 `accessToken`이 있을 때만 Bearer 헤더를 추가하며, 없으면 같은 출처의 `AT` 쿠키를 사용합니다. 오래된 토큰이 남아 있으면 헤더가 쿠키보다 우선하므로 인증에 실패할 수 있습니다.
+- `member/edit`는 localStorage의 `accessToken` 유무와 관계없이 Bearer 헤더를 만듭니다. 값이 없으면 `Bearer null`이 전송되고, `JwtAuthenticationFilter`가 이를 쿠키보다 우선하므로 유효한 쿠키가 있어도 인증에 실패할 수 있습니다. 이 문제는 아직 수정되지 않았습니다.
 - CSRF 검사는 비활성화되어 있고 인증 쿠키는 `SameSite=Lax`입니다. Lax는 일부 cross-site 요청의 쿠키 전송을 제한하지만, 최상위 탐색의 안전한 메서드 요청 등에는 쿠키가 전송될 수 있습니다. CSRF 토큰과 동등한 방어를 보장하지 않으며, 쿠키 인증을 사용하는 변경 요청의 보호는 별도 검토가 필요합니다.
 
 </details>
@@ -502,7 +504,7 @@ docker compose up -d --build
 - 접속: http://localhost:8080
 - 상태 확인: `docker compose ps`, 로그: `docker compose logs -f mypickcafe-ai`
 - 임베딩 주소는 compose가 `http://ollama:11434`로 주입합니다. `.env`에 별도로 적지 않습니다.
-- 최초 기동 시 ChromaDB 인덱스가 비어 있으면 DB의 승인된 리뷰 전체를 임베딩합니다. GPU 없이 CPU로 수행하면 수십 분이 걸립니다. 기존 인덱스를 볼륨으로 옮겨두면 이 과정을 건너뜁니다.
+- 최초 기동 시 ChromaDB 인덱스가 비어 있으면 DB의 승인된 리뷰 전체를 임베딩합니다. CPU 환경에서는 오래 걸릴 수 있으며, 소요 시간은 데이터량과 실행 자원에 따라 달라집니다. 기존 인덱스를 볼륨으로 옮겨두면 이 과정을 건너뜁니다.
 
 <details>
 <summary>기존 ChromaDB 인덱스를 볼륨으로 옮기기</summary>
@@ -528,7 +530,7 @@ docker run --rm \
 - Docker (PostgreSQL 컨테이너용)
 - Python — 개발 환경 기준 Python 3.11.9입니다.
 - [Ollama](https://ollama.com) (임베딩용)
-- Fireworks AI API 키 (LLM 기능을 쓸 경우)
+- 외부 API 키 (Fireworks AI 등 인증이 필요한 외부 LLM을 선택할 경우; 로컬 Ollama는 불필요)
 - Kakao Maps JavaScript 키 (지도 탐색 페이지를 쓸 경우, 선택)
 
 #### 1. PostgreSQL 실행
@@ -575,7 +577,7 @@ cp secret.properties.example secret.properties   # 3번 방식을 쓸 경우
 #### 3. AI 서버 (FastAPI)
 
 ```bash
-# 로컬은 LLM도 Ollama에서 돌립니다(qwen2.5:14b). 배포 환경만 외부 API(GLM 5.3 Flash)를 씁니다.
+# 로컬 Ollama 기준 예시입니다(qwen2.5:14b). 로컬에서도 환경변수 설정으로 외부 OpenAI 호환 API를 사용할 수 있습니다.
 ollama pull bge-m3
 ollama pull qwen2.5:14b
 
@@ -622,21 +624,29 @@ cd MyPickCafe_Springboot
 | `controller/PickBotControllerTest` | 픽봇 서버 장애 시 `503`과 실패 사유 반환 |
 | `service/CafeServiceTest` | 카페 등록 시 PENDING 강제, 소유자 지정, 중복 이름 거부 |
 | `service/MemberServiceTest` | 비밀번호 해시 저장, 기본 역할, 중복/잘못된 역할 거부, null 필드 미덮어쓰기 |
+| `controller/CafeManageRenderingTest` | 상세 정보가 없는 카페의 관리 화면 렌더링, 기존 정보 유지 및 null 입력값 처리. 브라우저 JavaScript 인증·업로드는 검증하지 않음 |
 | `controller/SearchRenderingTest` | 검색 결과가 화면 모델(`cafeCards`)로 전달되고, 미승인 카페는 검색되지 않음 |
 
 - 인가 테스트(`ApiAuthorizationTest` 등)는 `@WithMockUser`로 인증 주체를 주입합니다. JWT 발급(`JwtTokenProvider`)이나 `JwtAuthenticationFilter`를 직접 검증하는 테스트는 없습니다.
 
-기존 테스트 실행 기록: 31개 전부 통과 (2026-09-28, `./gradlew test`). 2026-09-29 문서 점검에서는 재실행하지 않았으므로 현재 커밋의 테스트 통과를 뜻하지는 않습니다.
+테스트 실행 기록(각 시점의 코드 기준):
+
+- 2026-09-28: 기존 전체 테스트 31개 통과 기록.
+- 2026-09-30: 관리 화면 기본값 수정 및 회귀 테스트 추가 후 전체 33개 통과(이후 `2d1f125`로 커밋).
+- 이후 관리 화면 쿠키 인증 수정 시 `CafeManageRenderingTest` 2개만, main `11e4381`에 메인 카드 조회수 표시를 제거한 로컬 상태에서는 `SearchRenderingTest` 3개만 실행해 통과했습니다.
+- 현재 main과 로컬 변경을 합친 상태에서 전체 테스트를 다시 실행한 것은 아닙니다. 이번 문서 수정에서도 테스트를 실행하지 않았습니다.
 
 ---
 
 ## 현재 한계 (코드 기준)
 
-- **배포**: AWS EC2에 Docker Compose로 배포되어 있으나, HTTPS·도메인이 없어 IP + 포트(HTTP)로 접속합니다. CI/CD 파이프라인은 없고, 배포는 EC2에서 `git pull` 후 `docker compose up -d --build`로 수행합니다. 배포 서버 프로파일은 `prod`로 변경했습니다(2026-09-29 운영자 확인). 현재 서버 상태·접속 가능 여부와 HTTPS 적용 여부는 이번 문서 수정에서 직접 재확인하지 않았습니다.
+- **배포**: 기존 배포 기록은 AWS EC2의 Docker Compose, 도메인 없는 IP + 포트(HTTP) 접속입니다. 저장소에 CI/CD 설정은 없으며, 기록된 수동 배포 절차는 EC2에서 `git pull` 후 `docker compose up -d --build`입니다. 배포 서버 프로파일은 `prod`로 변경했습니다(2026-09-29 운영자 확인). 현재 서버 상태·접속 가능 여부와 HTTPS 적용 여부는 이번 문서 수정에서 직접 재확인하지 않았습니다.
 - **인증**: refresh 토큰이 없어 액세스 토큰이 만료되면 다시 로그인해야 합니다. 폼 로그인(`POST /login`)에는 평문 비교 폴백과 `Secure=false` 고정 쿠키가 남아 있습니다. ([인증 · 인가](#인증--인가) 참고)
+- **화면 인증**: 관리 화면은 쿠키 인증으로 수정했지만, 회원 수정 화면에는 `Bearer null`이 유효한 쿠키 인증을 가로막을 수 있는 문제가 남아 있습니다. 관리자·상세 화면도 저장된 오래된 Bearer 토큰이 있으면 쿠키보다 우선합니다.
+- **조회수**: 저장된 `views`로 정렬하지만 방문 집계 로직은 미구현입니다.
 - **설정 관리**: 설정 공급 경로가 루트 `.env`(Docker) / IDE 실행 설정 / `secret.properties` 세 갈래로 나뉘어 있습니다. 같은 값을 여러 곳에 적어야 하는 구간이 있어 통합 여지가 있습니다.
 - **지도 탐색 페이지**: 초기 목록과 마커는 `MapController`에 하드코딩된 샘플 장소 2건입니다(DB 연동 아님). 검색 결과는 Kakao 키워드 검색을 사용합니다.
-- **카페 상세 지도 / 등록 폼 주소 찾기**: 템플릿에 지도 영역과 `daum.Postcode`·Kakao 지오코딩 호출 코드가 있지만, 해당 페이지에서 SDK 스크립트를 불러오는 태그가 없습니다.
+- **등록 폼 주소 찾기**: `cafes/create`에 `daum.Postcode`·Kakao 지오코딩 호출 코드가 있지만, 해당 페이지와 공통 레이아웃에 SDK 스크립트를 불러오는 태그가 없습니다. 상세 페이지의 지도 영역은 제거되었으며, 좌표가 있을 때의 외부 길찾기 링크는 남아 있습니다.
 - **리뷰 사진**: 리뷰 작성 모달에 사진 입력란이 있지만 서버(`ReviewForm`/`ReviewController`)에서 파일을 처리하지 않습니다.
 - **태그 집계 정합성**: 작성·수정 시 감성 저장보다 태그 집계가 앞서, BAD 리뷰 태그가 다음 재집계 전까지 포함됩니다. AI 실패 시 갱신 정책과 집계 순서를 보완하고 DB 기반 회귀 테스트가 필요합니다.
 - **색인 정합성**: 비동기 색인 요청과 DB 커밋은 원자적으로 처리되지 않으며, `reindex`는 누락 ID 추가만 수행합니다. 실패 재처리·수정 및 삭제 반영을 별도 검증해야 합니다.
