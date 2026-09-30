@@ -289,6 +289,24 @@ public class CafeService {
     }
 
     @Transactional(readOnly = true)
+    public List<CafeCardForm> findApprovedCardsByTags(Set<String> tags, int limit) {
+        if (tags.isEmpty()) return findApprovedCardsSorted("views", limit);
+        Set<Long> matchingIds = null;
+        for (String tag : tags) {
+            String[] parts = tag.split(":", 2);
+            if (parts.length != 2) return List.of();
+            List<Long> ids = cafeTagRepository.findCafeIdsForTag(parts[0], parts[1]);
+            if (matchingIds == null) matchingIds = new HashSet<>(ids);
+            else matchingIds.retainAll(ids);
+            if (matchingIds.isEmpty()) return List.of();
+        }
+        // 모든 선택 태그의 교집합을 구한 뒤 승인 상태와 결과 개수 제한을 적용한다.
+        return enrichWithPhotos(cafeRepository.findByStatusAndIdInOrderByViewsDesc(
+                        CafeStatus.APPROVED, matchingIds).stream()
+                .limit(limit).collect(Collectors.toList()));
+    }
+
+    @Transactional(readOnly = true)
     public List<CafeCardForm> findApprovedCardsByTag(String category, String code, int limit) {
         List<Long> ids = cafeTagRepository.findCafeIdsForTag(category, code);
         if (ids.isEmpty()) return List.of();

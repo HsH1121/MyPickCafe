@@ -43,9 +43,17 @@ public class CafeController {
     /** 카페 목록 */
     @GetMapping
     public String cafeList(@RequestParam(value = "sort", defaultValue = "views") String sort,
-                           @RequestParam(value = "tag",  required = false) String tag,
+                           @RequestParam(value = "tag",  required = false) List<String> tags,
                            Authentication auth,
                            Model model) {
+
+        // 기존 태그 링크도 별도 필터 탭으로 연결하되 맞춤 추천에는 적용하지 않는다.
+        Set<String> selectedTags = tags == null ? new LinkedHashSet<>() : tags.stream()
+                .filter(Objects::nonNull).map(String::trim).filter(t -> !t.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (!"recommend".equals(sort) && !selectedTags.isEmpty()) sort = "tags";
+        boolean tagFiltering = "tags".equals(sort);
+        if (!tagFiltering) selectedTags.clear();
 
         boolean isLoggedIn = auth != null && auth.isAuthenticated()
                 && !(auth instanceof AnonymousAuthenticationToken);
@@ -63,22 +71,16 @@ public class CafeController {
                 cafes = recommendService.recommendForMember(me.getId(), 40);
                 if (cafes.isEmpty() && !recommendService.hasNeeds(me.getId())) noNeedsSet = true;
             }
-        } else if (tag != null && !tag.isBlank()) {
-            String[] parts = tag.split(":", 2);
-            cafes = parts.length == 2
-                    ? cafeService.findApprovedCardsByTag(parts[0], parts[1], 40)
-                    : cafeService.findApprovedCardsSorted(sort, 40);
+        } else if (!selectedTags.isEmpty()) {
+            cafes = cafeService.findApprovedCardsByTags(selectedTags, 40);
         } else {
             cafes = cafeService.findApprovedCardsSorted(sort, 40);
         }
 
-        String tagSuffix  = (tag != null && !tag.isBlank()) ? "&tag=" + tag : "";
-        String sortSuffix = "?sort=" + sort;
-
         model.addAttribute("cafes",       cafes);
         model.addAttribute("isEmpty",     cafes.isEmpty());
         model.addAttribute("sort",        sort);
-        model.addAttribute("selectedTag", tag);
+        model.addAttribute("selectedTags", selectedTags);
         model.addAttribute("isLoggedIn",  isLoggedIn);
         model.addAttribute("needsLogin",  needsLogin);
         model.addAttribute("noNeedsSet",  noNeedsSet);
@@ -87,40 +89,44 @@ public class CafeController {
         model.addAttribute("sortLikes",     "likes".equals(sort));
         model.addAttribute("sortNewest",    "newest".equals(sort));
         model.addAttribute("sortRecommend", "recommend".equals(sort));
+        model.addAttribute("sortTags",      tagFiltering);
 
-        model.addAttribute("urlSortViews",     "/cafes?sort=views"     + tagSuffix);
-        model.addAttribute("urlSortLikes",     "/cafes?sort=likes"     + tagSuffix);
-        model.addAttribute("urlSortNewest",    "/cafes?sort=newest"    + tagSuffix);
-        model.addAttribute("urlSortRecommend", "/cafes?sort=recommend" + tagSuffix);
-        model.addAttribute("urlClearTag",      "/cafes" + sortSuffix);
-        model.addAttribute("hasTagFilter",     tag != null && !tag.isBlank());
+        model.addAttribute("urlSortViews",     "/cafes?sort=views");
+        model.addAttribute("urlSortLikes",     "/cafes?sort=likes");
+        model.addAttribute("urlSortNewest",    "/cafes?sort=newest");
+        model.addAttribute("urlSortRecommend", "/cafes?sort=recommend");
+        model.addAttribute("urlSortTags",      "/cafes?sort=tags");
+        model.addAttribute("urlClearTag",      "/cafes?sort=tags");
+        model.addAttribute("hasTagFilter",     !selectedTags.isEmpty());
 
-        model.addAttribute("tagGroups", buildTagGroups(sort, tag));
+        model.addAttribute("tagGroups", buildTagGroups("tags", selectedTags));
         return "cafes/list";
     }
 
-    private List<Map<String, Object>> buildTagGroups(String sort, String selectedTag) {
+    private List<Map<String, Object>> buildTagGroups(String sort, Set<String> selectedTags) {
         List<Map<String, Object>> groups = new ArrayList<>();
-        addTagGroup(groups, FacilityTag.values(), sort, selectedTag);
-        addTagGroup(groups, MenuTag.values(),      sort, selectedTag);
-        addTagGroup(groups, PurposeTag.values(),   sort, selectedTag);
-        addTagGroup(groups, MoodTag.values(),      sort, selectedTag);
+        addTagGroup(groups, FacilityTag.values(), sort, selectedTags);
+        addTagGroup(groups, MenuTag.values(),      sort, selectedTags);
+        addTagGroup(groups, PurposeTag.values(),   sort, selectedTags);
+        addTagGroup(groups, MoodTag.values(),      sort, selectedTags);
         return groups;
     }
 
     private void addTagGroup(List<Map<String, Object>> groups, TagEnum[] tags,
-                             String sort, String selectedTag) {
+                             String sort, Set<String> selectedTags) {
         if (tags.length == 0) return;
         List<Map<String, Object>> items = new ArrayList<>();
         for (TagEnum t : tags) {
             String value  = t.getCategory() + ":" + t.name();
-            boolean active = value.equals(selectedTag);
+            boolean active = selectedTags.contains(value);
+            Set<String> toggled = new LinkedHashSet<>(selectedTags);
+            if (active) toggled.remove(value); else toggled.add(value);
             Map<String, Object> item = new HashMap<>();
             item.put("label",  t.getLabel());
             item.put("active", active);
-            item.put("href",   active
-                    ? "/cafes?sort=" + sort
-                    : "/cafes?sort=" + sort + "&tag=" + value);
+            item.put("href", "/cafes?sort=" + sort + toggled.stream()
+                    .map(v -> "&tag=" + java.net.URLEncoder.encode(v, java.nio.charset.StandardCharsets.UTF_8))
+                    .collect(Collectors.joining()));
             items.add(item);
         }
         Map<String, Object> group = new HashMap<>();

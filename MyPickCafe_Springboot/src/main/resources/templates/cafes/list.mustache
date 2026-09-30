@@ -34,6 +34,12 @@
               {{^sortRecommend}}color:var(--text-sub);{{/sortRecommend}}">
       맞춤 추천
     </a>
+    <a href="{{urlSortTags}}"
+       style="padding:10px 18px;font-size:14px;font-weight:600;border-radius:var(--r-sm) var(--r-sm) 0 0;text-decoration:none;transition:all var(--t);
+              {{#sortTags}}background:var(--accent);color:#fff;{{/sortTags}}
+              {{^sortTags}}color:var(--text-sub);{{/sortTags}}">
+      태그 필터링
+    </a>
     <button id="tabPickBot"
        style="padding:10px 18px;font-size:14px;font-weight:600;border-radius:var(--r-sm) var(--r-sm) 0 0;
               border:none;cursor:pointer;transition:all var(--t);background:none;color:var(--text-sub)">
@@ -58,9 +64,10 @@
     {{/noNeedsSet}}
 
     <!-- 태그 필터 -->
-    <div style="margin-bottom:28px">
+    {{#sortTags}}
+    <div id="tagFilters" style="margin-bottom:28px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <span style="font-size:13px;font-weight:700;color:var(--text-sub)">태그 필터</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text-sub)">태그 필터 — 선택한 태그를 모두 가진 카페</span>
         {{#hasTagFilter}}
           <a href="{{urlClearTag}}" class="cg-btn-outline cg-btn--sm">전체 보기 ×</a>
         {{/hasTagFilter}}
@@ -73,6 +80,7 @@
           <span class="cg-chips" style="display:inline-flex;flex-wrap:wrap;gap:6px">
             {{#tags}}
               <a href="{{href}}"
+                 aria-pressed="{{active}}" role="button"
                  class="cg-chip {{#active}}is-active{{/active}}"
                  style="text-decoration:none">{{label}}</a>
             {{/tags}}
@@ -80,6 +88,8 @@
         </div>
       {{/tagGroups}}
     </div>
+
+    {{/sortTags}}
 
     <!-- 카페 목록 -->
     {{#isEmpty}}

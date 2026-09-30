@@ -2,6 +2,9 @@ package com.example.MyPickCafe.controller;
 
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
+import com.example.MyPickCafe.domain.FacilityTag;
+import com.example.MyPickCafe.entity.CafeTag;
+import com.example.MyPickCafe.repository.CafeTagRepository;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.CafeRepository;
@@ -15,10 +18,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -41,6 +48,7 @@ class SearchRenderingTest {
     @Autowired private MockMvc mvc;
     @Autowired private CafeRepository cafeRepository;
     @Autowired private MemberRepository memberRepository;
+    @Autowired private CafeTagRepository cafeTagRepository;
 
     private Member owner;
 
@@ -82,6 +90,77 @@ class SearchRenderingTest {
         mvc.perform(get("/search"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("cafeCards", hasSize(1)));
+    }
+
+    @Test
+    void tagFiltersHaveTheirOwnTab() throws Exception {
+        mvc.perform(get("/cafes").param("sort", "tags"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("sortTags", true))
+                .andExpect(model().attribute("urlSortRecommend", "/cafes?sort=recommend"))
+                .andExpect(content().string(containsString("id=\"tagFilters\"")));
+    }
+
+    @Test
+    void legacyTagLinkSelectsTagTabAndFiltersResults() throws Exception {
+        mvc.perform(get("/cafes").param("tag", "FACILITY:WIFI"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("sortTags", true))
+                .andExpect(model().attribute("hasTagFilter", true))
+                .andExpect(model().attribute("cafes", hasSize(0)))
+                .andExpect(model().attribute("urlClearTag", "/cafes?sort=tags"));
+    }
+
+    @Test
+    @WithMockUser(username = "search-test@example.com", roles = "CAFEOWNER")
+    void recommendationUsesMemberNeedsAndHidesTagFilters() throws Exception {
+        mvc.perform(get("/cafes").param("sort", "recommend").param("tag", "FACILITY:WIFI"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("sortRecommend", true))
+                .andExpect(model().attribute("sortTags", false))
+                .andExpect(model().attribute("hasTagFilter", false))
+                .andExpect(model().attribute("noNeedsSet", true))
+                .andExpect(content().string(not(containsString("id=\"tagFilters\""))));
+    }
+
+    @Test
+    void multipleTagsRequireAllTagsAndExcludePendingCafes() throws Exception {
+        Cafe both = cafeRepository.save(cafe("All tags", "Test", "02-111-1111", CafeStatus.APPROVED));
+        Cafe partial = cafeRepository.save(cafe("Only wifi", "Test", "02-111-1112", CafeStatus.APPROVED));
+        Cafe pending = cafeRepository.save(cafe("Pending tags", "Test", "02-111-1113", CafeStatus.PENDING));
+        addFacility(both, FacilityTag.WIFI);
+        addFacility(both, FacilityTag.PLUG);
+        addFacility(partial, FacilityTag.WIFI);
+        addFacility(pending, FacilityTag.WIFI);
+        addFacility(pending, FacilityTag.PLUG);
+
+        mvc.perform(get("/cafes").param("sort", "tags")
+                        .param("tag", "FACILITY:WIFI", "FACILITY:PLUG", "FACILITY:WIFI"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("cafes", hasSize(1)))
+                .andExpect(content().string(containsString("All tags")))
+                .andExpect(content().string(not(containsString("Only wifi"))))
+                .andExpect(content().string(not(containsString("Pending tags"))))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        org.jsoup.Jsoup.parse(result.getResponse().getContentAsString())
+                                .select("#tagFilters a").stream()
+                                .anyMatch(a -> a.attr("href").equals("/cafes?sort=tags&tag=FACILITY%3APLUG"))));
+
+        // 하나를 해제하면 남은 태그만 적용된다.
+        mvc.perform(get("/cafes").param("sort", "tags").param("tag", "FACILITY:WIFI"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("cafes", hasSize(2)));
+        mvc.perform(get("/cafes").param("sort", "tags")
+                        .param("tag", "FACILITY:WIFI", "FACILITY:PARKING"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("cafes", hasSize(0)));
+    }
+
+    private void addFacility(Cafe cafe, FacilityTag tag) {
+        CafeTag row = new CafeTag();
+        row.setCafe(cafe);
+        row.setFacilityTag(tag);
+        cafeTagRepository.save(row);
     }
 
     private Cafe cafe(String name, String address, String phone, CafeStatus status) {
