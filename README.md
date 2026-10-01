@@ -47,7 +47,7 @@ flowchart LR
 
 ## 담당 역할
 
-이 프로젝트는 팀 프로젝트 GoCafe(`cfd21eb`)를 기반으로 개인적으로 이어서 개발한 후속 프로젝트입니다. Spring Boot 도메인 뼈대와 회원·카페·리뷰 등 기본 기능, Spring Security + JWT 로그인과 `tokenVersion` 기반 토큰 무효화, Mustache 화면 기본 구성, 네이버 지도 리뷰 데이터는 팀 원본에서 가져왔습니다. 이후 태그 체계 재정리와 니즈 기반 자카르드 추천, CAFEOWNER 역할 도입, 회원 API 인가 제한·응답 DTO 전환·소유권 검증 등의 보안 보완과 테스트, 리뷰 태그 분석과 픽봇 RAG 추천을 통합한 FastAPI AI 서버, 더미 데이터 생성 스크립트, Docker Compose 기반 EC2 배포를 재작업했습니다.
+이 프로젝트는 팀 프로젝트 GoCafe를 기반으로 개인적으로 이어서 개발한 후속 프로젝트입니다. Spring Boot 도메인 뼈대와 회원·카페·리뷰 등 기본 기능, Spring Security + JWT 로그인과 `tokenVersion` 기반 토큰 무효화, Mustache 화면 기본 구성, 리뷰 데이터 등을 팀 원본에서 가져왔습니다. 이후 태그 체계 재정리와 니즈 기반 자카르드 추천, CAFEOWNER 역할 도입, 회원 API 인가 제한·응답 DTO 전환·소유권 검증 등의 보안 보완과 테스트, 리뷰 태그 분석과 픽봇 RAG 추천을 통합한 FastAPI AI 서버, 더미 데이터 생성 스크립트, Docker Compose 기반 EC2 배포를 재작업했습니다.
 
 ## 실행 방법
 
