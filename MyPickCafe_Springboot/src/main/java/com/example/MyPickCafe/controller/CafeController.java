@@ -42,11 +42,12 @@ public class CafeController {
 
     /** 카페 목록 */
     @GetMapping
-    public String cafeList(@RequestParam(value = "sort", defaultValue = "views") String sort,
+    public String cafeList(@RequestParam(value = "sort", defaultValue = "likes") String sort,
                            @RequestParam(value = "tag",  required = false) List<String> tags,
                            Authentication auth,
                            Model model) {
 
+        if (!Set.of("likes", "newest", "recommend", "tags").contains(sort)) sort = "likes";
         // 기존 태그 링크도 별도 필터 탭으로 연결하되 맞춤 추천에는 적용하지 않는다.
         Set<String> selectedTags = tags == null ? new LinkedHashSet<>() : tags.stream()
                 .filter(Objects::nonNull).map(String::trim).filter(t -> !t.isEmpty())
@@ -85,13 +86,11 @@ public class CafeController {
         model.addAttribute("needsLogin",  needsLogin);
         model.addAttribute("noNeedsSet",  noNeedsSet);
 
-        model.addAttribute("sortViews",     "views".equals(sort));
         model.addAttribute("sortLikes",     "likes".equals(sort));
         model.addAttribute("sortNewest",    "newest".equals(sort));
         model.addAttribute("sortRecommend", "recommend".equals(sort));
         model.addAttribute("sortTags",      tagFiltering);
 
-        model.addAttribute("urlSortViews",     "/cafes?sort=views");
         model.addAttribute("urlSortLikes",     "/cafes?sort=likes");
         model.addAttribute("urlSortNewest",    "/cafes?sort=newest");
         model.addAttribute("urlSortRecommend", "/cafes?sort=recommend");
