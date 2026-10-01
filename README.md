@@ -33,7 +33,7 @@ flowchart LR
     F --> C[(ChromaDB 볼륨)]
 ```
 
-## 설계 포인트
+## 주요 기능 및 설계
 
 - **세션 미사용 JWT 인증** — 세션 없이 요청마다 JWT로 인증하고, 토큰의 tokenVersion을 DB의 회원 값과 비교합니다. 로그아웃 시 DB의 tokenVersion 값을 증가시켜 기존 토큰을 무효화합니다.
   
