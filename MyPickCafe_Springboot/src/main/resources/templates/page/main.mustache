@@ -7,12 +7,13 @@
     <div class="cg-container">
       <p class="cg-hero-main__eyebrow">카페 탐색 플랫폼</p>
       <h1 class="cg-hero-main__title">나만의 카페,<br>지금 바로 찾아보세요</h1>
-      <p class="cg-hero-main__desc">전국 카페를 탐색하고, 솔직한 리뷰를 남겨보세요.</p>
+      <p class="cg-hero-main__desc">서울 카페를 탐색하고, 리뷰를 남겨보세요.</p>
       <form class="cg-search-hero" method="get" action="/search">
         <input class="cg-input-hero" type="text" name="q"
                placeholder="지역, 분위기, 메뉴를 검색해보세요"/>
         <button class="cg-btn--search" type="submit">검색</button>
       </form>
+      <a class="cg-hero-main__explore" href="/cafes">카페 탐색 →</a>
     </div>
   </section>
 
@@ -54,7 +55,6 @@
           <p class="cg-eyebrow">인기 카페</p>
           <h2 class="cg-section__title">지금 뜨는 카페</h2>
         </div>
-        <a class="cg-btn cg-btn--lg" href="/cafes">맞춤 카페 찾기 →</a>
       </div>
       <ul class="cg-card-grid">
         {{#cafeCards}}
