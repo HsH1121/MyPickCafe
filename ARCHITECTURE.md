@@ -1,245 +1,223 @@
-> 이 문서는 MyPickCafe의 상세 기술 설계 문서다. 프로젝트 개요는 [README](README.md) 참고.
+# MyPickCafe 기술 설계
 
-# MyPickCafe
+> 프로젝트 개요는 README를 참고하세요. 이 문서는 주요 기능의 처리 흐름, 아키텍처, 인증·인가, 실행 방법과 테스트를 다룹니다.
+> 
 
-리뷰 데이터를 기반으로 카페를 탐색하고 추천받는 웹 서비스입니다.
+리뷰 데이터를 기반으로 카페를 탐색하고 추천받는 웹 서비스입니다. 학교 팀 프로젝트 **GoCafe**를 바탕으로 백엔드와 AI 추천 기능을 개인적으로 재작업했습니다. 작업 범위는 프로젝트 기여에 정리했습니다.
 
-- **구성**: Spring Boot(카페·리뷰·회원·인증) + FastAPI(리뷰 태그/감성 분석, 자연어 추천 RAG) + 임베딩(Ollama · `bge-m3`) + LLM(개별 로컬 실행 기본값: Ollama · `qwen2.5:14b`, 배포 설정 예시: Fireworks AI · GLM 5.3 Flash)
-- **핵심 기술**: Java 17 / Spring Boot 3.5.5, Spring Security + JWT(stateless), JPA + PostgreSQL, FastAPI + ChromaDB, 임베딩 `bge-m3`(Ollama), LLM `qwen2.5:14b`(로컬 기본값) / GLM 5.3 Flash(배포 설정 예시), Docker Compose + AWS EC2
-- **성격**: 학교 팀 프로젝트(GoCafe)를 개인적으로 이어받아 재작업한 프로젝트입니다. → [비고](#비고)
-- **코드로 확인되는 작업**: JWT 인증·인가(`tokenVersion` 기반 토큰 무효화, DB 기준 권한 결정), 엔티티 대신 record 응답 DTO 사용, AI 서버 연동과 장애 격리, 인가·응답 노출·서비스 단위 테스트
-
----
+- **서비스 구성**: Spring Boot(회원·카페·리뷰·인증) + FastAPI(리뷰 분석·RAG 추천)
+- **데이터 저장**: PostgreSQL(서비스 데이터) + ChromaDB(리뷰 벡터 인덱스)
+- **AI 모델**: Ollama `bge-m3` 임베딩 + OpenAI 호환 API 기반 LLM
+- **배포 환경**: Docker Compose + AWS EC2(t3.large, Ubuntu 24.04)
+- **배포 주소**: MyPickCafe
 
 ## 목차
 
-- [기술 스택](#기술-스택)
-- [주요 동작 흐름](#주요-동작-흐름)
-- [아키텍처 개요](#아키텍처-개요)
-- [인증 · 인가](#인증--인가)
-- [로컬 실행 방법](#로컬-실행-방법)
-- [테스트](#테스트)
-- [현재 한계 (코드 기준)](#현재-한계-코드-기준)
-- [비고](#비고)
+- 기술 스택
+- 주요 동작 흐름
+- 모델 선정
+- 아키텍처 개요
+- 인증 · 인가
+- 로컬 실행 방법
+- 테스트
+- 프로젝트 기여
 
 ---
 
 ## 기술 스택
 
-### Backend — `MyPickCafe_Springboot/` (`build.gradle` 기준)
+### Backend — `MyPickCafe_Springboot/`
 
 | 구분 | 사용 기술 |
-|---|---|
-| 언어 / 빌드 | Java 17 (Gradle toolchain), Gradle Wrapper 8.14.3 |
-| 프레임워크 | Spring Boot 3.5.5 — `web`, `data-jpa`, `validation`, `mustache` |
-| 인증 · 인가 | Spring Security (`spring-boot-starter-security`) — 필터 체인, `@EnableMethodSecurity`, `BCryptPasswordEncoder` |
-| JWT | `io.jsonwebtoken:jjwt-api` 0.11.5 (implementation), `jjwt-impl` 0.11.5 · `jjwt-jackson` 0.11.5 (runtimeOnly) — HS256 서명 |
-| 외부 AI 서버 호출 | `spring-boot-starter-webflux`의 `WebClient` (앱은 서블릿 스택으로 기동) |
-| XSS 방어 | jsoup 1.17.2 (`Safelist.basic()`으로 요청 파라미터 정제) |
-| API 문서 | springdoc-openapi 2.8.6 (Swagger UI, **dev 프로파일에서만** 활성) |
-| DB | PostgreSQL (런타임 드라이버), PostgreSQL 16 컨테이너 (`docker-compose.yml`) |
-| 뷰 | Mustache 서버 사이드 렌더링 + Vanilla JS (`static/js/cafego.js`) |
-| 배포 | Docker (멀티스테이지 빌드: JDK → JRE), Docker Compose, AWS EC2 |
+| --- | --- |
+| 언어 / 빌드 | Java 17, Gradle Wrapper 8.14.3 |
+| 프레임워크 | Spring Boot 3.5.5 — Web, Data JPA, Validation, Mustache |
+| 인증 · 인가 | Spring Security, JWT(jjwt 0.11.5, HS256), BCrypt |
+| 외부 AI 서버 호출 | WebClient — 서블릿 기반 Spring 애플리케이션에서 사용 |
+| 요청 파라미터 정제 | jsoup 1.17.2, `Safelist.basic()` |
+| API 문서 | springdoc-openapi 2.8.6, Swagger UI(dev 프로파일) |
+| DB | PostgreSQL 16 |
+| 뷰 | Mustache 서버 사이드 렌더링 + Vanilla JS |
+| 배포 | Docker 멀티스테이지 빌드, Docker Compose, AWS EC2 |
 | 기타 | Lombok |
-| 테스트 | `spring-boot-starter-test`, `spring-security-test` (`@WithMockUser`), H2 (테스트 전용 인메모리 DB) |
+| 테스트 | Spring Boot Test, Spring Security Test, H2 |
 
-### AI 서버 — `MyPickCafe_AI/` (`requirements.txt`, `config.py` 기준)
+### AI 서버 — `MyPickCafe_AI/`
 
 | 구분 | 사용 기술 |
-|---|---|
-| 서버 | Python, FastAPI, Uvicorn |
-| 모델 실행 | 임베딩: Ollama (`/api/embed`) · LLM: 로컬 Ollama 또는 외부 서버의 OpenAI 호환 API (`/chat/completions`) |
-| 사용 모델 | 생성/분석: 개별 로컬 실행 기본값 `qwen2.5:14b`, 배포용 `.env.example`은 GLM 5.3 Flash (Fireworks AI) · 임베딩: `bge-m3` |
-| 벡터 DB | ChromaDB (PersistentClient, cosine) |
-| 기타 | httpx, pydantic / pydantic-settings, psycopg (인덱싱용 PostgreSQL 조회) |
-| 더미 데이터 생성 | ollama(Python 패키지), playwright, requests |
+| --- | --- |
+| 서버 | Python 3.11, FastAPI, Uvicorn |
+| 임베딩 | Ollama `bge-m3` — `/api/embed` |
+| LLM | 로컬 기본값: Ollama `qwen2.5:14b` / 배포 설정: Fireworks AI GLM 5.3 Flash |
+| LLM 연동 | OpenAI 호환 API — `/chat/completions` |
+| 벡터 DB | ChromaDB `PersistentClient`, 코사인 유사도 |
+| 기타 | httpx, pydantic / pydantic-settings, psycopg |
 
-> GPU가 없는 배포 환경을 고려해 LLM 추론은 외부 API로 분리하고, 임베딩 모델은 서버 내 Ollama에 유지했습니다. LLM 클라이언트(`shared/llm_client.py`)가 OpenAI 호환 규격이라, `LLM_BASE_URL`, `LLM_MODEL`, 필요한 경우 `LLM_API_KEY`와 `LLM_REASONING_EFFORT`를 함께 설정해 로컬 Ollama ↔ 외부 API를 전환합니다. 로컬 비추론 모델은 추론량 설정을 비우고, 배포용 GLM 설정에서는 `low`를 사용합니다. 임베딩을 서버 내에 유지한 것은 기존 ChromaDB 인덱스와 동일한 모델·설정을 보장하기 위해서입니다.
+GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습니다. 임베딩은 서버 내 Ollama에서 처리하며, 기존 ChromaDB 인덱스와 동일한 모델·설정을 사용합니다. `shared/llm_client.py`는 OpenAI 호환 규격을 사용해 환경변수로 로컬 모델과 외부 API를 전환할 수 있습니다.
 
 ---
 
 ## 주요 동작 흐름
 
-역할은 `MEMBER` / `CAFEOWNER` / `ADMIN` 세 가지입니다. `CustomUserDetailsService`에서 ADMIN은 CAFEOWNER·MEMBER 권한을, CAFEOWNER는 MEMBER 권한을 함께 받습니다.
+### 1. 리뷰 작성 → AI 태그·감성 분석 → 카페 대표 태그 집계
 
-### 1. 리뷰 작성 → AI 태그·감성 분석 → 카페 태그 집계 (`ReviewService`)
+`ReviewService.saveWithTags()`가 `@Transactional` 범위에서 리뷰 저장과 태그 처리를 수행합니다.
 
-1. `@Transactional`이 적용된 `ReviewService.saveWithTags()`에서 리뷰를 `save()`합니다. AI 호출도 같은 트랜잭션 안에서 수행되므로, 이 시점에 커밋이 확정된 것은 아닙니다.
-2. FastAPI `POST /review/analyze`를 **동기** 호출해 태그와 감성을 받습니다. AI 서버는 few-shot 프롬프트로 LLM을 호출하고, 허용 목록에 있는 태그들을 받아옵니다.
-   - 태그 4개 카테고리: `FACILITY`(WIFI, PLUG, TERRACE, PET, PARKING) · `MENU`(AMERICANO, LATTE, COLDBREW, BAKERY, CAKE, ADE, DESSERT) · `PURPOSE`(STUDY, TALK, REST, DATE, PHOTO, MEETING) · `MOOD`(MODERN, RETRO, NATURE, INDUSTRIAL, CLASSIC)
-   - 감성: `GOOD` / `BAD` / `null`
-3. 받은 태그를 `review_tag`에 저장하고, BAD가 아닌 리뷰(GOOD·감성 NULL)의 태그를 카테고리별로 집계해 **카테고리 1위 개수의 85% 이상인 태그**를 `cafe_tag`에 반영합니다. 집계 가능한 리뷰 태그가 없으면 대표 태그도 선정되지 않습니다. **현재 작성·수정 코드에는 집계 후 이번 리뷰의 감성을 저장하는 순서 문제가 있어, 집계 시점에는 이번 리뷰의 감성이 NULL로 취급됩니다(BAD로 판정된 리뷰도 다음 재집계 전까지 포함).** 수정 시 AI 호출이 실패하면 기존 리뷰 태그 삭제 후 재집계도 건너뛸 수 있습니다.
-4. 트랜잭션 메서드가 반환되기 전에 픽봇 서버 `POST /pickbot/index-one`으로 비동기 색인 요청을 보냅니다. 성공 여부를 기다리지 않고 실패는 로그로 남깁니다. PostgreSQL 커밋과 ChromaDB upsert는 하나의 트랜잭션이 아니므로 두 저장소의 일치를 보장하지 않습니다.
+1. 리뷰를 저장하고 FastAPI `POST /review/analyze`를 동기 호출합니다.
+2. AI 서버는 few-shot 프롬프트와 허용 태그 목록을 사용해 시설·메뉴·목적·분위기 태그와 감성을 추출합니다.
+3. 분석 태그를 `review_tag`에 저장하고, 카테고리별 집계에서 **최다 출현 태그 개수의 85% 이상인 태그**를 카페 대표 태그(`cafe_tag`)로 선정합니다.
+4. `POST /pickbot/index-one`으로 리뷰의 비동기 색인 요청을 보냅니다.
 
-> **AI 서버 장애 격리**: `WebClient`에 연결 2초·응답 10초 타임아웃이 걸려 있습니다. Spring의 태그 HTTP 클라이언트가 호출 예외를 잡아 `Optional.empty()`를 반환하면 태그 처리를 건너뛰며, 이후 다른 오류가 없다면 리뷰 트랜잭션을 커밋할 수 있습니다. FastAPI 내부 LLM 실패는 HTTP 200의 빈 태그 응답으로 돌아올 수도 있습니다. `AiClientDegradationTest`는 클라이언트의 빈 결과 반환과 비동기 호출 시 즉시 예외가 전파되지 않는 것만 확인하며, 리뷰 DB 저장·커밋까지 검증하지는 않습니다.
-> 단, 픽봇 추천 조회는 LLM 생성을 기다려야 해서 응답 타임아웃을 따로 60초(`ai.pickbot.read-timeout-ms`)로 둡니다. 실패를 빈 결과로 흡수하면 "조건에 맞는 카페 없음"과 구분되지 않으므로, 실패 원인(연결 불가·타임아웃·서버 오류 응답·응답 형식 오류)을 로그로 남기고 `503`을 반환합니다.
+| 분류 | 값 |
+| --- | --- |
+| 시설 `FACILITY` | WIFI, PLUG, TERRACE, PET, PARKING |
+| 메뉴 `MENU` | AMERICANO, LATTE, COLDBREW, BAKERY, CAKE, ADE, DESSERT |
+| 목적 `PURPOSE` | STUDY, TALK, REST, DATE, PHOTO, MEETING |
+| 분위기 `MOOD` | MODERN, RETRO, NATURE, INDUSTRIAL, CLASSIC |
+| 감성 | GOOD / BAD / null |
 
-### 2. 픽봇 — 자연어 추천 (RAG)
+**외부 AI 호출의 예외 처리**
 
-`/cafes` 페이지의 "픽봇" 탭 → `POST /api/pickbot/recommend` → FastAPI `POST /pickbot/recommend`
+태그 분석과 추천 조회는 기능의 목적에 맞춰 실패 처리 정책을 구분합니다.
 
-1. **질문 분해 (LLM 1차 호출, `PickBot_AI/query_parser.py`)**: 질문을 희망 지역과 그 밖의 조건(방문 목적·분위기·메뉴·시설 등)으로 나눕니다. 지역은 카페 주소에 실제로 있는 구·동 이름으로 받고, 통칭·역 이름("홍대", "합정역")은 퓨샷 예시로 변환합니다. 지역이 여러 개면 OR, "A 말고"는 제외 지역으로 받습니다. 호출이 실패하면 질문 전체를 조건으로 보고 지역 필터 없이 진행합니다.
-2. **지역 필터**: 포함 지역 중 하나라도 주소에 있고 제외 지역은 없는 카페만 후보로 남깁니다. 말한 지역이 데이터에 없거나 후보가 0곳이면 `{"results": [], "notice": "REGION_NOT_FOUND"}`로 응답하고, 화면은 "해당 지역에는 등록된 카페가 없어요"를 띄웁니다.
-3. **조건 없이 지역만 말한 경우**("이태원 카페 추천해줘"): 벡터 검색과 LLM 2차 호출 없이 긍정(GOOD) 리뷰 수 → 전체 리뷰 수 순으로 상위 5곳을 고르고, 대표 리뷰를 추천 문구로 씁니다.
-4. **리뷰 검색**: 조건 문장을 `bge-m3`로 임베딩해 코사인 유사도 순으로 카페당 리뷰 1개씩, 기본 최대 5개(`top_n=5`)를 선정합니다. 인덱스에는 리뷰 본문만 임베딩합니다(카페명·주소 제외). 같은 검색 묶음에서 이미 선택한 카페의 중복 리뷰는 건너뛰고, 선택한 카페를 다음 검색에서 제외해 부족분을 채웁니다. 원시 검색 결과는 중복 리뷰 때문에 5건을 넘을 수 있지만, 최종 선정·LLM 전달 리뷰는 최대 5개입니다. 후보가 부족하면 확보된 수만 전달합니다.
-5. **LLM 2차 호출**: 선정한 최대 5개 리뷰를 모두(카페당 1개, 이름·주소 없이) 조건 문장과 함께 한 번에 넘깁니다. 각 리뷰는 인덱스 메타데이터에 저장된 최대 500자 본문을 사용합니다. LLM은 조건을 요구사항으로 나누고 카페마다 충족·누락을 판정합니다. 코드가 **요구사항을 모두 충족한 카페를 전부**(유사도 순) 반환하고, 모두 충족한 카페가 없으면 **일부라도 충족한 카페 중 유사도 1위 1곳만** 반환합니다. 충족한 요구사항이 있는 카페가 하나도 없으면 빈 목록을 반환합니다. 추천 이유는 충족한 조건만 근거로 씁니다. 카페명·주소는 검색 결과에서 채우고, 후보에 없는 cafeId는 버립니다. 호출이 실패하면 검색 결과를 그대로 반환합니다.
-6. Spring이 결과에 카페 대표 사진 URL을 붙여 응답합니다. 픽봇 서버 호출 자체가 실패하면 `503`(`reason` 필드에 실패 유형)을 응답하고, 화면은 "일시적인 오류" 문구를 띄웁니다.
+| 호출 | 타임아웃 / 처리 방식 | 실패 처리 |
+| --- | --- | --- |
+| 리뷰 태그 분석 | 연결 2초·응답 10초, 동기 호출 | 호출 예외를 `Optional.empty()`로 변환하고 태그 처리를 건너뛰어 리뷰 저장 흐름을 이어감 |
+| 리뷰 색인 | 비동기 요청 | 실패를 로그로 기록 |
+| 픽봇 추천 | 응답 60초(`ai.pickbot.read-timeout-ms`), 동기 호출 | 연결·타임아웃·서버 응답·응답 형식 오류를 구분하고 `503` 반환 |
 
-> 주의: 현재 더미 데이터의 카페 주소는 카페 이름·리뷰와 무관하게 무작위로 들어가 있어, 지역 필터 결과가 실제 위치와 다를 수 있습니다.
+추천 호출 실패는 정상적인 빈 검색 결과와 구분해 화면에 일시적인 오류로 안내합니다.
 
-인덱스 관리: FastAPI 기동 시 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 인덱싱합니다. 그 밖에 `POST /pickbot/reindex`, `POST /pickbot/delete-one`, 독립 실행 스크립트 `PickBot_AI/embed_all.py`가 있습니다. `reindex`가 호출하는 `index_from_db()`는 기존 리뷰 ID를 건너뛰고 누락된 ID만 추가합니다. 기존 리뷰 수정·삭제까지 동기화하는 전체 재구축은 아니며, 수정은 단건 upsert, 삭제는 단건 삭제 또는 별도의 초기화·전체 색인 절차가 필요합니다.
+### 2. 픽봇 — 자연어 추천(RAG)
 
-> 기존 배포 문서에는 로컬 ChromaDB 인덱스를 Docker 볼륨으로 이관한 것으로 기록되어 있으나, 현재 운영 볼륨의 이관 상태는 확인하지 않았습니다. 인덱스가 비어 있지 않으면 기동 시 초기 인덱싱을 건너뜁니다. CPU 환경에서는 전체 인덱싱이 오래 걸릴 수 있으며, 소요 시간은 데이터량과 실행 자원에 따라 달라집니다.
+`/cafes`의 픽봇 탭에서 입력한 요청은 Spring `POST /api/pickbot/recommend`를 거쳐 FastAPI `POST /pickbot/recommend`로 전달됩니다.
+
+1. **질문 분해 — LLM 1차 호출**: `PickBot_AI/query_parser.py`에서 질문을 지역과 조건(방문 목적·분위기·메뉴·시설 등)으로 나눕니다. 통칭·역 이름은 주소의 구·동 이름에 대응시키며, 복수 지역과 제외 지역을 처리합니다. 호출 실패 시 질문 전체를 조건으로 사용합니다.
+2. **지역 필터**: 포함 지역 중 하나라도 주소에 있고 제외 지역은 없는 카페를 후보로 선정합니다. 대상 지역에 후보가 없으면 `REGION_NOT_FOUND`를 반환합니다.
+3. **지역만 요청한 경우**: 긍정(GOOD) 리뷰 수 → 전체 리뷰 수 순으로 상위 5곳을 선정합니다. 이 경로는 벡터 검색과 LLM 2차 호출을 생략합니다.
+4. **리뷰 검색**: 조건 문장을 `bge-m3`로 임베딩하고 ChromaDB에서 코사인 유사도로 검색합니다. 카페당 리뷰 1개씩, 기본 최대 5곳을 선정하며, 이미 선정한 카페를 제외한 추가 검색으로 부족분을 채웁니다. 인덱싱 대상은 리뷰 본문입니다.
+5. **조건 검증 — LLM 2차 호출**: 선정한 리뷰(카페당 1개, 최대 500자)를 조건과 함께 전달해 요구사항의 충족 여부를 판정합니다. 모든 요구사항을 충족한 카페를 유사도 순으로 반환하고, 해당 카페가 없으면 일부 조건을 충족한 후보 중 유사도 1위 1곳을 반환합니다. 충족한 조건이 없으면 빈 목록을 반환합니다.
+6. **응답 구성**: 추천 이유는 충족한 조건을 근거로 작성합니다. 카페명·주소는 검색 결과에서 채우고 후보에 없는 `cafeId`는 제외합니다. Spring이 대표 사진 URL을 추가해 화면에 전달합니다.
+
+2차 LLM 호출이 실패하면 검색 결과를 반환하도록 폴백을 두었습니다.
+
+**리뷰 인덱스 관리**
+
+| 시점 / 경로 | 처리 |
+| --- | --- |
+| FastAPI 기동 | 인덱스가 비어 있으면 PostgreSQL의 승인된 카페 리뷰로 초기 색인 |
+| `POST /pickbot/index-one` | 리뷰 단건 upsert |
+| `POST /pickbot/reindex` | 기존 리뷰 ID를 유지하며 누락된 ID를 추가 색인 |
+| `PickBot_AI/embed_all.py` | 독립 실행 색인 스크립트 |
 
 ### 3. 니즈 기반 추천
 
-사용자가 마이페이지에서 고른 니즈 태그 집합과 카페 태그 집합 사이의 **자카르드 유사도(Jaccard)**를 계산합니다 (`RecommendService`). 메인 페이지와 `/cafes?sort=recommend`에서 사용하며, 이 경로는 LLM을 호출하지 않습니다.
+`RecommendService`는 사용자가 선택한 니즈 태그와 카페 대표 태그 사이의 **자카르드 유사도(Jaccard)**를 계산합니다. 메인 페이지와 `/cafes?sort=recommend`에서 사용합니다.
 
-1. 사용자 니즈를 `CATEGORY:CODE` 문자열 집합으로 만듭니다. 니즈가 없으면 빈 목록을 반환합니다.
-2. `CafeTagRepository.findApprovedCafeTagStrings()`가 `cafe_tag`와 `cafe`를 조인해 **승인된(`APPROVED`) 카페의 태그만** 조회합니다. 점수 계산과 개수 제한 전에 걸러 대기·반려 카페가 추천에 노출되거나 추천 수를 차지하지 않게 합니다.
-3. 카페별 태그를 집합으로 묶고 `J(A, B) = |A ∩ B| / |A ∪ B|`로 점수를 계산합니다. 합집합이 비면 0점이며, 태그 빈도나 카테고리별 가중치는 적용하지 않습니다.
-4. 점수가 0인 카페는 제외하고 내림차순으로 정렬해 요청한 `limit`만큼 고릅니다. 같은 점수끼리의 별도 정렬 기준은 없습니다.
-5. 선정된 카페 정보와 대표 사진 URL을 조회해 순위를 유지한 카드 목록으로 반환합니다. `CafePhotoService.findMainPhotoUrls()`는 Repository의 `ROW_NUMBER() OVER (PARTITION BY cafe_id ORDER BY ...)` 쿼리로 카페당 대표 사진 한 행만 가져옵니다. PostgreSQL 전용 `DISTINCT ON` 대신 H2 테스트에서도 사용할 수 있는 윈도우 함수를 사용합니다. `is_main = true` 우선, 그다음 `sort_index` 오름차순이며, 사진이 없으면 기본 이미지를 씁니다.
+1. 사용자 니즈를 `CATEGORY:CODE` 문자열 집합으로 변환합니다.
+2. `CafeTagRepository.findApprovedCafeTagStrings()`에서 `cafe_tag`와 `cafe`를 조인해 **승인된(`APPROVED`) 카페의 태그만** 조회합니다.
+3. `J(A, B) = |A ∩ B| / |A ∪ B|`로 점수를 계산하고, 0점을 제외한 뒤 내림차순으로 요청한 `limit`만큼 선정합니다.
+4. 선정된 카페 정보와 대표 사진을 조회해 추천 순서대로 반환합니다.
 
-최근 변경은 자카르드 계산식 자체가 아니라 승인 상태를 후보 조회 단계에서 반영하고, 대표 사진 전체를 읽던 조회를 카페당 한 행으로 줄인 것입니다.
+대표 사진은 `ROW_NUMBER() OVER (PARTITION BY cafe_id ORDER BY ...)`를 이용해 **카페당 한 행만 조회**합니다. 대표 사진 여부와 `sort_index`를 기준으로 선택하며, 사진이 없으면 기본 이미지를 사용합니다. 윈도우 함수로 PostgreSQL과 H2 테스트 환경에서 같은 조회 방식을 사용합니다.
 
 ### 4. 카페 등록 → 관리자 승인 → 역할 승격
 
-1. 사진 여러 장과 사업자 증빙 파일을 올려 카페를 신청하면 상태 `PENDING`으로 저장되고 관리자에게 알림이 갑니다.
-2. 관리자는 승인 대기 목록과 증빙 문서를 확인하고 승인 또는 반려합니다.
-3. 승인 시 카페 소유자가 MEMBER면 CAFEOWNER로 바뀌고, 점주에게 승인/반려 알림이 갑니다.
+1. 사진과 사업자 증빙 파일을 포함한 등록 신청을 `PENDING` 상태로 저장하고 관리자에게 알림을 보냅니다.
+2. 관리자가 신청 내용과 증빙을 확인해 승인 또는 반려합니다.
+3. 승인 시 소유자가 `MEMBER`라면 `CAFEOWNER`로 변경하고, 승인·반려 결과를 점주에게 알립니다.
 
-사진·메뉴·영업정보 수정은 URL 기반 역할 검사에 더해, 요청자가 해당 카페의 점주인지 리소스 단위로 확인합니다 (`CafeOwnershipGuard` 및 컨트롤러 내부 검증). 업로드 파일은 로컬 디스크(`file.upload-dir`, 기본 `./uploads`)에 저장되고 `/uploads/**`로 서빙됩니다. 컨테이너 환경에서는 `web-uploads` 볼륨에 저장됩니다.
+사진·메뉴·영업정보 수정은 역할 검사와 함께 해당 카페의 소유권을 확인합니다. 메뉴·사진에는 `CafeOwnershipGuard`를 적용하고, 영업정보와 카페 관리에는 컨트롤러 내부 검증을 사용합니다.
 
-### 5. 탐색 — 목록 · 검색 · 알림
+업로드 파일은 `file.upload-dir`에 저장하며, Docker 환경에서는 `web-uploads` 볼륨을 사용합니다.
 
-- 메인은 저장된 `views` 값 기준 상위 8개, 사용 중인 태그 칩, 최근 리뷰 6개를 보여주고, 로그인 상태면 니즈 기반 추천 6개를 함께 노출합니다. 방문 시 `views`를 증가시키는 집계 로직은 아직 미구현이며, 실제 방문량에 따른 인기 순위는 아닙니다. 로컬 변경에서는 카드의 조회수 표시만 제거했고 정렬 기준은 유지했습니다.
-- 목록은 `views` / `likes`(GOOD 리뷰 비율) / `newest` / `recommend` 정렬과 `CATEGORY:CODE` 태그 필터를 지원하며 최대 40개를 반환합니다.
-- 검색은 승인된 카페의 이름·주소 부분 일치입니다.
-- 알림은 `CAFE_REGISTERED`(관리자), `CAFE_APPROVED`·`CAFE_REJECTED`(점주), `REVIEW`(점주) 네 종류이며, 헤더 드롭다운이 12초 간격으로 안 읽은 수를 갱신합니다.
+### 5. 탐색 · 즐겨찾기 · 알림
 
-### API 목록
+- **메인**: 카페 카드, 태그 칩, 최근 리뷰, 로그인 사용자의 니즈 기반 추천을 제공합니다.
+- **목록·검색**: 정렬과 `CATEGORY:CODE` 태그 필터, 승인된 카페의 이름·주소 검색을 지원합니다.
+- **즐겨찾기**: 카페별 즐겨찾기 등록·해제와 개인 목록을 제공합니다.
+- **알림**: 카페 등록, 승인·반려, 리뷰 작성 알림을 제공하며 헤더에서 12초 간격으로 안 읽은 수를 갱신합니다.
 
-전체 엔드포인트 명세는 dev 프로파일에서 뜨는 Swagger UI(`/swagger-ui.html`)가 담당합니다. 아래는 화면·기능과의 대응을 보기 위한 요약입니다.
+### 주요 API
 
-<details>
-<summary>엔드포인트 전체 목록</summary>
+전체 명세는 dev 프로파일의 Swagger UI(`/swagger-ui.html`)에서 확인할 수 있습니다.
 
-**회원 · 인증**
+- 기능별 엔드포인트
+    
+    **회원 · 인증**
+    
+    | 기능 | 엔드포인트 | 비고 |
+    | --- | --- | --- |
+    | 회원가입 | `GET/POST /signup` | BCrypt 해시 저장, 기본 역할 MEMBER |
+    | 폼 로그인 | `GET/POST /login` | `AT` HttpOnly 쿠키 발급 |
+    | REST 로그인 | `POST /api/auth/login` | 응답 본문 토큰 + `AT` 쿠키 |
+    | 로그아웃 | `POST /api/auth/logout` | 쿠키 삭제 + `tokenVersion` 증가 |
+    | 내 정보 | `GET /api/auth/me` | 로그인 회원 정보 |
+    | 마이페이지 | `GET /member/me`, `GET/POST /member/edit`, `GET/POST /member/withdraw`, `GET /member/reviews` | 프로필 수정, 탈퇴, 작성 리뷰 조회 |
+    | 니즈 설정 | `POST /member/needs` | 선호 태그 저장 |
+    | 회원 관리 | `GET/POST /api/members`, `GET/PUT/DELETE /api/members/{id}` | ADMIN 전용, `MemberResponse` DTO 반환 |
+    
+    **카페**
+    
+    | 기능 | 엔드포인트 | 비고 |
+    | --- | --- | --- |
+    | 메인 | `GET /` | 카페·리뷰·추천 카드 |
+    | 검색 | `GET /search?q=` | 승인된 카페의 이름·주소 검색 |
+    | 목록 | `GET /cafes?sort=views\|likes\|newest\|recommend&tag=CATEGORY:CODE` | 정렬·필터, 최대 40개 |
+    | 상세 | `GET /cafes/{cafeId}` | 영업정보·메뉴·리뷰·사진·즐겨찾기 수 |
+    | 등록 신청 | `GET /cafes/new`, `POST /cafes/create` | 사진·증빙 업로드 |
+    | 관리 / 삭제 | `GET /cafes/{cafeId}/manage`, `POST /cafes/{cafeId}/delete` | 소유권 검증 |
+    | 카페 REST | `GET/POST /api/cafes`, `GET/PUT/DELETE /api/cafes/{id}` | `CafeResponse` DTO 반환, 쓰기는 CAFEOWNER·ADMIN |
+    | 사진 | `GET/POST /api/cafes/{cafeId}/photos`, `PATCH /api/cafes/photos/{photoId}/main`, `DELETE /api/cafes/photos/{photoId}` | 대표 사진 지정 |
+    | 영업정보 | `GET /api/cafe-infos/by-cafe/{cafeId}`, `POST /api/cafe-infos/upsert/{cafeId}`, `PUT/DELETE /api/cafe-infos/{id}` | 영업시간·공지·소개 관리 |
+    | 메뉴 | `GET /api/menus/{id}`, `GET /api/menus/by-cafe/{cafeId}`, `POST /api/menus`, `PUT/DELETE /api/menus/{id}`, `POST /api/menus/{menuId}/photo` | 메뉴·사진 관리 |
+    
+    **관리자 · 리뷰 · 추천**
+    
+    | 기능 | 엔드포인트 |
+    | --- | --- |
+    | 관리자 대시보드 | `GET /admin` |
+    | 승인 대기 카페 조회 | `GET /admin/cafes/pending` |
+    | 승인 / 반려 | `POST /admin/cafes/{id}/approve`, `POST /admin/cafes/{id}/reject` |
+    | 사업자 증빙 열람 | `GET /admin/cafes/{id}/bizdoc` |
+    | 카페 대표 태그 재계산 | `POST /admin/cafes/tags/recalculate` |
+    | 리뷰 작성 / 본인 리뷰 수정 | `POST /reviews/new`, `POST /reviews/{id}/edit` |
+    | 픽봇 추천 | `POST /api/pickbot/recommend` |
+    
+    **즐겨찾기 · 알림**
+    
+    | 기능 | 엔드포인트 |
+    | --- | --- |
+    | 즐겨찾기 토글 | `POST /api/favorites/{cafeId}/favorite` |
+    | 내 즐겨찾기 | `GET /api/favorites`, `GET /favorites` |
+    | 카페별 즐겨찾기 수 | `GET /api/favorites/cafes/{cafeId}/count` |
+    | 알림 목록 / 안 읽은 수 | `GET /api/notifications`, `GET /api/notifications/unread-count` |
+    | 읽음 처리 | `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all` |
 
-| 기능 | 엔드포인트 | 비고 |
-|---|---|---|
-| 회원가입 | `GET/POST /signup` | BCrypt 해시 저장, 기본 역할 MEMBER |
-| 로그인 (폼) | `GET/POST /login` | JWT를 `AT` HttpOnly 쿠키로 발급 |
-| 로그인 (REST) | `POST /api/auth/login` | 응답 본문 토큰 + `AT` 쿠키 |
-| 로그아웃 | `POST /api/auth/logout` | 쿠키 삭제 + 회원 `tokenVersion` 증가 (기존 토큰 무효화) |
-| 내 정보 | `GET /api/auth/me` | |
-| 마이페이지 | `GET /member/me`, `GET/POST /member/edit`, `GET/POST /member/withdraw`, `GET /member/reviews` | 프로필 수정, 탈퇴, 내가 쓴 리뷰(페이지네이션) |
-| 니즈 설정 | `POST /member/needs` | 추천에 쓰이는 선호 태그 저장 |
-| 회원 관리 (관리자) | `GET/POST /api/members`, `GET/PUT/DELETE /api/members/{id}` | ADMIN 전용, 응답은 `MemberResponse` DTO (비밀번호 해시 제외) |
+---
 
-**카페**
+## 모델 선정
 
-| 기능 | 엔드포인트 | 비고 |
-|---|---|---|
-| 메인 | `GET /` | 저장된 `views` 상위 8개(방문 집계 미구현), 태그 칩, 최근 리뷰 6개, 로그인 시 추천 6개 |
-| 검색 | `GET /search?q=` | 승인된 카페의 이름/주소 부분 일치 |
-| 목록 | `GET /cafes?sort=views\|likes\|newest\|recommend&tag=CATEGORY:CODE` | 최대 40개 |
-| 상세 | `GET /cafes/{cafeId}` | 영업정보·메뉴·리뷰·사진·GOOD/BAD 집계·즐겨찾기 수 |
-| 등록 신청 | `GET /cafes/new`, `POST /cafes/create` | 사진·증빙 업로드, 상태 `PENDING` |
-| 관리 / 삭제 | `GET /cafes/{cafeId}/manage`, `POST /cafes/{cafeId}/delete` | 점주 또는 관리자 |
-| 카페 REST | `GET /api/cafes`, `GET /api/cafes/{id}` (공개) / `POST`, `PUT /{id}`, `DELETE /{id}` (CAFEOWNER·ADMIN) | 응답은 `CafeResponse` DTO |
-| 사진 | `GET/POST /api/cafes/{cafeId}/photos`, `PATCH /api/cafes/photos/{photoId}/main`, `DELETE /api/cafes/photos/{photoId}` | 대표 사진 지정 |
-| 영업정보 | `GET /api/cafe-infos/by-cafe/{cafeId}`, `POST /api/cafe-infos/upsert/{cafeId}`, `PUT/DELETE /api/cafe-infos/{id}` | |
-| 메뉴 | `GET /api/menus/{id}`, `GET /api/menus/by-cafe/{cafeId}`, `POST /api/menus` (multipart), `PUT/DELETE /api/menus/{id}`, `POST /api/menus/{menuId}/photo` | |
+### 임베딩 모델
 
-**관리자**
+한국어 리뷰 검색을 위해 `nomic-embed-text`에서 다국어 검색 모델 `bge-m3`로 교체했습니다. 변경은 `PickBot_AI/config.py`, 커밋 `a43c7d7`에 반영되어 있습니다.
 
-| 기능 | 엔드포인트 |
-|---|---|
-| 대시보드 (승인 대기 목록) | `GET /admin` |
-| 승인 대기 카페 조회 | `GET /admin/cafes/pending` |
-| 승인 / 반려 | `POST /admin/cafes/{id}/approve`, `POST /admin/cafes/{id}/reject` |
-| 사업자 증빙 문서 열람 | `GET /admin/cafes/{id}/bizdoc` |
-| 카페 대표 태그 일괄 재계산 | `POST /admin/cafes/tags/recalculate` |
+### LLM
 
-**리뷰 · 추천**
+EC2 배포를 위해 로컬 Ollama 기반 LLM을 외부 OpenAI 호환 API로 전환했습니다. Fireworks AI의 후보 5개를 **리뷰 태그 분석·질문 분해·추천 선택** 작업으로 비교하고, 정답률·JSON 형식 안정성·응답시간·비용을 종합해 `glm-5p3-flash`를 선정했습니다.
 
-| 기능 | 엔드포인트 |
-|---|---|
-| 리뷰 작성 | `POST /reviews/new` |
-| 리뷰 수정 (본인만) | `POST /reviews/{id}/edit` |
-| 픽봇 추천 | `POST /api/pickbot/recommend` |
+- **비교 후보**: `glm-5p3-flash`, `deepseek-v4p1-flash`, `qwen3p8-max`, `gpt-oss-120b`, `nemotron-lightning-3p5-30b-a3b`
+- **측정일**: 2026-09-18
+- **공통 조건**: JSON 모드, `temperature=0`, `top_p=0.9`, `max_tokens=1000`, 재시도 없음
 
-**즐겨찾기 · 알림**
+선정 모델의 태그 분석·질문 분해 테스트 결과는 다음과 같습니다. 수치는 각 테스트 세트 기준이며, 비용은 측정 당시 1천 건 호출 기준 추정치입니다.
 
-| 기능 | 엔드포인트 | 비고 |
-|---|---|---|
-| 즐겨찾기 토글 | `POST /api/favorites/{cafeId}/favorite` | 로그인 필요 |
-| 내 즐겨찾기 | `GET /api/favorites`, `GET /favorites` (페이지) | |
-| 카페별 즐겨찾기 수 | `GET /api/favorites/cafes/{cafeId}/count` | |
-| 알림 목록 / 안 읽은 수 | `GET /api/notifications` (최근 20건), `GET /api/notifications/unread-count` | 12초 간격 갱신 |
-| 읽음 처리 | `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all` | |
+| 작업 | 테스트 세트 | 정답 결과 | 평균 응답 | 1천 건 비용 |
+| --- | --- | --- | --- | --- |
+| 리뷰 태그 분석 | 정답 태그가 있는 리뷰 15건 | 완전일치 15/15 | 3.9초 | $0.40 |
+| 질문 분해 | 퓨샷 예시와 겹치지 않는 질문 31건 | 완전정답 30/31 | 2.5초 | $0.24 |
 
-</details>
-
-### 모델 교체를 통한 개선
-
-모델을 직접 학습시키지 않고, 연동하는 모델을 바꾸는 방식으로 성능을 개선했습니다.
-
-| 대상 | 변경 | 근거 |
-|---|---|---|
-| 임베딩 모델 (`PickBot_AI/config.py`) | `nomic-embed-text` → `bge-m3` | git 커밋 `a43c7d7` |
-| LLM (생성·분석) | 로컬 `qwen2.5:14b`(Ollama) → GLM 5.3 Flash (Fireworks AI) | GPU 없는 EC2 배포 제약. Fireworks 후보 5개를 리뷰 태그 분석·픽봇 1차·2차 호출 테스트로 비교(정답률 / JSON 형식 안정성 / 응답시간 / 단가)한 뒤 선정 |
-
-**임베딩 모델 교체 이유**
-
-- 검색 대상이 전부 한국어 리뷰입니다. `nomic-embed-text`는 영어 중심으로 학습된 모델이고, `bge-m3`는 한국어를 포함한 다국어 검색용 모델이라 교체했습니다.
-- 교체 전후 검색 품질을 수치로 비교하지는 않았습니다.
-
-**LLM 후보 비교 결과** (2026-09-18 측정)
-
-- 조건은 서버 설정과 같습니다: JSON 모드, `temperature` 0, `top_p` 0.9, `max_tokens` 1000, 재시도 없음. 비용은 1천 건 호출 기준 추정치입니다.
-- 이전 모델(`qwen2.5:14b`)은 비교 대상에 없습니다. 따라서 교체 전후 비교가 아니라 배포 후보 간 비교입니다.
-
-<details>
-<summary>작업별 결과 표</summary>
-
-리뷰 태그 분석 (`Review_Tag_AI/test_api.py`, 정답 태그가 있는 15건)
-
-| 모델 | 완전일치 | JSON 실패 | 평균 / 최대 응답 | 1천 건 비용 |
-|---|---|---|---|---|
-| **glm-5p3-flash** | 15/15 | 0 | 3.9 / 8.1초 | $0.40 |
-| gpt-oss-120b | 15/15 | 0 | 2.5 / 3.9초 | $0.31 |
-| deepseek-v4p1-flash | 15/15 | 0 | 3.4 / 8.2초 | $0.47 |
-| qwen3p8-max | 12/15 | 0 | 4.0 / 6.1초 | $3.69 |
-| nemotron-lightning-3p5-30b-a3b | 4/15 | 11 | – | $0.25 |
-
-픽봇 1차 호출: 질문 분해 (`PickBot_AI/test_query_parser.py`, 퓨샷 예시와 겹치지 않는 31건)
-
-| 모델 | 완전정답 | 실패 | 평균 / p90 / 최대 응답 | 1천 건 비용 |
-|---|---|---|---|---|
-| **glm-5p3-flash** | 30/31 | 0 | 2.5 / 3.5 / 6.1초 | $0.24 |
-| deepseek-v4p1-flash | 30/31 | 0 | 3.1 / 5.3 / 7.9초 | $0.31 |
-| qwen3p8-max | 29/31 | 0 | 4.8 / 7.4 / 19.6초 | $2.68 |
-| gpt-oss-120b | 28/31 | 0 | 1.9 / 2.6 / 3.3초 | $0.25 |
-| nemotron-lightning-3p5-30b-a3b | 3/31 | 28 | – | – |
-
-픽봇 2차 호출: 추천 선택 (`PickBot_AI/test_pick_llm.py`, 10건)
-
-| 모델 | 실패 (그중 토큰 한도 초과) | 평균 추천 수 | 평균 / 최대 응답 | 1천 건 비용 |
-|---|---|---|---|---|
-| **glm-5p3-flash** | 1 (1) | 3.8곳 | 6.8 / 11.1초 | $0.42 |
-| gpt-oss-120b | 3 (0, 응답 JSON을 한 겹 더 감싸 반환) | 2.1곳 | 3.1 / 6.0초 | $0.30 |
-| qwen3p8-max | 2 (2) | 3.4곳 | 9.3 / 13.5초 | $4.78 |
-| deepseek-v4p1-flash | 7 (7) | 3.3곳 | 9.1 / 12.3초 | $0.74 |
-| nemotron-lightning-3p5-30b-a3b | 9 (9) | – | – | $0.23 |
-
-</details>
-
-- **선정: glm-5p3-flash.** 세 작업 모두에서 정답률과 형식 안정성이 가장 고르게 높아, 1차·2차 호출과 리뷰 태그 분석에 같은 모델을 씁니다.
-- gpt-oss-120b는 가장 빠르지만, 질문 분해 오답이 더 많고 추천 선택에서 응답 형식이 깨졌습니다. deepseek-v4p1-flash는 추천 선택 호출에서 토큰 한도를 자주 넘겼습니다.
-- 리뷰 태그 분석 정확도(glm-5p3-flash): 15건 모두 정답 태그와 완전일치했습니다. `test_api.py`는 카테고리별 Precision/Recall/F1도 출력하지만, 위 비교에서는 완전일치 건수를 기준으로 삼았습니다.
+테스트 스크립트는 `Review_Tag_AI/test_api.py`, `PickBot_AI/test_query_parser.py`, `PickBot_AI/test_pick_llm.py`에 정리했습니다.
 
 ---
 
@@ -248,103 +226,79 @@
 ### 시스템 구성
 
 ```mermaid
-flowchart LR
-    B[Browser] -->|Mustache SSR / fetch| S[Spring Boot :8080]
-    S -->|JPA| P[(PostgreSQL 16)]
-    S -->|파일 저장| U[web-uploads 볼륨]
-    S -->|WebClient<br/>POST /review/analyze 동기| F[FastAPI app.py :8000]
-    S -->|WebClient<br/>/pickbot/recommend 동기<br/>/pickbot/index-one 비동기| F
-    F -->|/api/embed| O[Ollama :11434<br/>bge-m3]
-    F -->|/chat/completions| L[Fireworks AI<br/>GLM 5.3 Flash]
-    F -->|인덱싱용 리뷰 조회| P
-    F --> C[(ChromaDB 볼륨)]
+flowchart TD
+    B["Browser"] -->|SSR / fetch| S["Spring Boot :8080"]
+    S -->|JPA| P[("PostgreSQL 16")]
+    S -->|파일 저장| U["업로드 볼륨"]
+    S -->|WebClient| F["FastAPI :8000"]
+    F -->|리뷰 조회| P
+    F -->|임베딩| O["Ollama · bge-m3"]
+    F -->|LLM 호출| L["Fireworks AI · GLM 5.3 Flash"]
+    F --> C[("ChromaDB 인덱스")]
 ```
 
-- `MyPickCafe_AI/app.py`는 `PickBot_AI`(RAG 추천)와 `Review_Tag_AI`(태그·감성 분석)의 엔드포인트를 **하나의 FastAPI 서버**로 묶은 통합 서버입니다.
-- 포트는 코드 기준입니다. Spring은 `server.port`를 따로 지정하지 않아 기본값 8080을 쓰고, FastAPI는 `app.py` `__main__` 기준 8000입니다.
-- 배포 환경에서는 컨테이너 간 서비스명(`postgres:5432`, `ollama:11434`, `mypickcafe-ai:8000`)으로 통신합니다. `localhost`는 컨테이너 자기 자신을 가리키므로 쓰지 않습니다.
+`MyPickCafe_AI/app.py`는 리뷰 태그·감성 분석(`Review_Tag_AI`)과 RAG 추천(`PickBot_AI`)을 하나의 FastAPI 서버로 제공합니다. 컨테이너 간 통신은 `postgres:5432`, `ollama:11434`, `mypickcafe-ai:8000`과 같은 서비스명을 사용합니다.
 
-### 컨테이너 구성 (`docker-compose.yml`)
+### 컨테이너 구성
 
-| 서비스 | 이미지 | 역할 | 메모리 한도 |
-|---|---|---|---|
-| `mypickcafe-web` | 자체 빌드 (멀티스테이지: JDK 17 → JRE 17) | Spring Boot | 1GB (`-XX:MaxRAMPercentage=70`) |
-| `mypickcafe-ai` | 자체 빌드 (python:3.11-slim) | FastAPI 통합 서버 | 2GB |
-| `postgres` | `postgres:16-alpine` | DB | 1GB |
-| `ollama` | `ollama/ollama` | `bge-m3` 임베딩 서빙 | 2.5GB |
-| `ollama-init` | `ollama/ollama` | 최초 1회 `bge-m3` pull 후 종료 | 512MB |
-| `chromadb` | `chromadb/chroma` | 기본 미기동 — `--profile chroma-server`로만 뜨는 선택 서비스 | 1GB |
-
-- 한도는 `.env`로 덮어쓸 수 있습니다(`WEB_MEM_LIMIT`, `AI_MEM_LIMIT`, `POSTGRES_MEM_LIMIT`, `OLLAMA_MEM_LIMIT` 등). 상시 실행 4개의 합은 6.5GB로, t3.large(8GB)에서 OS·페이지 캐시 몫을 남기도록 잡았습니다.
-- `chromadb` 서비스는 정의만 되어 있고 애플리케이션은 쓰지 않습니다. 지금 코드는 `chromadb.PersistentClient`로 볼륨의 인덱스 파일을 직접 읽고 씁니다.
-- 볼륨: `pgdata`(DB), `chroma-index`(벡터 인덱스), `ollama-models`(임베딩 모델), `web-uploads`(업로드 파일), `chroma-server-data`(`chroma-server` 프로필 전용). 컨테이너를 다시 만들어도 데이터가 유지됩니다.
-- 기동 순서: `postgres`는 `pg_isready` healthcheck 통과 후, `ollama`는 healthcheck → `ollama-init` 완료 후에 애플리케이션 컨테이너가 뜹니다. 모델이 없는 상태로 인덱싱이 시작되는 것을 막기 위해서입니다.
-- 두 애플리케이션 컨테이너는 비루트 사용자(uid 10001)로 실행됩니다.
-- `mypickcafe-ai`는 워커 1개로 고정합니다. ChromaDB 인덱스를 프로세스 안에 들고 있어, 워커를 늘리면 기동 시 초기 인덱싱이 워커 수만큼 중복 실행됩니다.
+| 서비스 | 이미지 / 빌드 | 역할 | 기본 메모리 한도 |
+| --- | --- | --- | --- |
+| `mypickcafe-web` | JDK 17 → JRE 17 멀티스테이지 빌드 | Spring Boot | 1GB |
+| `mypickcafe-ai` | `python:3.11-slim` 기반 빌드 | FastAPI | 2GB |
+| `postgres` | `postgres:16-alpine` | 서비스 DB | 1GB |
+| `ollama` | `ollama/ollama` | 임베딩 모델 서빙 | 2.5GB |
+| `ollama-init` | `ollama/ollama` | 최초 모델 다운로드 후 종료 | 512MB |
+- 상시 실행 컨테이너의 기본 메모리 한도 합계는 6.5GB이며, 환경변수로 조정할 수 있습니다.
+- `pgdata`, `chroma-index`, `ollama-models`, `web-uploads` 볼륨에 데이터를 보관합니다. ChromaDB는 FastAPI의 `PersistentClient`로 인덱스 파일을 사용합니다.
+- PostgreSQL·Ollama 헬스체크와 임베딩 모델 다운로드가 완료된 후 애플리케이션을 기동합니다.
+- Spring Boot와 FastAPI 컨테이너는 비루트 사용자(uid 10001)로 실행합니다.
 
 ### Spring Boot 계층 구조
 
-```
-com.example.MyPickCafe
-├── api/          REST 컨트롤러 (auth, cafes, cafe-infos, members, menus, notifications, admin) + ApiExceptionHandler
-├── controller/   Mustache 페이지 컨트롤러 + 일부 REST (사진, 픽봇, 즐겨찾기)
-├── service/      비즈니스 로직, AI 서버 클라이언트 (PythonTagClient, PickBotClient), 파일 저장
-├── repository/   Spring Data JPA (파생 쿼리 + 네이티브/JPQL 쿼리)
-├── entity/       JPA 엔티티
-├── domain/       enum (역할, 카페 상태, 알림 유형, 4종 태그)
-├── dto/          요청/응답 DTO (record 기반 응답 DTO로 엔티티 직접 노출 방지)
-├── security/     SecurityConfig, JWT 필터/발급, XSS 필터, 카페 소유권 검증
-├── config/       WebClient(타임아웃), OpenAPI, 정적 업로드 경로, 뷰 공통 모델
-└── support/      NotFoundException, 유틸
-```
+| 패키지 | 역할 |
+| --- | --- |
+| `api`, `controller` | REST·페이지 컨트롤러, API 예외 처리 |
+| `service` | 비즈니스 로직, AI 클라이언트, 파일 저장 |
+| `repository` | Spring Data JPA, JPQL·네이티브 쿼리 |
+| `entity`, `domain` | JPA 엔티티, 역할·상태·태그 enum |
+| `dto` | 요청 DTO, record 기반 응답 DTO |
+| `security` | JWT 인증, 인가 규칙, 소유권 검증, 파라미터 정제 |
+| `config`, `support` | WebClient·OpenAPI·파일 경로 설정, 공통 예외·유틸 |
 
-### 데이터 모델 (엔티티)
+### 주요 데이터 모델
 
-| 엔티티 | 설명 |
-|---|---|
-| `Member` | 이메일, BCrypt 비밀번호, 닉네임, 역할(`RoleKind`), `tokenVersion` |
-| `Cafe` | 점주(`Member`), 이름·주소·좌표·전화, 조회수, 상태(`PENDING`/`APPROVED`/`REJECTED`), 사업자 증빙 경로 |
-| `CafeInfo` | 카페와 1:1 — 영업시간, 휴무일, 공지, 소개 |
-| `CafePhoto` / `Menu` / `MenuCategory` | 카페 사진(대표 여부·정렬), 메뉴, 메뉴 카테고리 |
-| `Review` / `ReviewTag` | 리뷰(감성, good/bad), AI가 추출한 리뷰 태그 |
-| `CafeTag` | 리뷰 태그 집계로 갱신되는 카페 대표 태그 |
-| `UserNeeds` | 사용자 니즈 태그 |
-| `Favorite` / `Notification` | 즐겨찾기(회원-카페 유니크), 알림 |
-| `TagDictionary` | 태그 사전 테이블 (현재 이 테이블을 채우는 `DataInitializer`는 비활성 상태) |
-
-### 보안 설정 요약 (`SecurityConfig`)
-
-- 프로파일별 CORS 허용 오리진(dev `*`, prod `CORS_ALLOWED_ORIGINS`), 노출 헤더 `Authorization`
-- CSP · HSTS · Referrer-Policy · X-Frame-Options(sameOrigin) · X-Content-Type-Options 헤더
-  - CSP의 `style-src`에 폰트 CDN(`cdn.jsdelivr.net`)을 허용합니다.
-  - `upgrade-insecure-requests`는 현재 비활성입니다. HTTP로 서비스 중인 상태에서 이 지시어가 켜져 있으면 정적 리소스 요청이 모두 HTTPS로 승격돼 실패합니다. HTTPS 적용 시 다시 켤 항목입니다.
-- XSS: `XssSanitizingFilter`가 요청 파라미터를 jsoup `Safelist.basic()`으로 정제
+| 엔티티 | 역할 |
+| --- | --- |
+| `Member` | 회원 정보, 역할, `tokenVersion` |
+| `Cafe` | 점주, 카페 정보, 승인 상태, 사업자 증빙 경로 |
+| `CafeInfo` | 카페와 1:1 — 영업시간·휴무일·공지·소개 |
+| `CafePhoto`, `Menu`, `MenuCategory` | 사진·대표 사진·메뉴 관리 |
+| `Review`, `ReviewTag` | 리뷰·감성·분석 태그 |
+| `CafeTag`, `UserNeeds` | 카페 대표 태그·사용자 선호 태그 |
+| `Favorite`, `Notification` | 즐겨찾기·알림 |
 
 ### 프로파일
 
-| 프로파일 | DB 스키마 | 에러 응답 | 쿠키 Secure | Swagger |
-|---|---|---|---|---|
-| `dev` (기본) | `ddl-auto=update` | 메시지·스택트레이스 포함 | off | on (`/swagger-ui.html`) |
-| `prod` | `ddl-auto=validate` | 내부 정보 미노출 | on | off |
-| `test` | H2 인메모리, `create-drop` | — | off | off |
+| 프로파일 | DB 스키마 | 에러 응답 | Swagger |
+| --- | --- | --- | --- |
+| `dev` | `ddl-auto=update` | 개발용 상세 정보 | 활성 |
+| `prod` | `ddl-auto=validate` | 내부 정보 미노출 | 비활성 |
+| `test` | H2 인메모리, `create-drop` | 테스트 설정 | 비활성 |
 
-> 배포 서버는 `prod` 프로파일로 변경했습니다(2026-09-29 운영자 확인). 저장소 Compose의 기본값과 로컬 개발 설정은 `dev`이므로 배포 서버 설정과 구분합니다. `prod`는 준비된 스키마를 검증하고(`ddl-auto=validate`), `CORS_ALLOWED_ORIGINS` 설정이 필요합니다.
+`prod`는 준비된 DB 스키마를 검증하며, `CORS_ALLOWED_ORIGINS`로 허용 출처를 설정합니다.
 
 ---
 
 ## 인증 · 인가
 
-> 기준 코드: `security/SecurityConfig`, `security/JwtTokenProvider`, `security/JwtAuthenticationFilter`, `service/CustomUserDetailsService`, `api/AuthApiController`, `controller/AuthController`, `application*.properties`
+### 설계
 
-### 설계 포인트
-
-- **세션을 쓰지 않습니다** (`SessionCreationPolicy.STATELESS`). 서버가 발급한 JWT로 요청마다 인증하고, 토큰은 `AT` HttpOnly 쿠키(또는 `Authorization: Bearer` 헤더)로 오갑니다.
-- **stateless의 약점인 로그아웃을 `tokenVersion`으로 보완했습니다.** 로그아웃하면 회원의 `tokenVersion`을 1 올리고, 필터는 토큰의 `ver` 클레임과 DB 값이 같을 때만 인증을 통과시킵니다. 이미 발급된 토큰도 즉시 무효가 됩니다.
-- **권한은 토큰의 `roles` 클레임이 아니라 DB에서 결정됩니다.** 필터는 `roles`를 읽지 않고 요청마다 `CustomUserDetailsService`로 현재 역할을 조회하므로, 역할이 바뀌면 재로그인 없이 반영됩니다.
-- **역할만으로 판단할 수 없는 권한은 리소스 단위로 확인합니다.** "카페 점주"인지가 아니라 "이 카페의 점주"인지를 `CafeOwnershipGuard`와 컨트롤러 내부 검증이 확인합니다.
-- **인증 실패는 요청 종류에 따라 다르게 응답합니다.** API 요청(URI가 `/api/`로 시작하거나 `Accept`에 `application/json` 포함)은 401·403, 페이지 요청은 `/login`·`/`로 리다이렉트합니다.
-- Spring Security의 `formLogin()` / `httpBasic()`은 쓰지 않고, 로그인 컨트롤러가 직접 BCrypt로 비밀번호를 확인한 뒤 토큰을 발급합니다.
-- 토큰 종류는 **액세스 토큰 하나**입니다. refresh 토큰 발급·재발급 로직과 소셜 로그인은 없습니다.
+- **JWT 기반 인증**: `SessionCreationPolicy.STATELESS`로 세션을 사용하지 않고 요청마다 JWT를 검증합니다. 토큰은 `AT` HttpOnly 쿠키 또는 `Authorization: Bearer` 헤더로 전달합니다.
+- **로그아웃 시 토큰 무효화**: 회원의 `tokenVersion`을 증가시키고, 토큰의 `ver` 클레임과 DB 값이 일치하는 경우에만 인증합니다.
+- **DB 기준 권한 결정**: `CustomUserDetailsService`가 현재 역할을 조회하므로 변경된 역할이 다음 인증 요청에 반영됩니다.
+- **역할·소유권 검증**: URL 인가 규칙과 `@PreAuthorize`로 역할을 검사하고, 카페별 수정 요청에는 소유권 검증을 적용합니다.
+- **응답 DTO 분리**: 회원·카페 API는 엔티티 대신 record 응답 DTO를 사용해 비밀번호 해시와 점주 이메일의 응답 노출을 제한합니다.
+- **요청별 실패 응답**: API는 401·403을 반환하고, 페이지 요청은 로그인 또는 메인 화면으로 이동합니다.
 
 ### 인증 흐름
 
@@ -354,120 +308,53 @@ sequenceDiagram
     participant L as 로그인 컨트롤러
     participant P as JwtTokenProvider
     participant F as JwtAuthenticationFilter
-    participant D as MemberRepository / CustomUserDetailsService
+    participant D as 회원 조회
 
-    C->>L: POST /api/auth/login (JSON) 또는 POST /login (form)
+    C->>L: POST /api/auth/login
     L->>D: 이메일로 회원 조회
-    L->>L: PasswordEncoder.matches (BCrypt)
-    L->>P: generateToken(이메일·역할, tokenVersion)
-    L-->>C: Set-Cookie: AT=<JWT> (HttpOnly, SameSite=Lax)<br/>REST 로그인은 응답 본문에도 token 포함
-
-    C->>F: 이후 요청 (Authorization: Bearer <JWT> 또는 AT 쿠키)
-    F->>P: 서명·만료 검증하며 sub(이메일), ver 추출
-    F->>D: 회원 조회 → tokenVersion 비교 → 권한 로드
-    F->>F: SecurityContext에 Authentication 저장
-    Note over F: 토큰이 없거나 검증에 실패하면 인증 없이 다음 필터로 진행<br/>→ 인가 단계에서 401/403 또는 리다이렉트
+    L->>L: BCrypt 비밀번호 확인
+    L->>P: JWT 발급 요청
+    P-->>L: JWT
+    L-->>C: 응답 토큰 및 AT 쿠키
+    C->>F: JWT를 포함한 요청
+    F->>P: 서명·만료 검증, sub·ver 추출
+    F->>D: tokenVersion 확인 및 현재 권한 조회
+    F->>F: SecurityContext에 인증 정보 설정
 ```
 
-<details>
-<summary>인가 규칙 전체 (`authorizeHttpRequests`, 선언 순서)</summary>
+### 권한 구성
 
-코드 주석대로 **먼저 선언되어 처음 일치한 규칙**이 적용됩니다.
+| 역할 | 부여 권한 |
+| --- | --- |
+| `MEMBER` | `ROLE_MEMBER` |
+| `CAFEOWNER` | `ROLE_CAFEOWNER`, `ROLE_MEMBER` |
+| `ADMIN` | `ROLE_ADMIN`, `ROLE_CAFEOWNER`, `ROLE_MEMBER` |
 
-| # | 경로 | 규칙 |
-|---|---|---|
-| 1 | `OPTIONS /**`, `/error` | permitAll |
-| 2 | `/`, `/index/**`, `/search/**`, `/signup`, `/login` | permitAll |
-| 3 | `/cafes`, `/cafes/{cafeId}` | permitAll |
-| 4 | `/css/**`, `/js/**`, `/images/**`, `/img/**`, `/favicon.ico`, `/uploads/**`, `/files/**` | permitAll |
-| 5 | `/api/auth/login`, `POST /api/pickbot/**` | permitAll |
-| 6 | `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**` | permitAll (prod에서는 springdoc 비활성) |
-| 7 | `/api/members/**` | `hasRole('ADMIN')` |
-| 8 | `GET /api/cafes/**`, `GET /api/**` | permitAll |
-| 9 | `/admin/**` | `hasRole('ADMIN')` |
-| 10 | `/api/cafes/*/photos`, `/api/cafes/photos/**`, `/api/menus/**` | `hasAnyRole('CAFEOWNER','ADMIN')` (GET은 8번에서 먼저 허용) |
-| 11 | `/reviews/**`, `/favorites/**`, `/member/**`, `/api/favorites/**`, `/api/private/**` | authenticated |
-| 12 | 그 외 모든 요청 | authenticated |
+관리자·회원 관리 API는 `ADMIN`, 카페 REST 등록·수정·삭제는 `CAFEOWNER` 또는 `ADMIN` 권한을 확인합니다. 로그인 회원은 카페 등록 신청, 리뷰 작성, 즐겨찾기, 니즈 설정을 이용할 수 있습니다.
 
-**메서드 보안 (`@EnableMethodSecurity` + `@PreAuthorize`)**
-- 클래스 단위 ADMIN: `AdminCafeController`, `MemberApiController`, `AdminPageController`
-- `CafeApiController` 등록·수정·삭제: `hasAnyRole('CAFEOWNER','ADMIN')`
-- `CafeController` 카페 등록·관리·삭제: `hasAnyRole('MEMBER','CAFEOWNER','ADMIN')`
-- `CafeInfoApiController`·`CafePhotoController` 쓰기, `FavoriteController`, `FavoritePageController`: `isAuthenticated()`
-- 리소스 소유권(해당 카페의 점주인지)은 역할만으로 판단할 수 없어 코드에서 따로 확인합니다: `CafeOwnershipGuard`(사진·메뉴), `CafeInfoApiController`·`CafeController` 내부 검증
+### JWT 구성과 담당 클래스
 
-</details>
-
-<details>
-<summary>JWT 구성과 담당 클래스</summary>
-
-| 항목 | 코드 기준 값 |
-|---|---|
-| 서명 알고리즘 | HS256 |
-| 서명 키 | `app.jwt.secret`(= `${JWT_SECRET}`)을 **Base64 디코딩** → `Keys.hmacShaKeyFor()` |
-| 클레임 | `sub` = 이메일, `roles` = 권한 문자열 (로그인 시 `ROLE_<역할>` 하나), `ver` = `tokenVersion`, `iat`, `exp` |
-| 토큰 만료 | `app.jwt.expiration-ms=3600000` (1시간, `application.properties`) |
-| 검증 시 허용 시계 오차 | 60초 (`setAllowedClockSkewSeconds(60)`) |
-
-- 시크릿 주입 방식(코드 기준): Docker 실행 시 루트 `.env` → compose 환경변수, IDE 실행 시 실행 설정의 환경변수, 또는 git에 올리지 않는 `secret.properties`(`spring.config.import=optional:file:./secret.properties`). 세 경로 모두 유효하며 환경변수가 우선합니다.
+| 항목 | 설정 |
+| --- | --- |
+| 서명 | HS256 |
+| 서명 키 | `JWT_SECRET`을 Base64 디코딩해 사용 |
+| 클레임 | `sub`, `roles`, `ver`, `iat`, `exp` |
+| 만료 시간 | 1시간(`app.jwt.expiration-ms=3600000`) |
+| 허용 시계 오차 | 60초 |
 
 | 클래스 | 역할 |
-|---|---|
-| `JwtTokenProvider` | 토큰 **발급**(`generateToken`)과 **파싱**(`extractUsername`, `extractClaim`). 별도 `validate` 메서드는 없습니다. `extractClaim` 안의 `parseClaimsJws()`가 서명과 만료를 함께 검증하고, 유효하지 않으면 예외를 던집니다. |
-| `JwtAuthenticationFilter` | `OncePerRequestFilter` 구현. ① 헤더/쿠키에서 토큰 추출 ② 이미 인증 정보가 있으면 건너뜀 ③ provider로 `sub`·`ver` 파싱 ④ `MemberRepository`로 회원 조회 후 `tokenVersion` 비교 ⑤ 일치하면 `UserDetailsService`로 권한을 불러와 `UsernamePasswordAuthenticationToken`을 `SecurityContextHolder`에 저장. 처리 중 발생한 예외는 모두 잡아 debug 로그만 남기고 익명 상태로 다음 필터에 넘깁니다. |
-| `CustomUserDetailsService` | 이메일로 회원을 조회해 `RoleKind`를 권한 목록으로 바꿉니다. ADMIN → `ROLE_ADMIN`·`ROLE_CAFEOWNER`·`ROLE_MEMBER`, CAFEOWNER → `ROLE_CAFEOWNER`·`ROLE_MEMBER`, 그 외 → `ROLE_MEMBER` |
-| `MemberService.bumpTokenVersion` | 로그아웃 시 `tokenVersion` +1 (서버 측 토큰 무효화) |
-| `SecurityConfig` | 필터 체인 구성, 인가 규칙, 401/403 처리, `BCryptPasswordEncoder` 빈 등록 |
-
-- `tokenVersion`을 올리는 코드는 로그아웃(`AuthApiController.logout`) 한 곳뿐입니다. 비밀번호 변경(`MemberService.updateSelf`)에서는 올리지 않습니다.
-
-</details>
-
-<details>
-<summary>필터 체인 내 위치</summary>
-
-```java
-// SecurityConfig.filterChain()
-.addFilterBefore(xssSanitizingFilter, UsernamePasswordAuthenticationFilter.class)
-.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-```
-
-- 두 커스텀 필터 모두 **`UsernamePasswordAuthenticationFilter` 위치 앞**에 등록됩니다. 등록 순서와 코드 주석(`필터 순서: XSS -> JWT -> 나머지`) 기준으로 `XssSanitizingFilter` → `JwtAuthenticationFilter` 순서입니다.
-- `formLogin()`을 설정하지 않았으므로, 여기서 `UsernamePasswordAuthenticationFilter`는 순서를 정하는 기준점으로만 쓰입니다.
-- JWT 필터가 인증 정보를 채운 뒤, 뒤이은 인가 단계(`authorizeHttpRequests`)와 메서드 보안(`@PreAuthorize`)이 이를 사용합니다.
-- `WebSecurityCustomizer.ignoring()`에 지정한 경로(`/favicon.ico`, `/webjars/**`, `/css/**`, `/js/**`, `/images/**`, `/img/**`, `/uploads/**`, `/files/**`)는 보안 필터 체인을 아예 거치지 않습니다.
-
-</details>
-
-<details>
-<summary>로그인 엔드포인트 두 경로의 차이와 화면의 토큰 사용</summary>
-
-| 항목 | REST `POST /api/auth/login` (`AuthApiController`) | 폼 `POST /login` (`AuthController`) |
-|---|---|---|
-| 입력 | JSON `email`, `password` (`memberEmail`, `memberPassword` 별칭 허용) | form 파라미터 `memberEmail`, `memberPassword` |
-| 비밀번호 확인 | BCrypt `matches`만 사용 | BCrypt `matches`가 실패하면 **평문 문자열 비교를 한 번 더 시도** (코드 주석 `// dev only`) |
-| 성공 응답 | 200 + 본문 토큰 + `AT` 쿠키 | `AT` 쿠키 + `/`로 리다이렉트 |
-| 쿠키 `Secure` | `app.cookie.secure` 값 (dev `false`, prod `true`) | 코드에 `false`로 고정 |
-| 실패 응답 | 400 (값 누락) / 401 (`Invalid credentials`) | `/login`으로 리다이렉트 + 에러 메시지 |
-
-- `POST /api/auth/logout`: 인가 규칙상 `anyRequest().authenticated()`에 해당합니다.
-- `GET /api/auth/me`: `GET /api/**` permitAll에 해당하며, 인증이 없으면 컨트롤러가 401을 반환합니다.
-- 로그인에 성공하면 브라우저에 `AT` HttpOnly 쿠키가 설정됩니다. 같은 출처로 보내는 요청은 이 쿠키로 인증됩니다.
-- `static/js/cafego.js`는 REST 로그인 응답의 토큰을 `localStorage`의 `cafego_token` 키에 저장하고 `Authorization: Bearer` 헤더로도 보냅니다.
-- `cafes/manage`는 Authorization 헤더 없이 `credentials: same-origin`으로 `AT` 쿠키를 사용합니다.
-- `admin/main`은 localStorage, `cafes/detail`은 localStorage 또는 sessionStorage의 `accessToken`이 있을 때만 Bearer 헤더를 추가하며, 없으면 같은 출처의 `AT` 쿠키를 사용합니다. 오래된 토큰이 남아 있으면 헤더가 쿠키보다 우선하므로 인증에 실패할 수 있습니다.
-- `member/edit`는 localStorage의 `accessToken` 유무와 관계없이 Bearer 헤더를 만듭니다. 값이 없으면 `Bearer null`이 전송되고, `JwtAuthenticationFilter`가 이를 쿠키보다 우선하므로 유효한 쿠키가 있어도 인증에 실패할 수 있습니다. 이 문제는 아직 수정되지 않았습니다.
-- CSRF 검사는 비활성화되어 있고 인증 쿠키는 `SameSite=Lax`입니다. Lax는 일부 cross-site 요청의 쿠키 전송을 제한하지만, 최상위 탐색의 안전한 메서드 요청 등에는 쿠키가 전송될 수 있습니다. CSRF 토큰과 동등한 방어를 보장하지 않으며, 쿠키 인증을 사용하는 변경 요청의 보호는 별도 검토가 필요합니다.
-
-</details>
+| --- | --- |
+| `JwtTokenProvider` | JWT 발급, 서명·만료 검증 및 클레임 파싱 |
+| `JwtAuthenticationFilter` | 토큰 추출, `tokenVersion` 비교, 인증 정보 설정 |
+| `CustomUserDetailsService` | 회원 조회 및 현재 역할을 권한 목록으로 변환 |
+| `MemberService.bumpTokenVersion` | 로그아웃 시 토큰 버전 증가 |
+| `SecurityConfig` | 필터 체인, URL 인가, 메서드 보안, 인증·인가 실패 처리 |
 
 ---
 
 ## 로컬 실행 방법
 
-> Docker Compose로 전체 스택을 한 번에 띄울 수 있습니다. 컴포넌트를 개별 실행하는 방법은 아래에 따로 정리했습니다.
-
-### Docker로 전체 실행 (권장)
+### Docker Compose로 전체 실행
 
 사전 준비: Docker / Docker Compose
 
@@ -476,120 +363,101 @@ sequenceDiagram
 cp .env.example .env
 ```
 
-`.env`에 채울 값:
-
-| 키 | 필수 | 설명 |
-|---|---|---|
-| `POSTGRES_PASSWORD` | 필수 | DB 비밀번호. 기존 볼륨(`mypickcafe_pgdata`)에 데이터가 있다면 그때 쓴 값과 같아야 접속됩니다 |
-| `LLM_API_KEY` | 필수 | Fireworks AI API 키 |
-| `JWT_SECRET` | 필수 | Base64 문자열 (`openssl rand -base64 48`) |
-| `POSTGRES_DB`, `POSTGRES_USER` | | 기본값 `mypickcafe` |
-| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT` | | `.env.example`에 기본값 있음 |
-| `LLM_REASONING_EFFORT` | | 픽봇 2차 호출의 추론량. 생략하면 `low`(glm-5p3-flash에 필요). 비추론 모델이면 빈 값 |
+| 환경변수 | 설명 |
+| --- | --- |
+| `POSTGRES_DB`, `POSTGRES_USER` | `.env.example`의 `mypickcafe` 값을 사용하거나 변경 |
+| `POSTGRES_PASSWORD` | DB 비밀번호. 기존 DB 볼륨 사용 시 해당 볼륨의 비밀번호와 일치해야 함 |
+| `JWT_SECRET` | Base64 시크릿. 생성 예: `openssl rand -base64 48` |
+| `LLM_API_KEY` | Fireworks AI 사용 시 필요한 API 키 |
+| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT` | `.env.example`의 LLM 설정 |
+| `LLM_REASONING_EFFORT` | 배포용 GLM 설정은 `low`, 비추론 모델 사용 시 빈 값 |
 
 ```bash
 docker compose up -d --build
+docker compose ps
 ```
 
-- 접속: http://localhost:8080
-- 상태 확인: `docker compose ps`, 로그: `docker compose logs -f mypickcafe-ai`
-- 임베딩 주소는 compose가 `http://ollama:11434`로 주입합니다. `.env`에 별도로 적지 않습니다.
-- 최초 기동 시 ChromaDB 인덱스가 비어 있으면 DB의 승인된 리뷰 전체를 임베딩합니다. CPU 환경에서는 오래 걸릴 수 있으며, 소요 시간은 데이터량과 실행 자원에 따라 달라집니다. 기존 인덱스를 볼륨으로 옮겨두면 이 과정을 건너뜁니다.
+- 서비스: http://localhost:8080
+- AI 서버 로그: `docker compose logs -f mypickcafe-ai`
+- Compose가 임베딩 주소 `http://ollama:11434`를 주입합니다.
+- 최초 기동 시 인덱스가 비어 있으면 승인된 카페 리뷰를 초기 색인합니다.
+- 기존 ChromaDB 인덱스를 볼륨으로 옮기기
+    
+    ```bash
+    docker volume create mypickcafe_chroma-index
+    docker run --rm \
+      -v mypickcafe_chroma-index:/dest \
+      -v /경로/MyPickCafe_AI/chroma_db:/src:ro \
+      alpine sh -c "cp -a /src/. /dest/ && chown -R 10001:10001 /dest"
+    ```
+    
 
-<details>
-<summary>기존 ChromaDB 인덱스를 볼륨으로 옮기기</summary>
+### 개별 실행
 
-```bash
-# 인덱스 디렉터리를 볼륨으로 복사 (컨테이너가 uid 10001로 실행되므로 소유권 변경 필요)
-docker volume create mypickcafe_chroma-index
-docker run --rm \
-  -v mypickcafe_chroma-index:/dest \
-  -v /경로/MyPickCafe_AI/chroma_db:/src:ro \
-  alpine sh -c "cp -a /src/. /dest/ && chown -R 10001:10001 /dest"
-```
+사전 준비: JDK 17, Docker, Python 3.11, Ollama
 
-다른 장비로 옮길 때는 볼륨을 tar로 내보낸 뒤 전송해 같은 방식으로 풉니다.
+#### 1. PostgreSQL
 
-</details>
-
-### 개별 실행 (개발용)
-
-#### 사전 준비
-
-- JDK 17
-- Docker (PostgreSQL 컨테이너용)
-- Python — 개발 환경 기준 Python 3.11.9입니다.
-- [Ollama](https://ollama.com) (임베딩용)
-- 외부 API 키 (Fireworks AI 등 인증이 필요한 외부 LLM을 선택할 경우; 로컬 Ollama는 불필요)
-
-#### 1. PostgreSQL 실행
-
-`docker-compose.yml`은 `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`를 환경변수로 받고 **기본값이 없습니다.** Spring dev 프로파일의 기본 접속 정보는 DB `mypickcafe`, 사용자 `mypickcafe`, `localhost:5432`입니다.
+저장소 루트의 `.env`에 DB 설정을 작성한 뒤 실행합니다.
 
 ```bash
 docker compose up -d postgres
 ```
 
-#### 2. Spring Boot 설정 및 실행
+#### 2. Spring Boot
 
-설정값은 다음 세 경로 중 하나로 공급합니다. 환경변수가 `secret.properties`보다 우선합니다.
-
-1. **IDE 실행 설정의 환경변수** — IntelliJ 실행 구성에 `DB_PASSWORD`, `JWT_SECRET`을 등록
-2. **셸 환경변수** — `export DB_PASSWORD=...` 후 `./gradlew bootRun`
-3. **`secret.properties`** — `application.properties`가 `optional:file:./secret.properties`로 읽습니다. 이 경우 **`MyPickCafe_Springboot` 디렉터리에서 실행**해야 합니다
+환경변수 또는 `secret.properties`로 설정을 전달합니다. 환경변수가 우선하며, `secret.properties`를 사용할 때는 `MyPickCafe_Springboot` 디렉터리에서 실행합니다.
 
 ```bash
 cd MyPickCafe_Springboot
-cp secret.properties.example secret.properties   # 3번 방식을 쓸 경우
+cp secret.properties.example secret.properties
 ```
 
-| 키 | 필수 | 설명 |
-|---|---|---|
-| `DB_PASSWORD` | 필수 | 1단계에서 지정한 비밀번호 |
-| `JWT_SECRET` | 필수 | `JwtTokenProvider`가 **Base64로 디코딩**하므로 Base64 문자열이어야 합니다 (HS256, 32바이트 이상). 예: `openssl rand -base64 48` |
-| `DB_USERNAME` | | 기본값 `mypickcafe` |
-| `DB_URL` | | 기본값 `jdbc:postgresql://localhost:5432/mypickcafe` |
-| `PICKBOT_API_BASE_URL` | | 기본값 `http://localhost:8000` (통합 FastAPI `app.py`가 픽봇·태그 API를 한 포트에서 제공) |
-| `PYTHON_API_BASE_URL` | | 기본값 `http://localhost:8000` |
+| 설정 | 값 |
+| --- | --- |
+| `DB_PASSWORD` | PostgreSQL 비밀번호 |
+| `JWT_SECRET` | Base64 문자열, 디코딩 기준 32바이트 이상 |
+| `DB_USERNAME` | 기본값 `mypickcafe` |
+| `DB_URL` | 기본값 `jdbc:postgresql://localhost:5432/mypickcafe` |
+| `PICKBOT_API_BASE_URL` | 기본값 `http://localhost:8000` |
+| `PYTHON_API_BASE_URL` | 기본값 `http://localhost:8000` |
 
 ```bash
-./gradlew bootRun        # Windows: gradlew.bat bootRun
+./gradlew bootRun
+# Windows: gradlew.bat bootRun
 ```
 
-- 접속: http://localhost:8080
-- Swagger UI (dev): http://localhost:8080/swagger-ui.html
-- 스키마는 dev 프로파일의 `ddl-auto=update`로 자동 생성됩니다.
-- **초기 데이터는 자동으로 들어가지 않습니다.** `DataInitializer`의 `@Component`가 주석 처리되어 있습니다.
-- 가입은 항상 MEMBER로 생성되고, 회원 역할을 바꾸는 API(`/api/members`)는 ADMIN 전용입니다. 따라서 **최초 ADMIN 계정은 DB의 `member.role_kind`를 직접 변경**해야 합니다.
+- Swagger UI(dev): http://localhost:8080/swagger-ui.html
+- dev 프로파일은 `ddl-auto=update`로 스키마를 생성·갱신합니다.
+- 관리자 기능 확인을 위한 최초 계정은 회원가입 후 DB의 `member.role_kind`를 `ADMIN`으로 설정합니다.
 
-#### 3. AI 서버 (FastAPI)
+#### 3. FastAPI
+
+아래는 LLM과 임베딩을 로컬 Ollama에서 실행하는 예시입니다.
 
 ```bash
-# 로컬 Ollama 기준 예시입니다(qwen2.5:14b). 로컬에서도 환경변수 설정으로 외부 OpenAI 호환 API를 사용할 수 있습니다.
 ollama pull bge-m3
 ollama pull qwen2.5:14b
 
 cd MyPickCafe_AI
 pip install -r requirements.txt
-python app.py            # uvicorn, 0.0.0.0:8000, reload
+python app.py
 ```
 
-`MyPickCafe_AI/.env`에 필요한 값 (`LLM_*`는 적지 않으면 코드 기본값인 로컬 Ollama · `qwen2.5:14b`를 씁니다. 배포 환경은 compose가 루트 `.env` 값을 주입합니다):
+`MyPickCafe_AI/.env`에서 모델과 DB 설정을 지정합니다. OS 환경변수가 `.env`보다 우선합니다.
 
-| 키 | 설명 |
-|---|---|
-| `LLM_BASE_URL` | OpenAI 호환 엔드포인트. 예: `https://api.fireworks.ai/inference/v1` (로컬 Ollama로 돌리려면 `http://127.0.0.1:11434/v1`) |
-| `LLM_API_KEY` | 외부 API 키. Ollama로 돌릴 때는 비워도 됩니다 |
-| `LLM_MODEL` | 제공처 콘솔에 표기된 모델 ID를 그대로 사용합니다 |
-| `EMBED_BASE_URL` | 기본 `http://127.0.0.1:11434`. **`/v1`을 붙이지 않습니다** — 임베딩은 Ollama 고유 경로(`/api/embed`)를 씁니다 |
-| `EMBED_MODEL` | 기본 `bge-m3` |
-| `DB_PASSWORD` 등 | PostgreSQL 접속 정보. 기본 비밀번호는 빈 문자열입니다 |
-
-- 헬스체크: `GET http://localhost:8000/health` — 응답의 `indexed`로 인덱싱된 리뷰 건수를 확인할 수 있습니다.
-- LLM과 임베딩의 base URL은 **서로 다른 설정 키**입니다. 하나로 공유하면 LLM 쪽에 `/v1`을 붙이는 순간 임베딩 경로가 `/v1/api/embed`가 되어 검색이 통째로 실패합니다.
-- 두 `Settings` 클래스(PickBot / Review)가 모두 `MyPickCafe_AI/.env` 하나를 읽습니다. 실행 위치와 무관하며, OS 환경변수가 `.env`보다 우선합니다. **컨테이너로 실행할 때는 이 파일이 `.dockerignore`로 제외되며, compose가 주입한 환경변수를 사용합니다.**
-- ChromaDB 경로 기본값은 `./chroma_db`이고, 상대경로는 실행 위치가 아니라 `MyPickCafe_AI/` 기준으로 풀립니다. `PickBot_AI/embed_all.py`로 만든 인덱스를 통합 서버가 그대로 사용합니다. 서버가 떠 있을 때는 `embed_all.py` 대신 `POST /pickbot/reindex`를 쓰세요.
-- AI 서버를 띄우지 않아도 Spring 앱은 동작합니다. 태그 분석은 빈 결과를 반환하고, 픽봇 추천은 `503`(일시적인 오류)을 반환합니다.
+| 설정 | 값 |
+| --- | --- |
+| `LLM_BASE_URL` | 로컬: `http://127.0.0.1:11434/v1` / Fireworks: `https://api.fireworks.ai/inference/v1` |
+| `LLM_API_KEY` | 인증이 필요한 외부 API 사용 시 지정 |
+| `LLM_MODEL` | 로컬 기본값 `qwen2.5:14b`, 외부 API는 제공처의 모델 ID |
+| `EMBED_BASE_URL` | 기본값 `http://127.0.0.1:11434` — `/v1` 없이 사용 |
+| `EMBED_MODEL` | 기본값 `bge-m3` |
+| `DB_PASSWORD` 등 | PostgreSQL 접속 정보 |
+- 헬스체크: `GET http://localhost:8000/health`, `indexed` 필드로 색인된 리뷰 수 확인
+- ChromaDB 기본 경로: `MyPickCafe_AI/chroma_db`
+- 실행 중 누락 리뷰 추가 색인: `POST /pickbot/reindex`
+- Docker 실행 시에는 루트 `.env`를 바탕으로 Compose가 환경변수를 주입합니다.
 
 ---
 
@@ -600,73 +468,52 @@ cd MyPickCafe_Springboot
 ./gradlew test
 ```
 
-`test` 프로파일은 H2 인메모리 DB를 쓰므로 PostgreSQL·Docker 없이 실행됩니다. 통합 테스트의 AI 서버 URL은 닫힌 로컬 포트를 가리킵니다. 연결 거부를 확인하는 테스트와 로컬 HTTP 테스트 서버를 띄우는 `PickBotClientRecommendTest`가 있어 로컬 네트워크 통신은 발생하지만, 실제 외부 AI 서버는 필요하지 않습니다.
+`test` 프로파일은 H2 인메모리 DB를 사용합니다. AI 클라이언트 테스트는 닫힌 로컬 포트나 로컬 HTTP 테스트 서버로 실패·응답 조건을 구성하며, 인가 테스트는 `@WithMockUser`로 인증 주체를 주입합니다.
 
 | 테스트 | 검증 내용 |
-|---|---|
-| `MyPickCafeApplicationTests` | 컨텍스트 로드 |
-| `security/ApiAuthorizationTest` | 공개/ADMIN/CAFEOWNER 인가 규칙 (401·403·200) |
-| `api/MemberResponseLeakTest` | 회원·카페 API 응답에 비밀번호 해시·점주 이메일이 노출되지 않음 |
-| `service/AiClientDegradationTest` | 태그 클라이언트의 빈 결과 반환, 비동기 색인 삭제 호출이 즉시 예외를 던지지 않음. DB 저장·색인 완료 여부는 검증하지 않음 |
-| `service/PickBotClientRecommendTest` | 픽봇 추천의 빈 결과와 실패 구분, 결과가 빈 이유(`notice`) 전달, 실패 유형(연결 불가·타임아웃·서버 오류·응답 형식 오류) 분류 |
-| `controller/PickBotControllerTest` | 픽봇 서버 장애 시 `503`과 실패 사유 반환 |
-| `service/CafeServiceTest` | 카페 등록 시 PENDING 강제, 소유자 지정, 중복 이름 거부 |
-| `service/MemberServiceTest` | 비밀번호 해시 저장, 기본 역할, 중복/잘못된 역할 거부, null 필드 미덮어쓰기 |
-| `controller/CafeManageRenderingTest` | 상세 정보가 없는 카페의 관리 화면 렌더링, 기존 정보 유지 및 null 입력값 처리. 브라우저 JavaScript 인증·업로드는 검증하지 않음 |
-| `controller/SearchRenderingTest` | 검색 결과가 화면 모델(`cafeCards`)로 전달되고, 미승인 카페는 검색되지 않음 |
+| --- | --- |
+| `MyPickCafeApplicationTests` | 애플리케이션 컨텍스트 로드 |
+| `ApiAuthorizationTest` | 공개·ADMIN·CAFEOWNER 인가 규칙과 401·403·200 응답 |
+| `MemberResponseLeakTest` | 회원·카페 API 응답의 비밀번호 해시·점주 이메일 제외 |
+| `AiClientDegradationTest` | 태그 클라이언트의 빈 결과 반환, 비동기 색인 삭제 호출 시 예외가 즉시 전파되지 않음 |
+| `PickBotClientRecommendTest` | 정상 빈 결과·호출 실패 구분, `notice` 전달, 실패 유형 분류 |
+| `PickBotControllerTest` | 픽봇 장애 시 `503`과 실패 사유 반환 |
+| `CafeServiceTest` | 등록 시 PENDING 상태·소유자 지정·중복 이름 거부 |
+| `MemberServiceTest` | 비밀번호 해시, 기본 역할, 중복·잘못된 역할 거부, null 입력 처리 |
+| `CafeManageRenderingTest` | 관리 화면 렌더링, 상세 정보 기본값, 기존 정보 유지 |
+| `SearchRenderingTest` | 검색 결과의 화면 모델 전달, 미승인 카페 제외 |
 
-- 인가 테스트(`ApiAuthorizationTest` 등)는 `@WithMockUser`로 인증 주체를 주입합니다. JWT 발급(`JwtTokenProvider`)이나 `JwtAuthenticationFilter`를 직접 검증하는 테스트는 없습니다.
+**테스트 실행 기록**
 
-테스트 실행 기록(각 시점의 코드 기준):
-
-- 2026-09-28: 기존 전체 테스트 31개 통과 기록.
-- 2026-09-30: 관리 화면 기본값 수정 및 회귀 테스트 추가 후 전체 33개 통과(이후 `2d1f125`로 커밋).
-- 이후 관리 화면 쿠키 인증 수정 시 `CafeManageRenderingTest` 2개만, main `11e4381`에 메인 카드 조회수 표시를 제거한 로컬 상태에서는 `SearchRenderingTest` 3개만 실행해 통과했습니다.
-- 현재 main과 로컬 변경을 합친 상태에서 전체 테스트를 다시 실행한 것은 아닙니다. 이번 문서 수정에서도 테스트를 실행하지 않았습니다.
-
----
-
-## 현재 한계 (코드 기준)
-
-- **배포**: 기존 배포 기록은 AWS EC2의 Docker Compose, 도메인 없는 IP + 포트(HTTP) 접속입니다. 저장소에 CI/CD 설정은 없으며, 기록된 수동 배포 절차는 EC2에서 `git pull` 후 `docker compose up -d --build`입니다. 배포 서버 프로파일은 `prod`로 변경했습니다(2026-09-29 운영자 확인). 현재 서버 상태·접속 가능 여부와 HTTPS 적용 여부는 이번 문서 수정에서 직접 재확인하지 않았습니다.
-- **인증**: refresh 토큰이 없어 액세스 토큰이 만료되면 다시 로그인해야 합니다. 폼 로그인(`POST /login`)에는 평문 비교 폴백과 `Secure=false` 고정 쿠키가 남아 있습니다. ([인증 · 인가](#인증--인가) 참고)
-- **화면 인증**: 관리 화면은 쿠키 인증으로 수정했지만, 회원 수정 화면에는 `Bearer null`이 유효한 쿠키 인증을 가로막을 수 있는 문제가 남아 있습니다. 관리자·상세 화면도 저장된 오래된 Bearer 토큰이 있으면 쿠키보다 우선합니다.
-- **조회수**: 저장된 `views`로 정렬하지만 방문 집계 로직은 미구현입니다.
-- **설정 관리**: 설정 공급 경로가 루트 `.env`(Docker) / IDE 실행 설정 / `secret.properties` 세 갈래로 나뉘어 있습니다. 같은 값을 여러 곳에 적어야 하는 구간이 있어 통합 여지가 있습니다.
-- **리뷰 사진**: 리뷰 작성 모달에 사진 입력란이 있지만 서버(`ReviewForm`/`ReviewController`)에서 파일을 처리하지 않습니다.
-- **태그 집계 정합성**: 작성·수정 시 감성 저장보다 태그 집계가 앞서, BAD 리뷰 태그가 다음 재집계 전까지 포함됩니다. AI 실패 시 갱신 정책과 집계 순서를 보완하고 DB 기반 회귀 테스트가 필요합니다.
-- **색인 정합성**: 비동기 색인 요청과 DB 커밋은 원자적으로 처리되지 않으며, `reindex`는 누락 ID 추가만 수행합니다. 실패 재처리·수정 및 삭제 반영을 별도 검증해야 합니다.
-- **리뷰 삭제**: 삭제 엔드포인트가 없습니다. `PickBotClient.deleteOneAsync`는 구현되어 있으나 호출하는 곳이 없습니다.
-- **파일 저장소**: 로컬 디스크 구현(`LocalFileStorageService`)만 있습니다. 컨테이너에서는 볼륨에 저장되므로 인스턴스를 교체하면 별도 이관이 필요합니다.
+| 시점 / 대상 | 결과 |
+| --- | --- |
+| 2026-09-28 전체 테스트 | 31개 통과 |
+| 2026-09-30 관리 화면 기본값 수정·회귀 테스트 추가 후 전체 테스트 (`2d1f125` 반영) | 33개 통과 |
+| 이후 관리 화면 쿠키 인증 수정 시 `CafeManageRenderingTest` | 2개 통과 |
+| main `11e4381` + 메인 카드 표시 변경 상태의 `SearchRenderingTest` | 3개 통과 |
 
 ---
 
-## 비고
+## 프로젝트 기여
 
-이 프로젝트는 **팀 프로젝트(GoCafe)를 개인적으로 이어받아 재작업한 것**입니다.
+팀 프로젝트 **GoCafe(6인, 2025-08-28 ~ 2025-10-12)**를 바탕으로 기능과 구조를 재작업했습니다.
 
-- 팀 원본 프로젝트: GoCafe (비공개 저장소), 2025-08-28 ~ 2025-10-12, 6인 팀
-- 코드에 남아 있는 원본 명칭: 정적 리소스 `cafego.css`·`cafego.js`, localStorage 키 `cafego_token`
-- 이 저장소의 git 이력은 2026-05-29 첫 커밋부터 시작하며, 팀 원본 저장소의 커밋 이력은 포함되어 있지 않습니다.
-- 서비스의 리뷰 데이터는 팀 프로젝트 당시(2025년 9월) 팀원이 네이버 지도의 카페 방문자 리뷰를 크롤링해 수집한 것입니다.
+### 팀 원본에서 이어받은 구현
 
-### 팀 원본과 개인 작업의 경계
+- Spring Boot 도메인 구조와 회원·카페·리뷰·메뉴·즐겨찾기·알림 기본 기능
+- Spring Security + JWT 인증, `tokenVersion` 기반 토큰 무효화, DB 기준 권한 결정
+- 카페 승인·반려 흐름, Mustache 화면과 기본 스타일
+- 팀원이 수집한 네이버 지도 카페 방문자 리뷰 데이터
 
-아래 구분은 팀 원본에서 이어받은 구현과 후속 프로젝트의 변경을 구분한 것입니다. `tokenVersion` 검사와 DB 권한 조회는 접근 가능한 GoCafe 원본(`cfd21eb`)에도 존재합니다. 후속 변경에는 AI 코딩 도구를 활용한 작업이 포함되며, 커밋 작성자만으로 직접 설계·작성한 범위를 단정하지 않습니다.
+### 개인 재작업·추가 범위
 
-**팀 원본(GoCafe)에서 가져온 것**
-
-- Spring Boot 도메인 뼈대(엔티티·리포지터리·DTO)와 회원·카페·리뷰·메뉴·즐겨찾기·알림 기본 기능
-- Spring Security + JWT 로그인, `tokenVersion` 기반 토큰 무효화와 DB 기준 권한 결정, 카페 승인·반려
-- Mustache 화면 기본 구성과 스타일(`cafego.css`·`cafego.js`)
-- 네이버 지도 리뷰 데이터 (팀원 수집)
-
-**개인적으로 재작업·추가한 것**
-
-- **백엔드:** 태그 체계 재정리와 카페 태그 집계, 니즈 기반 추천, CAFEOWNER 역할과 승인 시 역할 승격, 미사용 기능(미션·신고·가중치 추천) 제거
-- **보안:** 기존 JWT·토큰 무효화 구조를 유지하면서 회원 API의 ADMIN 제한, 비밀번호 JSON 직렬화 차단, 엔티티 대신 응답 DTO 사용, 메뉴·사진의 공통 소유권 검증 적용
-- **테스트:** 인가·응답 노출·서비스 단위 테스트
-- **화면:** 카페 목록·필터, 니즈 선택, 점주 관리, 픽봇 탭
-- **AI 서버:** 리뷰 태그·감성 분석, 픽봇 RAG 추천, 두 기능을 합친 FastAPI 통합 서버, 외부 LLM 전환, AI 서버 장애 격리
-- **더미 데이터:** 수집 리뷰로 더미 회원·카페·리뷰를 만드는 생성 스크립트
-- **인프라:** Dockerfile 2종, Docker Compose 구성, EC2 배포
+| 영역 | 작업 |
+| --- | --- |
+| 백엔드 | 태그 체계·대표 태그 집계 재정리, 니즈 기반 추천, CAFEOWNER 역할과 승인 시 역할 승격 |
+| 조회 개선 | 추천 후보의 승인 상태 필터, 카페당 대표 사진 한 행 조회 |
+| 보안 | 회원 API의 ADMIN 제한, 비밀번호 JSON 직렬화 차단, 응답 DTO 분리, 메뉴·사진 공통 소유권 검증 |
+| AI 서버 | 리뷰 태그·감성 분석, 픽봇 RAG 추천, FastAPI 통합, 외부 LLM 전환, 호출별 예외 처리 |
+| 화면 | 카페 목록·필터, 니즈 선택, 점주 관리, 픽봇 탭 |
+| 테스트 | 인가·응답 노출·서비스 단위 테스트와 화면 렌더링 회귀 테스트 |
+| 데이터 | 수집 리뷰를 활용한 더미 회원·카페·리뷰 생성 스크립트 |
+| 인프라 | Dockerfile 2종, Docker Compose 구성, AWS EC2 배포 |z
