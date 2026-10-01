@@ -216,12 +216,6 @@ textarea.cg-input{resize:vertical}
 .cg-card__body-inner{padding:14px 16px}
 .cg-card__title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px}
 .cg-card__addr{font-size:12px;color:var(--text-muted)}
-.cg-card__views-badge{
-  position:absolute;bottom:8px;right:8px;
-  background:rgba(0,0,0,.55);color:#fff;
-  font-size:11px;padding:3px 9px;border-radius:99px;
-  font-weight:600;
-}
 .cg-noimg::after{
   content:'No Image';display:flex;align-items:center;justify-content:center;
   font-size:12px;color:var(--text-muted);height:100%;
@@ -291,6 +285,11 @@ textarea.cg-input{resize:vertical}
 .cg-hero-main__desc{
   font-size:15px;color:var(--text-sub);margin-bottom:32px;max-width:500px;
 }
+.cg-hero-main__explore{
+  display:inline-flex;align-items:center;min-height:44px;margin-top:16px;
+  color:var(--accent);font-size:26px;font-weight:700;
+}
+.cg-hero-main__explore:hover{color:var(--accent-dark);text-decoration:underline}
 
 /* Search bar */
 .cg-search-hero{
