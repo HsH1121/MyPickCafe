@@ -86,7 +86,7 @@ GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습�
 
 추천 호출 실패는 정상적인 빈 검색 결과와 구분해 화면에 일시적인 오류로 안내합니다.
 
-### 2. 픽봇 — 자연어 추천(RAG)
+### 2. 픽봇 — 자연어 추천 AI
 
 `/cafes`의 픽봇 탭에서 입력한 요청은 Spring `POST /api/pickbot/recommend`를 거쳐 FastAPI `POST /pickbot/recommend`로 전달됩니다.
 
