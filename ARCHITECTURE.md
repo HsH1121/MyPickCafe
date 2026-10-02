@@ -7,7 +7,7 @@
 - **데이터 저장**: PostgreSQL(서비스 데이터) + ChromaDB(리뷰 벡터 인덱스)
 - **AI 모델**: Ollama `bge-m3` 임베딩 + OpenAI 호환 API 기반 LLM
 - **배포 환경**: Docker Compose + AWS EC2(t3.large, Ubuntu 24.04)
-- **배포 주소**: MyPickCafe
+- **배포 주소**: http://15.165.105.231:8080
 
 ## 목차
 
