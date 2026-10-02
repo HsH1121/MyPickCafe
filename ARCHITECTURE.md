@@ -62,7 +62,7 @@ GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습�
 `ReviewService.saveWithTags()`가 `@Transactional` 범위에서 리뷰 저장과 태그 처리를 수행합니다.
 
 1. 리뷰를 저장하고 FastAPI `POST /review/analyze`를 동기 호출합니다.
-2. AI 서버는 few-shot 프롬프트와 허용 태그 목록을 사용해 시설·메뉴·목적·분위기 태그와 감성을 추출합니다.
+2. AI 서버는  허용 태그 목록을 few-shot 프롬프트로 받아 시설·메뉴·목적·분위기 태그와 감성을 추출합니다.
 3. 분석 태그를 `review_tag`에 저장하고, 카테고리별 집계에서 **최다 출현 태그 개수의 85% 이상인 태그**를 카페 대표 태그(`cafe_tag`)로 선정합니다.
 4. `POST /pickbot/index-one`으로 리뷰의 비동기 색인 요청을 보냅니다.
 
