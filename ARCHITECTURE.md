@@ -205,7 +205,6 @@ GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습�
 EC2 배포를 위해 로컬 Ollama 기반 LLM을 외부 OpenAI 호환 API로 전환했습니다. Fireworks AI의 후보 5개를 **리뷰 태그 분석·질문 분해·추천 선택** 작업으로 비교하고, 정답률·JSON 형식 안정성·응답시간·비용을 종합해 `glm-5p3-flash`를 선정했습니다.
 
 - **비교 후보**: `glm-5p3-flash`, `deepseek-v4p1-flash`, `qwen3p8-max`, `gpt-oss-120b`, `nemotron-lightning-3p5-30b-a3b`
-- **측정일**: 2026-09-18
 - **공통 조건**: JSON 모드, `temperature=0`, `top_p=0.9`, `max_tokens=1000`, 재시도 없음
 
 선정 모델의 태그 분석·질문 분해 테스트 결과는 다음과 같습니다. 수치는 각 테스트 세트 기준이며, 비용은 측정 당시 1천 건 호출 기준 추정치입니다.
