@@ -480,15 +480,6 @@ cd MyPickCafe_Springboot
 | `CafeManageRenderingTest` | 관리 화면 렌더링, 상세 정보 기본값, 기존 정보 유지 |
 | `SearchRenderingTest` | 검색 결과의 화면 모델 전달, 미승인 카페 제외 |
 
-**테스트 실행 기록**
-
-| 시점 / 대상 | 결과 |
-| --- | --- |
-| 2026-09-28 전체 테스트 | 31개 통과 |
-| 2026-09-30 관리 화면 기본값 수정·회귀 테스트 추가 후 전체 테스트 (`2d1f125` 반영) | 33개 통과 |
-| 이후 관리 화면 쿠키 인증 수정 시 `CafeManageRenderingTest` | 2개 통과 |
-| main `11e4381` + 메인 카드 표시 변경 상태의 `SearchRenderingTest` | 3개 통과 |
-
 ---
 
 ## 프로젝트 기여
