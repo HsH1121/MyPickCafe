@@ -138,8 +138,6 @@ GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습�
 
 ### 주요 API
 
-전체 명세는 dev 프로파일의 Swagger UI(`/swagger-ui.html`)에서 확인할 수 있습니다.
-
 - 기능별 엔드포인트
     
     **회원 · 인증**
@@ -424,7 +422,6 @@ cp secret.properties.example secret.properties
 # Windows: gradlew.bat bootRun
 ```
 
-- Swagger UI(dev): http://localhost:8080/swagger-ui.html
 - dev 프로파일은 `ddl-auto=update`로 스키마를 생성·갱신합니다.
 - 관리자 기능 확인을 위한 최초 계정은 회원가입 후 DB의 `member.role_kind`를 `ADMIN`으로 설정합니다.
 
