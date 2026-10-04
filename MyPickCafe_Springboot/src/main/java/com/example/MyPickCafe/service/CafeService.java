@@ -111,17 +111,17 @@ public class CafeService {
 
     @Transactional
     public CafeResponse updateFromRequest(Long id, CafeUpdateRequest req) {
-        Cafe c = cafeRepository.findById(id)
+        Cafe cafe = cafeRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Cafe not found: " + id));
 
-        if (req.name() != null && !req.name().isBlank())       c.setName(req.name());
-        if (req.address() != null && !req.address().isBlank()) c.setAddress(req.address());
-        if (req.lat() != null)                                 c.setLat(req.lat());
-        if (req.lon() != null)                                 c.setLon(req.lon());
-        if (req.phone() != null && !req.phone().isBlank())     c.setNumber(req.phone());
-        if (req.code() != null && !req.code().isBlank())        c.setCode(req.code());
+        if (req.name() != null && !req.name().isBlank())       cafe.setName(req.name());
+        if (req.address() != null && !req.address().isBlank()) cafe.setAddress(req.address());
+        if (req.lat() != null)                                 cafe.setLat(req.lat());
+        if (req.lon() != null)                                 cafe.setLon(req.lon());
+        if (req.phone() != null && !req.phone().isBlank())     cafe.setNumber(req.phone());
+        if (req.code() != null && !req.code().isBlank())        cafe.setCode(req.code());
 
-        return CafeResponse.from(c);        // 더티 체킹으로 반영
+        return CafeResponse.from(cafe);        // 더티 체킹으로 반영
     }
 
     @Transactional
