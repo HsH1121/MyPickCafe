@@ -3,6 +3,7 @@ package com.example.MyPickCafe.api;
 import com.example.MyPickCafe.dto.CafeCreateRequest;
 import com.example.MyPickCafe.dto.CafeResponse;
 import com.example.MyPickCafe.dto.CafeUpdateRequest;
+import com.example.MyPickCafe.security.CafeOwnershipGuard;
 import com.example.MyPickCafe.service.CafeService;
 import com.example.MyPickCafe.service.MemberService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,7 +24,8 @@ import java.util.List;
 /**
  * 카페 REST API.
  *
- * <p>조회는 공개, 등록/수정/삭제는 점주 또는 관리자만 가능하다.
+ * <p>조회는 공개, 등록은 점주 또는 관리자만 가능하다.
+ * 수정/삭제는 해당 카페의 점주 또는 관리자만 가능하다.
  * 응답은 항상 {@link CafeResponse}로 내려 점주 개인정보와
  * 사업자 증빙 문서 경로가 노출되지 않도록 한다.
  */
@@ -35,6 +37,7 @@ public class CafeApiController {
 
     private final CafeService cafeService;
     private final MemberService memberService;
+    private final CafeOwnershipGuard ownershipGuard;
 
     @GetMapping
     @Operation(summary = "카페 전체 조회", description = "인증 없이 호출할 수 있다.")
@@ -62,16 +65,23 @@ public class CafeApiController {
         return ResponseEntity.created(location).body(saved);
     }
 
+    // 역할(CAFEOWNER)만으로는 "이 카페의 점주인가"를 알 수 없어 소유권을 따로 확인한다.
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('CAFEOWNER', 'ADMIN')")
-    public CafeResponse update(@PathVariable Long id, @RequestBody @Valid CafeUpdateRequest body) {
+    @ApiResponse(responseCode = "403", description = "해당 카페의 점주가 아님")
+    public CafeResponse update(@PathVariable Long id,
+                               @RequestBody @Valid CafeUpdateRequest body,
+                               Authentication auth) {
+        ownershipGuard.ensureOwner(auth, cafeService.findById(id));
         return cafeService.updateFromRequest(id, body);
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('CAFEOWNER', 'ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    @ApiResponse(responseCode = "403", description = "해당 카페의 점주가 아님")
+    public void delete(@PathVariable Long id, Authentication auth) {
+        ownershipGuard.ensureOwner(auth, cafeService.findById(id));
         cafeService.delete(id);
     }
 }
