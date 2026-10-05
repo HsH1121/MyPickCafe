@@ -38,7 +38,6 @@ MODEL_PREFIX = "accounts/fireworks/models/"
 PRICES = {  # Fireworks Standard (USD / 1M tokens): 입력, 캐시 입력, 출력
     "deepseek-v4p1-flash":            (0.22, 0.007, 0.66),
     "glm-5p3-flash":                  (0.15, 0.03,  0.50),
-    "nemotron-lightning-3p5-30b-a3b": (0.05, 0.01,  0.20),
     "gpt-oss-120b":                   (0.15, 0.015, 0.60),
     "qwen3p8-max":                    (2.00, 0.25,  6.00),
 }
