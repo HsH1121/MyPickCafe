@@ -7,14 +7,14 @@
   프론트 최대치(50자)는 반드시 통과하고, 60자까지 통과, 61자부터는 거절돼야 한다.
 
 사용법 (MyPickCafe_AI/ 에서)
-  python PickBot_AI/test_query_length.py
+  python PickBot_AI/tests/test_query_length.py
 """
 
 from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
 from fastapi import FastAPI

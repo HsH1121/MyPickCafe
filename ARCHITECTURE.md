@@ -202,7 +202,7 @@ EC2 배포를 위해 로컬 Ollama 기반 LLM을 외부 OpenAI 호환 API로 전
 | 리뷰 태그 분석 | 정답 태그가 있는 리뷰 15건 | 완전일치 15/15 | 3.9초 | $0.40 |
 | 질문 분해 | 퓨샷 예시와 겹치지 않는 질문 31건 | 완전정답 30/31 | 2.5초 | $0.24 |
 
-테스트 스크립트는 `Review_Tag_AI/test_api.py`, `PickBot_AI/test_query_parser.py`, `PickBot_AI/test_pick_llm.py`에 정리했습니다.
+테스트 스크립트는 `Review_Tag_AI/tests/test_api.py`, `PickBot_AI/tests/test_query_parser.py`, `PickBot_AI/tests/test_pick_llm.py`에 정리했습니다.
 
 ---
 

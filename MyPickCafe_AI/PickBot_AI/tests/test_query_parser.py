@@ -8,8 +8,8 @@
 - 여러 모델을 한 번에 비교할 수 있다.
 
 사용법 (MyPickCafe_AI/ 에서, DB_PASSWORD·LLM_API_KEY 필요)
-  python PickBot_AI/test_query_parser.py                         # .env 의 LLM_MODEL
-  python PickBot_AI/test_query_parser.py glm-5p3-flash gpt-oss-120b  # 모델 여러 개 비교
+  python PickBot_AI/tests/test_query_parser.py                         # .env 의 LLM_MODEL
+  python PickBot_AI/tests/test_query_parser.py glm-5p3-flash gpt-oss-120b  # 모델 여러 개 비교
   (accounts/fireworks/models/ 접두사는 생략 가능)
 """
 
@@ -20,7 +20,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import httpx
