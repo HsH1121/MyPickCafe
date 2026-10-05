@@ -23,6 +23,7 @@ import httpx
 from config import Settings
 from pickbot_db import fetch_cafe_directory, fetch_representative_reviews, fetch_reviews_for_index
 from llm_client import call_llm
+from pick_trace import NO_TRACE, PickTrace, format_attempts
 from query_parser import ParsedQuery, parse_query
 
 
@@ -246,37 +247,62 @@ class CafeRAG:
         """질문 → 지역·조건 분해(LLM 1차) → 주소 필터 → 리뷰 유사도 검색 → LLM 2차 추천.
 
         반환: {"results": [PickBotResult dict, ...], "notice": None | NOTICE_*}
+        PICKBOT_TRACE=true(개발 환경)면 단계별 시간·결과를 logs/pickbot_trace.log 와 콘솔에 남긴다.
         """
+        trace = PickTrace(query, self.settings.pickbot_trace)
+        try:
+            result = await self._recommend(query, top_n, trace)
+        except BaseException as e:
+            trace.finish(f"오류 {type(e).__name__}: {e}")
+            raise
+        notice = f", 안내 {result['notice']}" if result["notice"] else ""
+        trace.finish(f"{len(result['results'])}곳 반환{notice}")
+        return result
+
+    async def _recommend(self, query: str, top_n: int, trace: PickTrace) -> dict:
         if self._col.count() == 0:
             logger.warning("ChromaDB가 비어 있습니다. 먼저 /pickbot/reindex를 호출하세요.")
+            trace.step("인덱스", None, "ChromaDB 가 비어 있음")
             return {"results": [], "notice": None}
 
         # 1. 질문 분해 — 지역은 카페 주소에 실제로 있는 구·동 이름으로 받는다
+        started = trace.now()
         directory = await self._cafe_directory()
         allowed = sorted({t for c in directory for t in _region_tokens(c["address"])})
-        parsed = await parse_query(query, allowed, self.settings)
+        trace.step("카페 목록", started, f"{len(directory)}곳, 허용 지역 {len(allowed)}개")
+        parsed = await parse_query(query, allowed, self.settings, trace)
         _rag_logger.debug(f"[질문 분해] 쿼리: {query!r}\n  {parsed}\n" + "=" * 70)
 
         # 2. 주소 필터 — 포함 지역 중 하나라도 주소에 있고(OR), 제외 지역은 하나도 없는 카페
         # 허용 목록 밖의 지역(unmatched_regions)은 거르지 않고 무시한다. 모든 카페가 서울에 있어
         # 모델이 "서울"이나 "제주 말차"의 제주를 지역으로 잘못 뽑아도 추천이 막히지 않게 하기 위함이다.
+        started = trace.now()
         region_filtered = bool(parsed.regions or parsed.exclude_regions)
         candidates = _filter_by_region(directory, parsed)
+        if region_filtered:
+            trace.step("③ 주소 필터", started,
+                       f"지역={parsed.regions} 제외={parsed.exclude_regions} → 후보 {len(candidates)}곳")
+        else:
+            ignored = f" (목록 밖 지역 {parsed.unmatched_regions} 무시)" if parsed.unmatched_regions else ""
+            trace.step("③ 주소 필터", started, f"지역 조건 없음 → 전체 {len(candidates)}곳{ignored}")
         if region_filtered and not candidates:
             return {"results": [], "notice": NOTICE_REGION_NOT_FOUND}
 
         # 3-a. 지역 말고 다른 조건이 없으면 벡터 검색 없이 긍정 리뷰 수로 순위를 매긴다
         if not parsed.purpose:
-            return {"results": await self._rank_with_only_region(candidates, top_n), "notice": None}
+            trace.step("④ 벡터 검색", None, "건너뜀 (조건 문장 없음)")
+            trace.step("⑤ 판정 LLM", None, "건너뜀 → 긍정 리뷰 수 순위")
+            return {"results": await self._rank_with_only_region(candidates, top_n, trace), "notice": None}
 
         # 3-b. 조건 문장으로 리뷰 벡터 검색 (지역을 걸렀으면 후보 카페로 제한)
         candidate_ids = [str(c["cafe_id"]) for c in candidates] if region_filtered else None
-        top_cafes = await self._rag_cafes(parsed.purpose, candidate_ids, top_n)
+        top_cafes = await self._rag_cafes(parsed.purpose, candidate_ids, top_n, trace=trace)
         if not top_cafes:
+            trace.step("⑤ 판정 LLM", None, "건너뜀 (검색 결과 없음)")
             return {"results": [], "notice": None}
 
         # 4. LLM 2차 호출 — 지역은 필터로 이미 반영했으므로 조건 문장만 넘긴다
-        return {"results": await self._pick_with_llm(parsed.purpose, top_cafes), "notice": None}
+        return {"results": await self._pick_with_llm(parsed.purpose, top_cafes, trace), "notice": None}
 
     async def _cafe_directory(self) -> list[dict]:
         """승인된 카페의 주소·리뷰 수 목록 (TTL 캐시). 조회에 실패하면 이전 캐시라도 쓴다."""
@@ -291,8 +317,10 @@ class CafeRAG:
                 logger.warning("카페 목록 갱신 실패, 이전 캐시 사용: %s", e)
         return self._directory
 
-    async def _rank_with_only_region(self, candidates: list[dict], top_n: int) -> list[dict]:
+    async def _rank_with_only_region(self, candidates: list[dict], top_n: int,
+                                     trace: PickTrace = NO_TRACE) -> list[dict]:
         """조건 문장이 없을 때 — 긍정(GOOD) 리뷰 수, 같으면 전체 리뷰 수 순. 추천 문구는 대표 리뷰."""
+        started = trace.now()
         ranked = sorted(
             (c for c in candidates if c["review_count"] > 0),
             key=lambda c: (c["good_count"], c["review_count"]),
@@ -303,6 +331,8 @@ class CafeRAG:
         reviews = await asyncio.to_thread(
             fetch_representative_reviews, self.settings, [c["cafe_id"] for c in ranked]
         )
+        trace.step("   긍정 리뷰 순위", started, ", ".join(
+            f"[{c['cafe_id']}] {c['cafe_name']} (긍정 {c['good_count']}/{c['review_count']})" for c in ranked))
         return [
             {
                 "cafeId":   c["cafe_id"],
@@ -314,11 +344,15 @@ class CafeRAG:
             for c in ranked
         ]
 
-    async def _rag_cafes(self, text: str, candidate_ids: list[str] | None, top_n: int) -> list[dict]:
+    async def _rag_cafes(self, text: str, candidate_ids: list[str] | None, top_n: int,
+                         trace: PickTrace = NO_TRACE) -> list[dict]:
         """카페당 가장 유사한 리뷰 1개씩, 최대 top_n개를 모아 모두 LLM에 전달한다."""
         # 선택한 카페는 제외하고 부족분만 재조회해 서로 다른 카페를 확보한다.
         target = top_n  # 기본값: 카페 5곳의 리뷰 5개
+        started = trace.now()
         query_emb = await asyncio.to_thread(self._emb_fn.embed_query, text)
+        trace.step("④ 조건 임베딩", started, repr(text))
+        started = trace.now()
         total = self._col.count()
 
         excluded: set[str] = set()
@@ -364,13 +398,18 @@ class CafeRAG:
                 }
 
         top_cafes = sorted(cafe_map.values(), key=lambda x: x["score"], reverse=True)[:top_n]
+        trace.step("   벡터 검색", started, f"카페 {len(top_cafes)}곳")
+        for c in top_cafes:
+            trace.note(f"[{c['cafe_id']}] {c['cafe_name']} 유사도 {c['score']:.3f} | {c['review'][:40]}")
 
         # --- 최종 선별 카페 로그 (최대 5개) ---
         _log_top_cafes(text, top_cafes)
         return top_cafes
 
-    async def _pick_with_llm(self, purpose: str, top_cafes: list[dict]) -> list[dict]:
+    async def _pick_with_llm(self, purpose: str, top_cafes: list[dict],
+                             trace: PickTrace = NO_TRACE) -> list[dict]:
         """후보 카페의 리뷰만 보여주고 조건에 맞는 카페와 추천 이유를 LLM 에게 고르게 한다."""
+        started, attempts = trace.now(), []
         try:
             raw = await call_llm(
                 system_prompt=_SYSTEM_PROMPT,
@@ -381,10 +420,13 @@ class CafeRAG:
                 timeout=self.settings.llm_timeout,
                 max_tokens=_PICK_MAX_TOKENS,
                 reasoning_effort=self.settings.llm_reasoning_effort or None,
+                attempt_log=attempts,
             )
             picks, stats = validate_llm_response_and_select_cafes(raw, top_cafes)
         except Exception as e:
             logger.warning("LLM 호출 실패, 검색 결과 직접 반환: %s", e)
+            trace.step("⑤ 판정 LLM", started,
+                       f"실패 {type(e).__name__} ({format_attempts(attempts)}) → 검색 결과 그대로 반환")
             return [
                 {
                     "cafeId":   c["cafe_id"],
@@ -406,6 +448,16 @@ class CafeRAG:
             + "\n".join(f"  [{cid}] 충족={v['matched']} 누락={v['missing']}" for cid, v in stats["verdicts"].items())
             + "\n" + "=" * 70
         )
+        retry = format_attempts(attempts)
+        how = ("모두 충족한 카페" if stats["full_match"] else
+               "모두 충족 없음 → 일부 충족 중 유사도 1위" if picks else "충족 조건이 있는 카페 없음 → 빈 목록")
+        trace.step("⑤ 판정 LLM", started, f"요구사항={stats['requirements']} 모두 충족 {stats['full_match']}곳 "
+                   f"→ {how} {len(picks)}곳 반환" + (f"  ({retry})" if retry else ""))
+        names = {c["cafe_id"]: c["cafe_name"] for c in top_cafes}
+        picked = {p["cafeId"] for p in picks}
+        for cid, v in stats["verdicts"].items():
+            trace.note(f"{'✓' if cid in picked else ' '} [{cid}] {names.get(cid, '')} "
+                       f"충족={v['matched']} 누락={v['missing']}")
         return picks
 
 

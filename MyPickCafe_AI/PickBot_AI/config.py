@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # 띄운 app.py 가 서로 다른 인덱스를 보고, app.py 가 전체 재인덱싱을 한다.
     chroma_path: str = "./chroma_db"
 
+    # 개발 환경 전용 — 추천 요청마다 단계별 걸린 시간·결과를 PickBot_AI/logs/pickbot_trace.log 와 콘솔에 남긴다.
+    # 기본은 끔이고 배포 compose 에는 넣지 않는다. 로컬 MyPickCafe_AI/.env 에서 PICKBOT_TRACE=true 로 켠다.
+    pickbot_trace: bool = False
+
     # 지역 맵에 없어 LLM 에 물어본 지역 표현을 모으는 파일. 검토해서 PickBot_AI/region_aliases.json 에 옮긴다.
     # 상대경로는 chroma_path 와 같이 MyPickCafe_AI/ 기준이다. 컨테이너에서는 로그 볼륨 안이다.
     region_candidates_path: str = "./PickBot_AI/logs/region_alias_candidates.json"

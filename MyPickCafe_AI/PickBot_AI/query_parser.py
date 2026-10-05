@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 from config import Settings
 from llm_client import call_llm
+from pick_trace import NO_TRACE, PickTrace, format_attempts
 from region_map import CandidateRecorder, RegionMap, pick_allowed
 
 logger = logging.getLogger(__name__)
@@ -113,8 +114,10 @@ JSON 객체 하나만 반환하세요. 설명 텍스트 절대 금지.
 {"results": {"망리단길": {"areas": ["망원동"], "gu": ["마포구"]}, "판교": {"areas": [], "gu": []}}}"""
 
 
-async def parse_query(query: str, allowed_regions: list[str], settings: Settings) -> ParsedQuery:
+async def parse_query(query: str, allowed_regions: list[str], settings: Settings,
+                      trace: PickTrace = NO_TRACE) -> ParsedQuery:
     """질문을 지역·조건으로 나눈다. LLM 1차 호출이 실패하면 질문 전체를 조건으로 보고 지역 필터 없이 진행한다."""
+    started, attempts = trace.now(), []
     try:
         raw = await call_llm(
             system_prompt=SYSTEM_PROMPT,
@@ -124,19 +127,25 @@ async def parse_query(query: str, allowed_regions: list[str], settings: Settings
             api_key=settings.llm_api_key,
             timeout=settings.llm_parse_timeout,
             reasoning_effort=settings.llm_reasoning_effort or None,
+            attempt_log=attempts,
         )
     except Exception as e:
         logger.warning("질문 분해 LLM 호출 실패, 질문 전체를 조건으로 사용: %s", e)
+        trace.step("① 질문 분해 LLM", started, f"실패 ({format_attempts(attempts)}) → 질문 전체를 조건으로, 지역 필터 없음")
         return ParsedQuery(purpose=query)
     if not isinstance(raw, dict):
         logger.warning("질문 분해 응답이 객체가 아님, 질문 전체를 조건으로 사용: %r", raw)
+        trace.step("① 질문 분해 LLM", started, f"응답 형식 오류 {raw!r} → 질문 전체를 조건으로")
         return ParsedQuery(purpose=query)
 
     include = _dedupe(_str_list(raw.get("regions")))
     exclude = _dedupe(_str_list(raw.get("exclude_regions")))
-    resolved = await resolve_regions(include + exclude, set(allowed_regions), query, settings)
-
     purpose = raw.get("purpose")
+    retry = format_attempts(attempts)
+    trace.step("① 질문 분해 LLM", started, f"지역={include} 제외={exclude} 조건={purpose!r}"
+               + (f"  ({retry})" if retry else ""))
+    resolved = await resolve_regions(include + exclude, set(allowed_regions), query, settings, trace)
+
     return ParsedQuery(
         regions=_dedupe([r for e in include for r in resolved[e]]),
         unmatched_regions=[e for e in include if not resolved[e]],
@@ -146,12 +155,13 @@ async def parse_query(query: str, allowed_regions: list[str], settings: Settings
 
 
 async def resolve_regions(expressions: list[str], allowed: set[str], query: str,
-                          settings: Settings) -> dict[str, list[str]]:
+                          settings: Settings, trace: PickTrace = NO_TRACE) -> dict[str, list[str]]:
     """지역 표현 → 허용 지역 값 목록. 데이터에 없는 곳이면 빈 목록.
 
     맵에서 먼저 찾고, 맵에 없는 표현만 LLM 에 한 번에 묻는다. 물어본 표현은 후보 파일에 기록한다.
     LLM 호출이 실패하면 그 표현은 데이터에 없는 곳으로 보고 지역 필터에 쓰지 않는다.
     """
+    started = trace.now()
     resolved: dict[str, list[str]] = {}
     unknown: list[str] = []
     for e in dict.fromkeys(expressions):
@@ -160,10 +170,21 @@ async def resolve_regions(expressions: list[str], allowed: set[str], query: str,
             unknown.append(e)
         else:
             resolved[e] = hit
+    if expressions:
+        trace.step("② 지역 매핑", started, ", ".join(
+            f"{e} → {resolved[e]}" + ("" if resolved[e] else " (데이터 없음 → 필터 안 함)") if e in resolved
+            else f"{e} → 맵에 없음" for e in dict.fromkeys(expressions)))
     if not unknown:
+        trace.step("   지역 확인 LLM", None, "호출 안 함")
         return resolved
 
-    answers = await _ask_llm_regions(unknown, settings)
+    started, attempts = trace.now(), []
+    answers = await _ask_llm_regions(unknown, settings, attempts)
+    retry = format_attempts(attempts)
+    if answers is None:
+        trace.step("   지역 확인 LLM", started, f"{unknown} 실패 ({retry}) → 필터 안 함, 후보 기록")
+    else:
+        trace.step("   지역 확인 LLM", started, f"{unknown} → 후보 기록" + (f"  ({retry})" if retry else ""))
     recorder = _recorder(settings)
     for e in unknown:
         answer = answers.get(e) if answers is not None else None
@@ -172,10 +193,13 @@ async def resolve_regions(expressions: list[str], allowed: set[str], query: str,
         recorder.record(e, query, areas, gu)
         resolved[e] = pick_allowed(areas or [], gu or [], allowed)
         logger.info("지역 맵에 없는 표현 %r → LLM 답 areas=%s gu=%s → 필터 %s", e, areas, gu, resolved[e])
+        if answers is not None:
+            trace.note(f"{e}: LLM 답 동={areas} 구={gu} → 필터 {resolved[e] or '안 함(데이터 없음)'}")
     return resolved
 
 
-async def _ask_llm_regions(expressions: list[str], settings: Settings) -> dict[str, dict] | None:
+async def _ask_llm_regions(expressions: list[str], settings: Settings,
+                           attempt_log: list[dict] | None = None) -> dict[str, dict] | None:
     """맵에 없는 지역 표현의 실제 동·구를 LLM 에 묻는다. 실패하면 None.
 
     정확도가 중요해 추론량은 지정하지 않고(모델 기본값), 타임아웃도 1차 호출보다 길게 둔다.
@@ -188,6 +212,7 @@ async def _ask_llm_regions(expressions: list[str], settings: Settings) -> dict[s
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key,
             timeout=settings.llm_region_timeout,
+            attempt_log=attempt_log,
         )
     except Exception as e:
         logger.warning("지역 표현 LLM 확인 실패, 지역 필터 없이 진행: %s (%s)", expressions, e)

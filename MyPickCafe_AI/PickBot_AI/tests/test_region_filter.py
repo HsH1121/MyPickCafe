@@ -15,6 +15,7 @@
 from __future__ import annotations
 import asyncio
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -57,21 +58,21 @@ class _FakeCollection:
 def make_rag(parsed: ParsedQuery, calls: list) -> pickbot_rag.CafeRAG:
     """ChromaDB·임베딩 없이 recommend() 의 분기만 확인하도록 외부 호출을 기록용 가짜로 바꾼다."""
     rag = object.__new__(pickbot_rag.CafeRAG)
-    rag.settings = None
+    rag.settings = SimpleNamespace(pickbot_trace=False)
     rag._col = _FakeCollection()
 
     async def directory():
         return DIRECTORY
 
-    async def rag_cafes(text, candidate_ids, top_n):
+    async def rag_cafes(text, candidate_ids, top_n, trace=None):
         calls.append(("rag", candidate_ids))
         return [{"cafe_id": 1}]
 
-    async def rank(candidates, top_n):
+    async def rank(candidates, top_n, trace=None):
         calls.append(("rank", [c["cafe_id"] for c in candidates]))
         return []
 
-    async def pick(purpose, top_cafes):
+    async def pick(purpose, top_cafes, trace=None):
         return []
 
     rag._cafe_directory = directory
@@ -79,7 +80,7 @@ def make_rag(parsed: ParsedQuery, calls: list) -> pickbot_rag.CafeRAG:
     rag._rank_with_only_region = rank
     rag._pick_with_llm = pick
 
-    async def parse(query, allowed, settings):
+    async def parse(query, allowed, settings, trace=None):
         return parsed
 
     pickbot_rag.parse_query = parse
