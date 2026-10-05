@@ -37,7 +37,6 @@ MODEL_PREFIX = "accounts/fireworks/models/"
 PRICES = {
     "deepseek-v4p1-flash":            (0.22, 0.007, 0.66),
     "glm-5p3-flash":                  (0.15, 0.03,  0.50),
-    "nemotron-lightning-3p5-30b-a3b": (0.05, 0.01,  0.20),
     "gpt-oss-120b":                   (0.15, 0.015, 0.60),
     "qwen3p8-max":                    (2.00, 0.25,  6.00),
 }
@@ -91,8 +90,6 @@ CASES = [
 
 def outcome(directory: list[dict], parsed: query_parser.ParsedQuery):
     """추천 흐름과 같은 규칙으로 '안내' 또는 '후보 카페 집합'을 계산한다."""
-    if parsed.wants_region and not parsed.regions:
-        return "REGION_NOT_FOUND"
     cafes = pickbot_rag._filter_by_region(directory, parsed)
     if (parsed.regions or parsed.exclude_regions) and not cafes:
         return "REGION_NOT_FOUND"

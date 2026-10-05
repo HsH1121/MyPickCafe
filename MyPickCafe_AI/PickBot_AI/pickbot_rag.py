@@ -111,7 +111,7 @@ _rag_logger.addHandler(_fh)
 
 _COLLECTION = "cafe_reviews"
 
-# 응답 notice 값 — 사용자가 말한 지역에 해당하는 카페가 데이터에 없음
+# 응답 notice 값 — 허용 목록의 지역으로 걸렀더니 남는 카페가 없음 (목록 밖 지역은 무시하고 전체 검색)
 NOTICE_REGION_NOT_FOUND = "REGION_NOT_FOUND"
 
 # LLM 2차 호출(추천 선택)의 출력 토큰 한도. 추론 모델은 답 전에 추론 토큰을 쓰고 추천 5곳의
@@ -258,8 +258,8 @@ class CafeRAG:
         _rag_logger.debug(f"[질문 분해] 쿼리: {query!r}\n  {parsed}\n" + "=" * 70)
 
         # 2. 주소 필터 — 포함 지역 중 하나라도 주소에 있고(OR), 제외 지역은 하나도 없는 카페
-        if parsed.wants_region and not parsed.regions:
-            return {"results": [], "notice": NOTICE_REGION_NOT_FOUND}
+        # 허용 목록 밖의 지역(unmatched_regions)은 거르지 않고 무시한다. 모든 카페가 서울에 있어
+        # 모델이 "서울"이나 "제주 말차"의 제주를 지역으로 잘못 뽑아도 추천이 막히지 않게 하기 위함이다.
         region_filtered = bool(parsed.regions or parsed.exclude_regions)
         candidates = _filter_by_region(directory, parsed)
         if region_filtered and not candidates:
