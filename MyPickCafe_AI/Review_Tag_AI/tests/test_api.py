@@ -6,7 +6,7 @@ FastAPI 모델 세팅 심층 테스트 — 서버 없이 직접 호출
 """
 
 import sys
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 sys.stdout.reconfigure(encoding='utf-8')
 
 import asyncio

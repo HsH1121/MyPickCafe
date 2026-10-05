@@ -4,6 +4,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 import json
 import ollama
 
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 from local_llm import ensure_local_qwen
 
 ensure_local_qwen()  # 로컬 Ollama qwen 환경이 아니면 여기서 멈춘다

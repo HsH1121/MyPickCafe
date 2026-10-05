@@ -12,8 +12,8 @@
 - 근거성: 추천 이유 문장의 글자 2-gram 중 그 카페 리뷰에도 있는 비율
 
 사용법 (MyPickCafe_AI/ 에서, DB_PASSWORD·LLM_API_KEY 필요, Ollama 실행 중)
-  python PickBot_AI/test_pick_llm.py                              # .env 의 LLM_MODEL
-  python PickBot_AI/test_pick_llm.py glm-5p3-flash gpt-oss-120b     # 모델 여러 개 비교
+  python PickBot_AI/tests/test_pick_llm.py                              # .env 의 LLM_MODEL
+  python PickBot_AI/tests/test_pick_llm.py glm-5p3-flash gpt-oss-120b     # 모델 여러 개 비교
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
 import httpx
