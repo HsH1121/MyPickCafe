@@ -22,11 +22,14 @@ class Settings(BaseSettings):
     llm_timeout:    int = 60
     # LLM 1차 호출(질문 분해)의 타임아웃(초). 공용 llm_timeout(60초)을 쓰면 Fireworks 가 가끔 응답을
     # 늦게 줄 때 사용자가 그대로 기다린다(실측: 평소 1~2초인 질문이 한 번 35.1초).
-    # glm-5p3-flash 정상 응답은 62건 중 최대 7.3초, 5초 초과 6건(지역 변환이 필요한 질문)이다.
-    # 타임아웃이 나면 call_llm 이 최대 3번 재시도하고, 그래도 실패하면 질문 전체를 조건으로 보고
-    # 지역 필터 없이 진행한다. 로컬 qwen2.5:14b 는 모델을 처음 올리는 호출만 약 8초라 한 번 재시도한다.
+    # 1차 호출은 지역 표현만 뽑고 변환은 지역 맵이 해서 추론이 짧다(region_map.py 참고).
+    # 타임아웃이 나면 call_llm 이 한 번 더 시도하고, 그래도 실패하면 질문 전체를 조건으로 보고
+    # 지역 필터 없이 진행한다. 로컬 qwen2.5:14b 는 모델을 처음 올리는 호출만 약 8초라 한 번 더 시도한다.
     llm_parse_timeout: int = 5
-    # LLM 2차 호출(추천 선택)의 추론량. 추론 모델(glm-5p3-flash)은 "low" 가 필요하고
+    # 지역 맵에 없는 표현의 동·구를 LLM 에 물을 때의 타임아웃(초). 지명 지식을 추론해야 해서
+    # 추론량을 지정하지 않고(모델 기본값), 1차 호출보다 길게 둔다. 맵이 커질수록 드물게 불린다.
+    llm_region_timeout: int = 10
+    # LLM 1차 호출(질문 분해)과 판정 호출(추천 선택)의 추론량. 추론 모델(glm-5p3-flash)은 "low" 가 필요하고
     # (pickbot_rag._PICK_MAX_TOKENS 주석 참고), 비추론 모델(qwen2.5)은 이 값을 보내면 400 이 난다.
     # 그래서 기본값은 비워 로컬 Ollama 에 맞추고, 배포 환경은 compose 가 "low" 를 주입한다.
     llm_reasoning_effort: str = ""
@@ -51,9 +54,13 @@ class Settings(BaseSettings):
     # 띄운 app.py 가 서로 다른 인덱스를 보고, app.py 가 전체 재인덱싱을 한다.
     chroma_path: str = "./chroma_db"
 
-    @field_validator("chroma_path")
+    # 지역 맵에 없어 LLM 에 물어본 지역 표현을 모으는 파일. 검토해서 PickBot_AI/region_aliases.json 에 옮긴다.
+    # 상대경로는 chroma_path 와 같이 MyPickCafe_AI/ 기준이다. 컨테이너에서는 로그 볼륨 안이다.
+    region_candidates_path: str = "./PickBot_AI/logs/region_alias_candidates.json"
+
+    @field_validator("chroma_path", "region_candidates_path")
     @classmethod
-    def _resolve_chroma_path(cls, v: str) -> str:
+    def _resolve_path(cls, v: str) -> str:
         p = Path(v)
         return str(p if p.is_absolute() else (_AI_ROOT / p).resolve())
 

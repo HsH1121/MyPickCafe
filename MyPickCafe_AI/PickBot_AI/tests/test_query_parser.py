@@ -1,22 +1,27 @@
 """
-픽봇 질문 분해(LLM 1차 호출) 정확도 테스트 — 서버 없이 직접 호출
+픽봇 질문 분해(LLM 1차 호출 + 지역 맵 + 맵에 없는 표현의 LLM 확인) 정확도·시간 테스트 — 서버 없이 직접 호출
 
-- query_parser 의 프롬프트·검증 로직을 그대로 쓰고, LLM 만 직접 호출한다(재시도 없음 → 실패를 그대로 센다).
+- 서비스의 query_parser.parse_query 를 그대로 호출한다(재시도 포함, 서비스와 같은 조건).
+  LLM 요청은 가로채 1차 호출·지역 확인 호출별로 시간·토큰·실패를 센다.
 - 퓨샷 예시와 겹치지 않는 질문으로 채점한다.
 - 지역은 반환된 이름이 아니라 "실제로 걸러지는 카페 집합"으로 채점한다.
   현재 데이터에서 송파구와 잠실동처럼 같은 카페를 가리키는 값은 둘 다 정답이다.
+- 맵에 없어 LLM 에 물어본 표현은 임시 후보 파일에 모아 끝에 보여준다(서비스 후보 파일은 건드리지 않는다).
 - 여러 모델을 한 번에 비교할 수 있다.
 
 사용법 (MyPickCafe_AI/ 에서, DB_PASSWORD·LLM_API_KEY 필요)
   python PickBot_AI/tests/test_query_parser.py                         # .env 의 LLM_MODEL
   python PickBot_AI/tests/test_query_parser.py glm-5p3-flash gpt-oss-120b  # 모델 여러 개 비교
   (accounts/fireworks/models/ 접두사는 생략 가능)
+  배포 환경과 같게 재려면 LLM_BASE_URL(Fireworks), LLM_REASONING_EFFORT=low 를 환경변수로 준다.
 """
 
 from __future__ import annotations
+import asyncio
 import json
 import statistics
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -96,61 +101,63 @@ def outcome(directory: list[dict], parsed: query_parser.ParsedQuery):
     return frozenset(c["cafe_id"] for c in cafes)
 
 
-def call(model: str, system_prompt: str, query: str) -> dict:
-    """shared/llm_client.py 와 같은 요청 조건. 재시도 없음."""
-    body = {
-        "model": model,
-        "messages": [{"role": "system", "content": system_prompt},
-                     {"role": "user", "content": f"질문: {query}"}],
-        "stream": False,
-        "response_format": {"type": "json_object"},
-        "temperature": 0.0,
-        "top_p": 0.9,
-        "max_tokens": 1000,
-    }
-    headers = {"Authorization": f"Bearer {settings.llm_api_key}"} if settings.llm_api_key else {}
-    t = time.perf_counter()
-    try:
-        r = httpx.post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", json=body, headers=headers, timeout=120)
-    except Exception as e:
-        return {"ok": False, "sec": time.perf_counter() - t, "err": f"{type(e).__name__}: {e}"}
-    sec = time.perf_counter() - t
-    if r.status_code != 200:
-        return {"ok": False, "sec": sec, "err": f"HTTP {r.status_code} {r.text[:150]}"}
-    d = r.json()
-    u = d.get("usage") or {}
-    rec = {"sec": sec,
-           "pt": u.get("prompt_tokens", 0), "ct": u.get("completion_tokens", 0),
-           "cached": (u.get("prompt_tokens_details") or {}).get("cached_tokens") or 0,
-           "reason": (u.get("completion_tokens_details") or {}).get("reasoning_tokens") or 0}
-    content = d["choices"][0]["message"].get("content")
-    try:
-        raw = json.loads(content)
-        if not isinstance(raw, dict):
-            raise ValueError("객체가 아님")
-        rec.update(ok=True, raw=raw)
-    except Exception:
-        rec.update(ok=False, err=f"JSON 실패 content={str(content)[:120]!r}")
-    return rec
+class Recorder:
+    """httpx 요청을 가로채 LLM 호출마다 종류·시간·토큰·결과를 기록한다."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self._orig = httpx.AsyncClient.post
+
+    def install(self) -> None:
+        rec = self
+
+        async def post(client, url, *args, **kwargs):
+            body = kwargs.get("json") or {}
+            system = (body.get("messages") or [{}])[0].get("content")
+            kind = "resolve" if system is query_parser.RESOLVE_SYSTEM_PROMPT else "parse"
+            item = {"kind": kind, "ok": False}
+            t = time.perf_counter()
+            try:
+                r = await rec._orig(client, url, *args, **kwargs)
+            except Exception as e:
+                item.update(sec=time.perf_counter() - t, err=type(e).__name__)
+                rec.calls.append(item)
+                raise
+            item["sec"] = time.perf_counter() - t
+            if r.status_code == 200:
+                u = r.json().get("usage") or {}
+                item.update(ok=True, pt=u.get("prompt_tokens", 0), ct=u.get("completion_tokens", 0),
+                            cached=(u.get("prompt_tokens_details") or {}).get("cached_tokens") or 0,
+                            reason=(u.get("completion_tokens_details") or {}).get("reasoning_tokens") or 0)
+            else:
+                item["err"] = f"HTTP {r.status_code}"
+            rec.calls.append(item)
+            return r
+
+        httpx.AsyncClient.post = post
 
 
-def run_model(model: str, directory: list[dict], allowed: list[str]) -> dict:
-    system_prompt = query_parser.build_system_prompt(allowed)
-    allowed_set = set(allowed)
+def run_model(model: str, directory: list[dict], allowed: list[str], recorder: Recorder) -> dict:
     name = model.removeprefix(MODEL_PREFIX)
-    print(f"\n{'=' * 78}\n모델: {name}\n{'=' * 78}")
+    print(f"\n{'=' * 78}\n모델: {name}  (1차 추론량={settings.llm_reasoning_effort or '기본값'})\n{'=' * 78}")
+    tmp = tempfile.TemporaryDirectory()
+    cand_path = Path(tmp.name) / "candidates.json"
+    model_settings = settings.model_copy(update={"llm_model": model, "region_candidates_path": str(cand_path)})
 
-    n = {"filter": 0, "purpose_has": 0, "purpose_has_total": 0, "clean": 0, "keyword": 0, "all": 0, "fail": 0}
-    recs = []
+    n = {"filter": 0, "purpose_has": 0, "purpose_has_total": 0, "clean": 0, "keyword": 0, "all": 0,
+         "fallback": 0, "resolve_q": 0}
+    secs, calls = [], []
     for i, (q, inc, exc, unmatched, has_purpose, region_words, keywords) in enumerate(CASES, 1):
-        rec = call(model, system_prompt, q)
-        recs.append(rec)
-        if not rec["ok"]:
-            n["fail"] += 1
-            print(f"[{i:02d}] ✗ 호출 실패 {rec['sec']:.1f}s — {q}\n      {rec['err']}")
-            continue
+        before = len(recorder.calls)
+        t = time.perf_counter()
+        got = asyncio.run(query_parser.parse_query(q, allowed, model_settings))
+        sec = time.perf_counter() - t
+        mine = recorder.calls[before:]
+        calls += mine
+        secs.append(sec)
+        n["fallback"] += not any(c["kind"] == "parse" and c["ok"] for c in mine)
+        n["resolve_q"] += any(c["kind"] == "resolve" for c in mine)
 
-        got = query_parser._validate(rec["raw"], allowed_set)
         expected = query_parser.ParsedQuery(
             regions=sorted(inc), unmatched_regions=["(없는 지역)"] if unmatched else [],
             exclude_regions=sorted(exc), purpose="-")
@@ -168,29 +175,36 @@ def run_model(model: str, directory: list[dict], allowed: list[str]) -> dict:
         n["keyword"] += kw_ok
         n["all"] += all_ok
 
-        mark = "✓" if all_ok else "✗"
-        print(f"[{i:02d}] {mark} {rec['sec']:4.1f}s  {q}")
+        detail = " ".join(f"{'1차' if c['kind'] == 'parse' else '지역확인'} {c['sec']:.1f}s"
+                          + ("" if c["ok"] else f"({c.get('err')})") for c in mine)
+        print(f"[{i:02d}] {'✓' if all_ok else '✗'} {sec:4.1f}s  {q}   [{detail}]")
         if not all_ok:
             why = [label for ok, label in [(filter_ok, "지역 필터"), (has_ok, "조건 유무"),
                                             (clean_ok, "조건에 지역 섞임"), (kw_ok, "핵심어 누락")] if not ok]
             print(f"      틀린 항목: {', '.join(why)}")
-            print(f"      응답: regions={got.regions} exclude={got.exclude_regions} "
+            print(f"      결과: regions={got.regions} exclude={got.exclude_regions} "
                   f"unmatched={got.unmatched_regions} purpose={got.purpose!r}")
 
-    ok_secs = [r["sec"] for r in recs if r["ok"]]
+    if cand_path.exists():
+        print("\n맵에 없어 LLM 에 물어본 표현 (후보):")
+        for expr, item in json.loads(cand_path.read_text(encoding="utf-8")).items():
+            print(f"  - {expr}: {item.get('llm', '(LLM 답 없음)')}  예: {item['examples'][0]}")
+    tmp.cleanup()
+
     price = PRICES.get(name)
-    cost_per_call = None
+    per1k = None
     if price:
-        total = sum(((r.get("pt", 0) - r.get("cached", 0)) * price[0] + r.get("cached", 0) * price[1]
-                     + r.get("ct", 0) * price[2]) / 1e6 for r in recs)
-        cost_per_call = total / len(recs)
+        total = sum(((c.get("pt", 0) - c.get("cached", 0)) * price[0] + c.get("cached", 0) * price[1]
+                     + c.get("ct", 0) * price[2]) / 1e6 for c in calls)
+        per1k = total / len(CASES) * 1000
+    parse_ok = [c for c in calls if c["kind"] == "parse" and c["ok"]]
+    srt = sorted(secs)
     return {
         "model": name, "cases": len(CASES), **n,
-        "avg": statistics.mean(ok_secs) if ok_secs else 0.0,
-        "p90": sorted(ok_secs)[int(len(ok_secs) * 0.9) - 1] if ok_secs else 0.0,
-        "max": max(ok_secs) if ok_secs else 0.0,
-        "reason": statistics.mean([r.get("reason", 0) for r in recs if r["ok"]]) if ok_secs else 0.0,
-        "per1k": cost_per_call * 1000 if cost_per_call is not None else None,
+        "avg": statistics.mean(secs), "med": statistics.median(secs),
+        "p90": srt[int(len(srt) * 0.9) - 1], "max": srt[-1],
+        "reason": statistics.mean([c["reason"] for c in parse_ok]) if parse_ok else 0.0,
+        "per1k": per1k,
     }
 
 
@@ -205,18 +219,19 @@ def main() -> None:
     if missing:
         print(f"!! 케이스의 기대 지역 중 현재 데이터에 없는 값: {sorted(missing)} — 주소 데이터가 바뀌었다면 케이스를 고치세요")
 
-    summary = [run_model(m, directory, allowed) for m in models]
+    recorder = Recorder()
+    recorder.install()
+    summary = [run_model(m, directory, allowed, recorder) for m in models]
 
-    print(f"\n{'=' * 78}\n요약 ({len(CASES)}건)\n{'=' * 78}")
-    print(f"{'모델':<32} {'완전정답':>6} {'지역필터':>6} {'조건유무':>6} {'지역섞임X':>7} {'핵심어':>6} "
-          f"{'실패':>4} {'평균s':>6} {'p90s':>6} {'최대s':>6} {'추론토큰':>6} {'1천건$':>7}")
+    print(f"\n{'=' * 78}\n요약 ({len(CASES)}건, 시간은 질문 분해 전체 — 1차 호출 + 필요할 때 지역 확인 호출)\n{'=' * 78}")
+    print(f"{'모델':<24} {'완전정답':>6} {'지역필터':>6} {'조건유무':>6} {'지역섞임X':>7} {'핵심어':>6} "
+          f"{'1차실패':>5} {'지역확인':>6} {'평균s':>6} {'중앙s':>6} {'p90s':>6} {'최대s':>6} {'1차추론':>6} {'1천건$':>7}")
     for s in summary:
         per1k = f"{s['per1k']:.2f}" if s["per1k"] is not None else "-"
-        print(f"{s['model']:<32} {s['all']:>3}/{s['cases']:<2} {s['filter']:>3}/{s['cases']:<2} "
+        print(f"{s['model']:<24} {s['all']:>3}/{s['cases']:<2} {s['filter']:>3}/{s['cases']:<2} "
               f"{s['purpose_has']:>3}/{s['purpose_has_total']:<2} {s['clean']:>4}/{s['cases']:<2} "
-              f"{s['keyword']:>3}/{s['cases']:<2} {s['fail']:>4} {s['avg']:6.1f} {s['p90']:6.1f} {s['max']:6.1f} "
-              f"{s['reason']:6.0f} {per1k:>7}")
-
+              f"{s['keyword']:>3}/{s['cases']:<2} {s['fallback']:>5} {s['resolve_q']:>6} "
+              f"{s['avg']:6.1f} {s['med']:6.1f} {s['p90']:6.1f} {s['max']:6.1f} {s['reason']:6.0f} {per1k:>7}")
 
 if __name__ == "__main__":
     main()
