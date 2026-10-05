@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     llm_api_key:    str = ""
     llm_model:      str = "qwen2.5:14b"
     llm_timeout:    int = 60
+    # LLM 1차 호출(질문 분해)의 타임아웃(초). 공용 llm_timeout(60초)을 쓰면 Fireworks 가 가끔 응답을
+    # 늦게 줄 때 사용자가 그대로 기다린다(실측: 평소 1~2초인 질문이 한 번 35.1초).
+    # glm-5p3-flash 정상 응답은 62건 중 최대 7.3초, 5초 초과 6건(지역 변환이 필요한 질문)이다.
+    # 타임아웃이 나면 call_llm 이 최대 3번 재시도하고, 그래도 실패하면 질문 전체를 조건으로 보고
+    # 지역 필터 없이 진행한다. 로컬 qwen2.5:14b 는 모델을 처음 올리는 호출만 약 8초라 한 번 재시도한다.
+    llm_parse_timeout: int = 5
     # LLM 2차 호출(추천 선택)의 추론량. 추론 모델(glm-5p3-flash)은 "low" 가 필요하고
     # (pickbot_rag._PICK_MAX_TOKENS 주석 참고), 비추론 모델(qwen2.5)은 이 값을 보내면 400 이 난다.
     # 그래서 기본값은 비워 로컬 Ollama 에 맞추고, 배포 환경은 compose 가 "low" 를 주입한다.

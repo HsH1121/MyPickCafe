@@ -93,6 +93,8 @@ services:
       LLM_API_KEY: ${LLM_API_KEY}
       LLM_MODEL: ${LLM_MODEL}
       LLM_TIMEOUT: ${LLM_TIMEOUT:-60}
+      # 픽봇 1차 호출(질문 분해)의 타임아웃(초). 넘으면 재시도, 끝내 실패하면 지역 필터 없이 진행합니다.
+      LLM_PARSE_TIMEOUT: ${LLM_PARSE_TIMEOUT:-5}
       # 픽봇 2차 호출의 추론량. glm-5p3-flash 는 "low" 가 필요합니다. 비추론 모델로 바꾸면 .env 에 빈 값으로 두세요.
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT-low}
       # 임베딩 — 같은 네트워크의 ollama 컨테이너

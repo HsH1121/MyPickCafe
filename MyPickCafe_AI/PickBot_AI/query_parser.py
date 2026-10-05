@@ -93,7 +93,7 @@ async def parse_query(query: str, allowed_regions: list[str], settings: Settings
             model=settings.llm_model,
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key,
-            timeout=settings.llm_timeout,
+            timeout=settings.llm_parse_timeout,
         )
     except Exception as e:
         logger.warning("질문 분해 LLM 호출 실패, 질문 전체를 조건으로 사용: %s", e)
