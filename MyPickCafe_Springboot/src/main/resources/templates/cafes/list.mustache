@@ -129,7 +129,7 @@
                style="flex:1;font-size:14px"/>
         <button id="chatSendBtn" class="cg-btn" style="white-space:nowrap">추천받기</button>
       </div>
-      <div id="chatCounter" style="margin-top:6px;font-size:12px;color:var(--text-muted);text-align:right">0/30</div>
+      <div id="chatCounter" style="margin-top:6px;font-size:12px;color:var(--text-muted);text-align:right">0/50</div>
     </div>
   </div>
 
@@ -153,10 +153,11 @@
   const counter    = document.getElementById('chatCounter');
   const sortTabs   = tabBtn.parentElement.querySelectorAll('a');
 
-  // 질문 최대 글자 수 — AI 서버(PickBot_AI/schemas.py 의 QUERY_MAX_LENGTH)와 반드시 같은 값.
+  // 질문 최대 글자 수 — AI 서버 제한(PickBot_AI/schemas.py 의 QUERY_MAX_LENGTH = 60)보다
+  // 여유를 둔 값이다. 서버 제한보다 크게 올리면 입력 가능한 질문이 서버에서 거절된다.
   // 서버(Python len())와 같은 유니코드 코드 포인트 기준으로 센다. 공백·특수문자·이모지 모두 1자.
   // input 의 maxlength 는 이모지를 2자(UTF-16)로 세서 서버와 기준이 달라지므로 쓰지 않는다.
-  const QUERY_MAX_LENGTH = 30;
+  const QUERY_MAX_LENGTH = 50;
   const charCount = s => Array.from(s).length;
 
   function enforceQueryLimit() {
