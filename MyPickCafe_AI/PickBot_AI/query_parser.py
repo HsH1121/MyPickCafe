@@ -19,14 +19,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParsedQuery:
     regions: list[str] = field(default_factory=list)            # 포함할 지역 — 허용 목록에 있는 값만
-    unmatched_regions: list[str] = field(default_factory=list)  # 말했지만 데이터에 없는 지역 — 사용자 표현 그대로
+    unmatched_regions: list[str] = field(default_factory=list)  # 말했지만 데이터에 없는 지역 — 사용자 표현 그대로, 필터에 쓰지 않음(로그용)
     exclude_regions: list[str] = field(default_factory=list)    # 제외할 지역 — 허용 목록에 있는 값만
     purpose: str = ""                                            # 지역을 뺀 나머지 조건
-
-    @property
-    def wants_region(self) -> bool:
-        """사용자가 가고 싶은 지역을 말했는지 (데이터에 있든 없든)."""
-        return bool(self.regions or self.unmatched_regions)
 
 
 # 예시의 지역 값은 현재 카페 주소 데이터에 있는 구·동 이름 기준이다.
