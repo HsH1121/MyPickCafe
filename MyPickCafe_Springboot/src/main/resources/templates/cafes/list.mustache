@@ -129,6 +129,7 @@
                style="flex:1;font-size:14px"/>
         <button id="chatSendBtn" class="cg-btn" style="white-space:nowrap">추천받기</button>
       </div>
+      <div id="chatCounter" style="margin-top:6px;font-size:12px;color:var(--text-muted);text-align:right">0/30</div>
     </div>
   </div>
 
@@ -149,7 +150,32 @@
   const input      = document.getElementById('chatInput');
   const sendBtn    = document.getElementById('chatSendBtn');
   const messages   = document.getElementById('chatMessages');
+  const counter    = document.getElementById('chatCounter');
   const sortTabs   = tabBtn.parentElement.querySelectorAll('a');
+
+  // 질문 최대 글자 수 — AI 서버(PickBot_AI/schemas.py 의 QUERY_MAX_LENGTH)와 반드시 같은 값.
+  // 서버(Python len())와 같은 유니코드 코드 포인트 기준으로 센다. 공백·특수문자·이모지 모두 1자.
+  // input 의 maxlength 는 이모지를 2자(UTF-16)로 세서 서버와 기준이 달라지므로 쓰지 않는다.
+  const QUERY_MAX_LENGTH = 30;
+  const charCount = s => Array.from(s).length;
+
+  function enforceQueryLimit() {
+    const chars = Array.from(input.value);
+    if (chars.length > QUERY_MAX_LENGTH) {
+      input.value = chars.slice(0, QUERY_MAX_LENGTH).join('');
+    }
+    updateCounter();
+  }
+
+  function updateCounter() {
+    const n = charCount(input.value);
+    counter.textContent = `${n}/${QUERY_MAX_LENGTH}`;
+    counter.style.color = n > QUERY_MAX_LENGTH ? '#b91c1c' : 'var(--text-muted)';
+  }
+
+  // 한글 조합 중에 자르면 입력이 깨지므로 조합이 끝난 뒤에 자른다.
+  input.addEventListener('input', e => { if (e.isComposing) updateCounter(); else enforceQueryLimit(); });
+  input.addEventListener('compositionend', enforceQueryLimit);
 
   // 픽봇 대화와 탭 상태를 브라우저 탭이 닫힐 때까지 유지 (새로고침·상세 페이지 왕복에도 복원)
   const STORAGE_KEY = 'pickbot.state';
@@ -199,11 +225,14 @@
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
 
   function sendMessage() {
+    // 한글 조합 중 Enter 처럼 아직 잘리지 않은 상태로 들어올 수 있어 보내기 직전에 한 번 더 확인한다.
+    if (charCount(input.value) > QUERY_MAX_LENGTH) { enforceQueryLimit(); return; }
     const query = input.value.trim();
     if (!query) return;
 
     addEntry({ kind: 'user', text: query });
     input.value = '';
+    updateCounter();
     sendBtn.disabled = true;
 
     const loadingEl = appendMsg('추천 카페를 찾는 중...', 'bot');
