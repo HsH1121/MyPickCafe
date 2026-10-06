@@ -68,8 +68,9 @@ class Settings(BaseSettings):
     pickbot_reviews_per_condition: int = 21
     pickbot_search_reviews_per_cafe: int = 3
     # 리뷰가 조건을 충족한 후보로 볼 코사인 유사도 기준. 후보 찾기·순위용이고 최종 의미 판정은 판정 LLM 이 한다.
-    # 2026-10-06 로그에서 관련 리뷰가 대략 0.63~0.76 이었다.
-    pickbot_condition_threshold: float = 0.6
+    # 조건마다 유사도 크기가 달라 0.6 이면 "주차 가능"은 상위 21개가 전부 넘고 "인터넷이 빠름"은 하나도 못 넘어
+    # (0.505~0.569) 순위가 한 조건으로 쏠렸다. 조건마다 따로 맞출 수 없으니 낮게 두고 의미 판정은 판정 LLM 에 맡긴다.
+    pickbot_condition_threshold: float = 0.4
     # 판정 LLM 에 넘길 상위 카페 수와 카페당 대표 리뷰 수(조건별 근거 리뷰, 있는 만큼만).
     pickbot_judge_max_cafes: int = 7
     pickbot_judge_reviews_per_cafe: int = 3
