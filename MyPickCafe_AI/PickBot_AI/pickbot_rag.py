@@ -114,6 +114,8 @@ _COLLECTION = "cafe_reviews"
 
 # 응답 notice 값 — 허용 목록의 지역으로 걸렀더니 남는 카페가 없음 (목록 밖 지역은 무시하고 전체 검색)
 NOTICE_REGION_NOT_FOUND = "REGION_NOT_FOUND"
+# 응답 notice 값 — 서울 밖 지명을 말했다. 그 지역은 거르지 않고 찾은 결과와 함께 "서울 내 카페만" 안내를 한다.
+NOTICE_OUTSIDE_SEOUL = "OUTSIDE_SEOUL"
 
 # LLM 2차 호출(추천 선택)의 출력 토큰 한도. 추론 모델은 답 전에 추론 토큰을 쓰고 추천 5곳의
 # 이유 문장까지 쓰므로 공용 기본값 1000 에 자주 걸렸다(실측: deepseek 7/10, glm-5p3-flash 1/10).
@@ -279,12 +281,16 @@ class CafeRAG:
         started = trace.now()
         region_filtered = bool(parsed.regions or parsed.exclude_regions)
         candidates = _filter_by_region(directory, parsed)
+        # 서울 밖 지명은 거르지 않고, 찾은 결과와 함께 "서울 내 카페만" 안내를 한다
+        notice = NOTICE_OUTSIDE_SEOUL if parsed.outside_regions else None
+        outside = f" (서울 밖 {parsed.outside_regions} → 안내 {notice})" if notice else ""
         if region_filtered:
             trace.step("③ 주소 필터", started,
-                       f"지역={parsed.regions} 제외={parsed.exclude_regions} → 후보 {len(candidates)}곳")
+                       f"지역={parsed.regions} 제외={parsed.exclude_regions} → 후보 {len(candidates)}곳{outside}")
         else:
-            ignored = f" (목록 밖 지역 {parsed.unmatched_regions} 무시)" if parsed.unmatched_regions else ""
-            trace.step("③ 주소 필터", started, f"지역 조건 없음 → 전체 {len(candidates)}곳{ignored}")
+            others = [r for r in parsed.unmatched_regions if r not in parsed.outside_regions]
+            ignored = f" (목록 밖 지역 {others} 무시)" if others else ""
+            trace.step("③ 주소 필터", started, f"지역 조건 없음 → 전체 {len(candidates)}곳{ignored}{outside}")
         if region_filtered and not candidates:
             return {"results": [], "notice": NOTICE_REGION_NOT_FOUND}
 
@@ -292,17 +298,17 @@ class CafeRAG:
         if not parsed.purpose:
             trace.step("④ 벡터 검색", None, "건너뜀 (조건 문장 없음)")
             trace.step("⑤ 판정 LLM", None, "건너뜀 → 긍정 리뷰 수 순위")
-            return {"results": await self._rank_with_only_region(candidates, top_n, trace), "notice": None}
+            return {"results": await self._rank_with_only_region(candidates, top_n, trace), "notice": notice}
 
         # 3-b. 조건 문장으로 리뷰 벡터 검색 (지역을 걸렀으면 후보 카페로 제한)
         candidate_ids = [str(c["cafe_id"]) for c in candidates] if region_filtered else None
         top_cafes = await self._rag_cafes(parsed.purpose, candidate_ids, top_n, trace=trace)
         if not top_cafes:
             trace.step("⑤ 판정 LLM", None, "건너뜀 (검색 결과 없음)")
-            return {"results": [], "notice": None}
+            return {"results": [], "notice": notice}
 
         # 4. LLM 2차 호출 — 지역은 필터로 이미 반영했으므로 조건 문장만 넘긴다
-        return {"results": await self._pick_with_llm(parsed.purpose, top_cafes, trace), "notice": None}
+        return {"results": await self._pick_with_llm(parsed.purpose, top_cafes, trace), "notice": notice}
 
     async def _cafe_directory(self) -> list[dict]:
         """승인된 카페의 주소·리뷰 수 목록 (TTL 캐시). 조회에 실패하면 이전 캐시라도 쓴다."""

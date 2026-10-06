@@ -6,8 +6,11 @@
 1. LLM 1차 호출: 지역 표현을 사용자가 쓴 그대로 뽑고(오탈자만 고침) 포함/제외와 조건 문장을 나눈다.
    변환 추론이 없어 reasoning_effort=low 로 빠르게 돈다.
 2. 지역 맵(region_map): 표현을 카페 주소에 실제로 있는 구·동 이름(허용 지역)으로 바꾼다.
-3. 맵에 없는 표현만 LLM 에 실제 동·구를 묻고(최후 방어선), 표현과 답을 후보 파일에 모아 맵을 늘린다.
+3. 맵에 없는 표현만 LLM 에 서울 안인지와 실제 동·구를 묻는다(최후 방어선).
+   서울 안이면 동·구로 거르고 표현과 답을 후보 파일에 모아 맵을 늘린다.
    지역까지 말했는데 지역을 무시하고 서울 전역에서 추천하는 것보다 몇 초 더 쓰는 편이 낫다고 봤다.
+4. 서울 밖 지명(맵의 outside, LLM 의 seoul=false)은 거르지 않고, 후보에도 넣지 않고, outside_regions 로 알려
+   화면에 "서울 내 카페만 검색할 수 있어요"를 띄운다.
 
 지역은 주소 필터에 쓰고, 나머지 조건은 리뷰 벡터 검색과 LLM 판정 호출에 쓴다.
 """
@@ -41,6 +44,7 @@ class ParsedQuery:
     unmatched_regions: list[str] = field(default_factory=list)  # 말했지만 데이터에 없는 지역 — 사용자 표현 그대로, 필터에 쓰지 않음(로그용)
     exclude_regions: list[str] = field(default_factory=list)    # 제외할 지역 — 허용 목록에 있는 값만
     purpose: str = ""                                            # 지역을 뺀 나머지 조건
+    outside_regions: list[str] = field(default_factory=list)    # 가고 싶다고 말한 서울 밖 지명 — 사용자 표현 그대로, 안내용
 
 
 SYSTEM_PROMPT = """당신은 카페 검색 질문을 분해하는 도구입니다.
@@ -99,19 +103,21 @@ RESOLVE_SYSTEM_PROMPT = """당신은 사람들이 부르는 지역 표현을 실
 JSON 객체 하나만 반환하세요. 설명 텍스트 절대 금지.
 
 ## 할 일
-카페를 찾는 사용자가 말한 지역 표현들이 주어집니다. 표현마다 그곳이 있는 서울의 동 이름(areas)과 구 이름(gu)을 적습니다.
+카페를 찾는 사용자가 말한 지역 표현들이 주어집니다. 표현마다 서울 안인지(seoul)와,
+서울 안이면 그곳이 있는 동 이름(areas)과 구 이름(gu)을 적습니다.
 - 역 이름·상권·거리 별칭·줄임말도 그 장소가 있는 동·구로 바꿉니다. 여러 동이나 구에 걸치면 모두 적습니다.
 - 동은 "연남동"처럼 법정동 이름으로, 구는 "마포구"처럼 적습니다.
-- 서울 밖이면 areas, gu 모두 빈 배열입니다.
-- 어디인지 확실하지 않으면 추측하지 말고 모두 빈 배열로 둡니다.
+- 서울 밖이면 seoul 은 false, areas, gu 는 빈 배열입니다.
+- 서울 안인 건 확실한데 어느 동·구인지 확실하지 않으면 seoul 은 true, areas, gu 는 빈 배열로 둡니다.
+- 서울 안인지조차 확실하지 않으면 seoul 은 null 입니다. 추측하지 마세요.
 - 주어진 표현을 하나도 빠뜨리지 말고, 키는 주어진 표현 그대로 씁니다.
 
 ## 형식
-{"results": {"<표현>": {"areas": ["<동>"], "gu": ["<구>"]}}}
+{"results": {"<표현>": {"seoul": true, "areas": ["<동>"], "gu": ["<구>"]}}}
 
 ## 예시
 표현: ["망리단길", "판교"]
-{"results": {"망리단길": {"areas": ["망원동"], "gu": ["마포구"]}, "판교": {"areas": [], "gu": []}}}"""
+{"results": {"망리단길": {"seoul": true, "areas": ["망원동"], "gu": ["마포구"]}, "판교": {"seoul": false, "areas": [], "gu": []}}}"""
 
 
 async def parse_query(query: str, allowed_regions: list[str], settings: Settings,
@@ -144,25 +150,29 @@ async def parse_query(query: str, allowed_regions: list[str], settings: Settings
     retry = format_attempts(attempts)
     trace.step("① 질문 분해 LLM", started, f"지역={include} 제외={exclude} 조건={purpose!r}"
                + (f"  ({retry})" if retry else ""))
-    resolved = await resolve_regions(include + exclude, set(allowed_regions), query, settings, trace)
+    resolved, outside = await resolve_regions(include + exclude, set(allowed_regions), query, settings, trace)
 
     return ParsedQuery(
         regions=_dedupe([r for e in include for r in resolved[e]]),
         unmatched_regions=[e for e in include if not resolved[e]],
         exclude_regions=_dedupe([r for e in exclude for r in resolved[e]]),
         purpose=purpose.strip() if isinstance(purpose, str) else "",
+        outside_regions=[e for e in include if e in outside],
     )
 
 
-async def resolve_regions(expressions: list[str], allowed: set[str], query: str,
-                          settings: Settings, trace: PickTrace = NO_TRACE) -> dict[str, list[str]]:
-    """지역 표현 → 허용 지역 값 목록. 데이터에 없는 곳이면 빈 목록.
+async def resolve_regions(expressions: list[str], allowed: set[str], query: str, settings: Settings,
+                          trace: PickTrace = NO_TRACE) -> tuple[dict[str, list[str]], set[str]]:
+    """지역 표현 → (허용 지역 값 목록, 서울 밖 표현 집합). 데이터에 없는 곳이면 빈 목록.
 
-    맵에서 먼저 찾고, 맵에 없는 표현만 LLM 에 한 번에 묻는다. 물어본 표현은 후보 파일에 기록한다.
-    LLM 호출이 실패하면 그 표현은 데이터에 없는 곳으로 보고 지역 필터에 쓰지 않는다.
+    맵에서 먼저 찾고, 맵에 없는 표현만 LLM 에 한 번에 묻는다.
+    - LLM 이 서울 안이라고 답한 표현만 후보 파일에 기록한다.
+    - 서울 밖이라고 답하면 필터에 쓰지 않고 서울 밖 표현으로 돌려준다.
+    - LLM 호출이 실패하거나 서울 안인지 모르겠다고 하면 필터에 쓰지 않고 기록도 안내도 하지 않는다.
     """
     started = trace.now()
     resolved: dict[str, list[str]] = {}
+    outside: set[str] = set()
     unknown: list[str] = []
     for e in dict.fromkeys(expressions):
         hit = REGION_MAP.resolve(e, allowed)
@@ -170,32 +180,49 @@ async def resolve_regions(expressions: list[str], allowed: set[str], query: str,
             unknown.append(e)
         else:
             resolved[e] = hit
+            if REGION_MAP.is_outside(e):
+                outside.add(e)
+
+    def describe(e: str) -> str:
+        if e not in resolved:
+            return f"{e} → 맵에 없음"
+        if e in outside:
+            return f"{e} → 서울 밖 (필터 안 함, 안내)"
+        return f"{e} → {resolved[e]}" + ("" if resolved[e] else " (데이터 없음 → 필터 안 함)")
+
     if expressions:
-        trace.step("② 지역 매핑", started, ", ".join(
-            f"{e} → {resolved[e]}" + ("" if resolved[e] else " (데이터 없음 → 필터 안 함)") if e in resolved
-            else f"{e} → 맵에 없음" for e in dict.fromkeys(expressions)))
+        trace.step("② 지역 매핑", started, ", ".join(describe(e) for e in dict.fromkeys(expressions)))
     if not unknown:
         trace.step("   지역 확인 LLM", None, "호출 안 함")
-        return resolved
+        return resolved, outside
 
     started, attempts = trace.now(), []
     answers = await _ask_llm_regions(unknown, settings, attempts)
     retry = format_attempts(attempts)
     if answers is None:
-        trace.step("   지역 확인 LLM", started, f"{unknown} 실패 ({retry}) → 필터 안 함, 후보 기록")
+        trace.step("   지역 확인 LLM", started, f"{unknown} 실패 ({retry}) → 필터 안 함, 후보 기록 안 함")
     else:
-        trace.step("   지역 확인 LLM", started, f"{unknown} → 후보 기록" + (f"  ({retry})" if retry else ""))
+        trace.step("   지역 확인 LLM", started, f"{unknown}" + (f"  ({retry})" if retry else ""))
     recorder = _recorder(settings)
     for e in unknown:
-        answer = answers.get(e) if answers is not None else None
-        areas = answer["areas"] if answer else None
-        gu = answer["gu"] if answer else None
-        recorder.record(e, query, areas, gu)
-        resolved[e] = pick_allowed(areas or [], gu or [], allowed)
-        logger.info("지역 맵에 없는 표현 %r → LLM 답 areas=%s gu=%s → 필터 %s", e, areas, gu, resolved[e])
+        answer = (answers or {}).get(e)
+        seoul = answer["seoul"] if answer else None
+        if seoul is True:
+            recorder.record(e, query, answer["areas"], answer["gu"])
+            resolved[e] = pick_allowed(answer["areas"], answer["gu"], allowed)
+            result = f"서울 → 필터 {resolved[e] or '안 함(데이터 없음)'}, 후보 기록"
+        else:
+            resolved[e] = []
+            if seoul is False:
+                outside.add(e)
+                result = "서울 밖 → 필터 안 함, 안내, 후보 기록 안 함"
+            else:
+                result = "서울인지 모름 → 필터 안 함, 후보 기록 안 함"
+        logger.info("지역 맵에 없는 표현 %r → LLM 답 %s → %s", e, answer, result)
         if answers is not None:
-            trace.note(f"{e}: LLM 답 동={areas} 구={gu} → 필터 {resolved[e] or '안 함(데이터 없음)'}")
-    return resolved
+            trace.note(f"{e}: LLM 답 서울={seoul} 동={answer['areas'] if answer else None} "
+                       f"구={answer['gu'] if answer else None} → {result}")
+    return resolved, outside
 
 
 async def _ask_llm_regions(expressions: list[str], settings: Settings,
@@ -225,7 +252,12 @@ async def _ask_llm_regions(expressions: list[str], settings: Settings,
     for e in expressions:
         item = results.get(e)
         if isinstance(item, dict):
-            answers[e] = {"areas": _str_list(item.get("areas")), "gu": _str_list(item.get("gu"))}
+            areas, gu = _str_list(item.get("areas")), _str_list(item.get("gu"))
+            seoul = item.get("seoul")
+            if not isinstance(seoul, bool):
+                # seoul 을 빠뜨렸으면 동·구를 답했을 때만 서울 안으로 본다
+                seoul = True if (areas or gu) else None
+            answers[e] = {"seoul": seoul, "areas": areas, "gu": gu}
     return answers
 
 

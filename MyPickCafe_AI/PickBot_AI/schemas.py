@@ -22,7 +22,9 @@ class PickBotResult(BaseModel):
 
 class PickBotResponse(BaseModel):
     results: list[PickBotResult]
-    notice:  str | None = None  # 예: "REGION_NOT_FOUND" — 말한 지역에 등록된 카페가 없음
+    # REGION_NOT_FOUND — 말한 지역에 등록된 카페가 없음(results 비어 있음)
+    # OUTSIDE_SEOUL — 서울 밖 지명을 말함. 그 지역은 거르지 않고 찾은 결과와 함께 안내
+    notice:  str | None = None
 
 
 class IndexOneRequest(BaseModel):

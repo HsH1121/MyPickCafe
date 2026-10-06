@@ -156,10 +156,18 @@ def main() -> int:
 
         # 3. 맵에 없는 지역 → 지역 확인 LLM
         llm = FakeLLM({"regions": ["합정카페거리"], "exclude_regions": [], "purpose": "테라스 카페"},
-                      resolve={"results": {"합정카페거리": {"areas": ["합정동"], "gu": ["마포구"]}}}, pick=PICK_ALL)
+                      resolve={"results": {"합정카페거리": {"seoul": True, "areas": ["합정동"], "gu": ["마포구"]}}},
+                      pick=PICK_ALL)
         _, log = run(llm, True, "합정카페거리 테라스", capture, tmp)
         expect("맵에 없는 지역은 지역 확인 LLM 과 답 표시",
-               "합정카페거리 → 맵에 없음" in log and "후보 기록" in log and "LLM 답 동=['합정동'] 구=['마포구']" in log, log)
+               "합정카페거리 → 맵에 없음" in log
+               and "LLM 답 서울=True 동=['합정동'] 구=['마포구'] → 서울 → 필터 ['마포구'], 후보 기록" in log, log)
+
+        # 3-1. 서울 밖 지명 → 안내 표시, 결과는 전체에서
+        llm = FakeLLM({"regions": ["판교"], "exclude_regions": [], "purpose": "테라스 카페"}, pick=PICK_ALL)
+        result, log = run(llm, True, "판교 테라스 카페", capture, tmp)
+        expect("서울 밖 지명은 안내 표시", "판교 → 서울 밖 (필터 안 함, 안내)" in log
+               and "안내 OUTSIDE_SEOUL" in log and result["notice"] == "OUTSIDE_SEOUL" and result["results"], log)
 
         # 4. 1차 호출 재시도 후 성공
         llm = FakeLLM("retry_ok", pick=PICK_ALL)
@@ -192,7 +200,7 @@ def main() -> int:
         pick_trace.logger.removeHandler(pick_trace._file_handler)
         pick_trace._file_handler.close()
 
-    total = 9
+    total = 10
     print(f"\n{total - failures}/{total} 통과")
     return 1 if failures else 0
 

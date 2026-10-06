@@ -94,6 +94,15 @@ class RegionMap:
                 return list(dict.fromkeys(r for f in found for r in f))
         return None
 
+    def is_outside(self, expression: str) -> bool:
+        """맵에 서울 밖(outside)으로 적힌 지명인지. 띄어 쓴 지명은 단어 중 하나라도 서울 밖이면 서울 밖이다."""
+        for k in (compact(expression), normalize(expression)):
+            entry = self._aliases.get(k)
+            if entry is not None:
+                return bool(entry.get("outside"))
+        parts = expression.split()
+        return len(parts) > 1 and any(self.is_outside(p) for p in parts)
+
 
 class CandidateRecorder:
     """맵에 없어 LLM 에 물어본 지역 표현을 모은다. 검토해서 region_aliases.json 에 옮긴다.

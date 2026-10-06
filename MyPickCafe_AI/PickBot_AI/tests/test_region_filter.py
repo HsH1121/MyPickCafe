@@ -7,6 +7,7 @@
   추천이 막히지 않게 하기 위함이다.
 - 허용 지역이 하나라도 있으면 그 지역으로만 거른다. 허용 목록 밖의 지역은 무시한다.
 - 허용 지역으로 걸렀는데 남는 카페가 없을 때만 REGION_NOT_FOUND 를 안내한다.
+- 서울 밖 지명(outside_regions)을 말하면 그 지역은 거르지 않고 찾은 결과와 함께 OUTSIDE_SEOUL 을 안내한다.
 
 사용법 (MyPickCafe_AI/ 에서)
   python PickBot_AI/tests/test_region_filter.py
@@ -47,6 +48,15 @@ CASES = [
      ParsedQuery(exclude_regions=["마포구"], purpose="공부"),                      ("rag", ["3"]),        None),
     ("제외로 전부 빠짐",
      ParsedQuery(exclude_regions=["마포구", "성동구"], purpose="공부"),             ("none", None),        pickbot_rag.NOTICE_REGION_NOT_FOUND),
+    ("서울 밖 지명 (판교 디저트)",
+     ParsedQuery(unmatched_regions=["판교"], outside_regions=["판교"], purpose="디저트"),
+     ("rag", ALL), pickbot_rag.NOTICE_OUTSIDE_SEOUL),
+    ("서울 밖 지명, 조건 없음 (제주도 카페)",
+     ParsedQuery(unmatched_regions=["제주도"], outside_regions=["제주도"]),
+     ("rank", [1, 2, 3]), pickbot_rag.NOTICE_OUTSIDE_SEOUL),
+    ("서울 밖 + 서울 지역 (판교나 성수)",
+     ParsedQuery(regions=["성수동"], unmatched_regions=["판교"], outside_regions=["판교"], purpose="작업"),
+     ("rag", ["3"]), pickbot_rag.NOTICE_OUTSIDE_SEOUL),
 ]
 
 
