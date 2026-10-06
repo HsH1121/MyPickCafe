@@ -12,6 +12,10 @@
 - LLM 은 재시도 없이 직접 호출해 실패를 그대로 센다. 같은 질문의 k=1·2·3 을 번갈아 호출해
   시간대에 따른 지연 차이가 한쪽에 몰리지 않게 한다.
 
+2026-10-06 조건별 검색(test_condition_search.py)이 이 방식을 대체했다. 서비스의 판정 프롬프트·메시지가
+요구사항 목록을 받는 형식으로 바뀌어, 이 스크립트의 k=1 은 바뀌기 전 메시지를 직접 만든다. 측정 결과는
+test_pick_reviews_per_cafe_result.txt 에 당시 기준으로 남긴다.
+
 함께 보는 값 (정답 라벨이 없어 핵심어 기반 근사치)
 - 리뷰 커버: 후보 카페의 요구사항 중, 넣은 리뷰에 핵심어가 있는 요구사항 비율과 모두 커버한 카페 수
 - 모두 충족: LLM 이 요구사항을 모두 충족했다고 판정한 카페 수
@@ -79,14 +83,15 @@ def covers(text: str, requirement: tuple[list[str], list[str]]) -> bool:
 
 
 def build_message(purpose: str, top: list[dict], k: int) -> str:
-    """k=1 은 서비스 메시지 그대로, k>=2 는 카페마다 리뷰를 번호 붙여 나열한다."""
+    """k=1 은 조건별 검색 전의 서비스 메시지, k>=2 는 카페마다 리뷰를 번호 붙여 나열한다."""
     if k == 1:
-        return pickbot_rag.build_pick_user_message(purpose, top)
-    context = "\n\n".join(
-        f"[카페{i}] ID={c['cafe_id']}\n"
-        + "\n".join(f"리뷰{j}: {r}" for j, r in enumerate(c["reviews"][:k], 1))
-        for i, c in enumerate(top, 1)
-    )
+        context = "\n\n".join(f"[카페{i}] ID={c['cafe_id']}\n리뷰: {c['review']}" for i, c in enumerate(top, 1))
+    else:
+        context = "\n\n".join(
+            f"[카페{i}] ID={c['cafe_id']}\n"
+            + "\n".join(f"리뷰{j}: {r}" for j, r in enumerate(c["top_reviews"][:k], 1))
+            for i, c in enumerate(top, 1)
+        )
     return (
         f"사용자 조건: {purpose}\n\n"
         f"검색된 카페 정보:\n{context}\n\n"
@@ -138,12 +143,12 @@ async def build_inputs(rag: pickbot_rag.CafeRAG) -> list[dict]:
     """질문마다 후보 카페 5곳(서비스와 같은 검색)과 카페별 유사도 상위 리뷰 max(KS)개."""
     inputs = []
     for purpose, requirements in CASES:
-        top = await rag._rag_cafes(purpose, None, TOP_CAFES)
+        top = (await rag._rag_cafes([purpose], None))[:TOP_CAFES]
         query_emb = await asyncio.to_thread(rag._emb_fn.embed_query, purpose)
         for c in top:
             res = rag._col.query(query_embeddings=[query_emb], n_results=max(KS),
                                  where={"cafe_id": str(c["cafe_id"])})
-            c["reviews"] = [m["review"] for m in res["metadatas"][0]]
+            c["top_reviews"] = [m["review"] for m in res["metadatas"][0]]
         inputs.append({"purpose": purpose, "requirements": requirements, "top": top,
                        "messages": {k: build_message(purpose, top, k) for k in KS}})
     return inputs
@@ -153,7 +158,7 @@ def coverage(inp: dict, k: int) -> tuple[int, int, int]:
     """(커버된 요구사항 수, 전체 요구사항 수, 모두 커버한 카페 수) — 카페마다 넣은 리뷰 k개 기준."""
     hit = total = full = 0
     for c in inp["top"]:
-        text = "\n".join(c["reviews"][:k])
+        text = "\n".join(c["top_reviews"][:k])
         n = sum(covers(text, req) for req in inp["requirements"])
         hit += n
         total += len(inp["requirements"])
@@ -174,7 +179,7 @@ def main() -> None:
     print("후보 카페 준비 완료 (리뷰 커버 = 넣은 리뷰에 요구사항 핵심어가 있는 비율, 모두커버 = 카페 수):")
     for inp in inputs:
         cov = "  ".join(f"k={k} {h}/{t} 모두커버 {f}곳" for k in KS for h, t, f in [coverage(inp, k)])
-        short = [len(c["reviews"]) for c in inp["top"] if len(c["reviews"]) < max(KS)]
+        short = [len(c["top_reviews"]) for c in inp["top"] if len(c["top_reviews"]) < max(KS)]
         note = f"  (리뷰가 {max(KS)}개 미만인 카페 {len(short)}곳)" if short else ""
         print(f"  - {inp['purpose']:<24} {cov}{note}")
 

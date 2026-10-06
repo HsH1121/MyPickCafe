@@ -63,6 +63,17 @@ class Settings(BaseSettings):
     # 기본은 끔이고 배포 compose 에는 넣지 않는다. 로컬 MyPickCafe_AI/.env 에서 PICKBOT_TRACE=true 로 켠다.
     pickbot_trace: bool = False
 
+    # 조건별 검색 — 1차 LLM 이 나눈 조건마다 따로 리뷰를 찾고, 후보 리뷰 전부를 모든 조건과 비교해 카페별 커버리지로 순위를 매긴다.
+    # 조건마다 가져올 리뷰 수와 그때 카페 하나가 차지할 수 있는 최대 리뷰 수. 21개·카페당 3개면 조건마다 최소 7곳이 잡힌다.
+    pickbot_reviews_per_condition: int = 21
+    pickbot_search_reviews_per_cafe: int = 3
+    # 리뷰가 조건을 충족한 후보로 볼 코사인 유사도 기준. 후보 찾기·순위용이고 최종 의미 판정은 판정 LLM 이 한다.
+    # 2026-10-06 로그에서 관련 리뷰가 대략 0.63~0.76 이었다.
+    pickbot_condition_threshold: float = 0.6
+    # 판정 LLM 에 넘길 상위 카페 수와 카페당 대표 리뷰 수(조건별 근거 리뷰, 있는 만큼만).
+    pickbot_judge_max_cafes: int = 7
+    pickbot_judge_reviews_per_cafe: int = 3
+
     # 지역 맵에 없어 LLM 에 물어본 지역 표현을 모으는 파일. 검토해서 PickBot_AI/region_aliases.json 에 옮긴다.
     # 상대경로는 chroma_path 와 같이 MyPickCafe_AI/ 기준이다. 컨테이너에서는 로그 볼륨 안이다.
     region_candidates_path: str = "./PickBot_AI/logs/region_alias_candidates.json"

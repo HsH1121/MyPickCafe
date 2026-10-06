@@ -2,7 +2,7 @@
 카페 추천 RAG 파이프라인
 
 1. index_from_db()  — PostgreSQL 리뷰를 ChromaDB에 임베딩+저장
-2. recommend()      — 질문 분해(LLM 1차) → 주소로 지역 필터 → 조건 문장으로 리뷰 유사도 검색 → LLM 2차 추천
+2. recommend()      — 질문 분해(LLM 1차) → 주소로 지역 필터 → 조건별 리뷰 유사도 검색·커버리지 순위 → LLM 2차 추천
 
 카페 이름·주소는 판단에 섞지 않는다. 임베딩 문서도, LLM 에 보여주는 내용도 리뷰 본문뿐이다.
 이름·주소를 섞으면 지역·이름 단어가 리뷰 내용과 무관하게 유사도를 끌어올리고,
@@ -17,6 +17,7 @@ import os
 import time
 
 import chromadb
+import numpy as np
 from chromadb import Documents, EmbeddingFunction, Embeddings
 import httpx
 
@@ -132,15 +133,15 @@ _PICK_MAX_TOKENS = 3000
 # 카페 목록(주소·리뷰 수) 캐시 유지 시간. 요청마다 DB 를 조회하지 않기 위함.
 _DIRECTORY_TTL_SEC = 300
 
-_SYSTEM_PROMPT = """당신은 카페 리뷰가 사용자 조건을 충족하는지 판정하는 AI입니다.
+_SYSTEM_PROMPT = """당신은 카페 리뷰가 사용자 요구사항을 충족하는지 판정하는 AI입니다.
 카페 이름과 위치는 주어지지 않습니다. 추측해서 쓰지 마세요.
 반드시 JSON 객체 하나만 반환하세요. 설명 텍스트 절대 금지.
 
 ## 할 일
-1. 사용자 조건을 서로 독립적인 요구사항으로 나눕니다.
-   예: "노트북 하기 좋고 조용한 카페" → ["노트북 하기 좋음", "조용함"]
-   "카페"처럼 모든 카페에 해당하는 말은 요구사항이 아닙니다.
-2. 검색된 카페마다 리뷰가 각 요구사항을 충족하는지 판정해 matched 와 missing 에 나눠 넣습니다.
+1. 요구사항 목록이 주어집니다. 이 목록을 그대로 씁니다. 다시 나누거나 합치거나 바꾸지 마세요.
+2. 검색된 카페마다 리뷰가 각 요구사항을 충족하는지 판정해 matched 와 missing 에 요구사항 문구 그대로 나눠 넣습니다.
+   모든 요구사항이 matched 와 missing 중 정확히 한 곳에 들어가야 합니다.
+   - 리뷰 옆 "검색 근거"는 검색 유사도로 붙인 표시일 뿐입니다. 리뷰 내용만 보고 판정하세요.
    - 글자가 달라도 뜻이 같으면 충족입니다. ("카공하기 좋아요" → "노트북 하기 좋음" 충족)
    - 리뷰에 언급이 없으면 미충족입니다. 추측하지 마세요.
    - 반대 내용("주차 불가", "시끄러워요")이면 미충족입니다.
@@ -151,7 +152,7 @@ _SYSTEM_PROMPT = """당신은 카페 리뷰가 사용자 조건을 충족하는�
 4. 검색된 카페를 하나도 빠뜨리지 말고 모두 cafes 에 넣습니다.
 
 ## 형식
-{"requirements": ["<요구사항>"], "cafes": [{"cafeId": <정수>, "matched": ["<요구사항>"], "missing": ["<요구사항>"], "snippet": "<추천 이유>"}]}"""
+{"cafes": [{"cafeId": <정수>, "matched": ["<요구사항>"], "missing": ["<요구사항>"], "snippet": "<추천 이유>"}]}"""
 
 
 class CafeRAG:
@@ -295,20 +296,21 @@ class CafeRAG:
             return {"results": [], "notice": NOTICE_REGION_NOT_FOUND}
 
         # 3-a. 지역 말고 다른 조건이 없으면 벡터 검색 없이 긍정 리뷰 수로 순위를 매긴다
-        if not parsed.purpose:
+        conditions = parsed.condition_list()
+        if not conditions:
             trace.step("④ 벡터 검색", None, "건너뜀 (조건 문장 없음)")
             trace.step("⑤ 판정 LLM", None, "건너뜀 → 긍정 리뷰 수 순위")
             return {"results": await self._rank_with_only_region(candidates, top_n, trace), "notice": notice}
 
-        # 3-b. 조건 문장으로 리뷰 벡터 검색 (지역을 걸렀으면 후보 카페로 제한)
+        # 3-b. 조건별 리뷰 벡터 검색 → 카페별 조건 커버리지 순위 (지역을 걸렀으면 후보 카페로 제한)
         candidate_ids = [str(c["cafe_id"]) for c in candidates] if region_filtered else None
-        top_cafes = await self._rag_cafes(parsed.purpose, candidate_ids, top_n, trace=trace)
+        top_cafes = await self._rag_cafes(conditions, candidate_ids, trace=trace)
         if not top_cafes:
             trace.step("⑤ 판정 LLM", None, "건너뜀 (검색 결과 없음)")
             return {"results": [], "notice": notice}
 
-        # 4. LLM 2차 호출 — 지역은 필터로 이미 반영했으므로 조건 문장만 넘긴다
-        return {"results": await self._pick_with_llm(parsed.purpose, top_cafes, trace), "notice": notice}
+        # 4. LLM 2차 호출 — 지역은 필터로 이미 반영했으므로 조건 목록을 요구사항으로 그대로 넘긴다
+        return {"results": await self._pick_with_llm(conditions, top_cafes, trace), "notice": notice}
 
     async def _cafe_directory(self) -> list[dict]:
         """승인된 카페의 주소·리뷰 수 목록 (TTL 캐시). 조회에 실패하면 이전 캐시라도 쓴다."""
@@ -350,76 +352,98 @@ class CafeRAG:
             for c in ranked
         ]
 
-    async def _rag_cafes(self, text: str, candidate_ids: list[str] | None, top_n: int,
+    async def _rag_cafes(self, conditions: list[str], candidate_ids: list[str] | None,
                          trace: PickTrace = NO_TRACE) -> list[dict]:
-        """카페당 가장 유사한 리뷰 1개씩, 최대 top_n개를 모아 모두 LLM에 전달한다."""
-        # 선택한 카페는 제외하고 부족분만 재조회해 서로 다른 카페를 확보한다.
-        target = top_n  # 기본값: 카페 5곳의 리뷰 5개
+        """조건별 검색 → 후보 리뷰 × 모든 조건 유사도 → 카페별 커버리지 순위. 판정 LLM 에 넘길 상위 카페를 돌려준다.
+
+        1. 조건 목록을 한 번에 임베딩한다(합치지 않고 조건마다 벡터 하나).
+        2. 조건마다 상위 리뷰를 찾는다(카페당 상한). ChromaDB 는 모든 조건을 한 번에 묻고 저장된 리뷰 임베딩도 같이 받는다.
+        3. 조건별 결과를 합쳐 중복을 없애고, 후보 리뷰 전부를 모든 조건과 다시 비교한다(리뷰 재임베딩 없음).
+        4. 카페별로 조건마다 가장 잘 맞는 리뷰(근거)를 고르고, 리뷰 하나로 전부 > 여러 리뷰로 전부 > 일부, 같으면 유사도 순.
+        """
+        s = self.settings
         started = trace.now()
-        query_emb = await asyncio.to_thread(self._emb_fn.embed_query, text)
-        trace.step("④ 조건 임베딩", started, repr(text))
+        cond_embs = await asyncio.to_thread(self._emb_fn, conditions)
+        trace.step("④ 조건 임베딩", started, f"{len(conditions)}개 한 번에 {conditions}")
+
         started = trace.now()
-        total = self._col.count()
+        pool, per_condition, queries = await asyncio.to_thread(self._search_by_condition, cond_embs, candidate_ids)
+        if not pool:
+            trace.step("   벡터 검색", started, "후보 리뷰 없음")
+            return []
+        ranked = rank_cafes_by_coverage(
+            conditions, cond_embs, pool, s.pickbot_condition_threshold, s.pickbot_judge_reviews_per_cafe)
+        top_cafes = ranked[:s.pickbot_judge_max_cafes]
 
-        excluded: set[str] = set()
-        sel_metas, sel_distances = [], []
-
-        while len(sel_metas) < target:
-            necessary = target - len(sel_metas)
-            batch = self._col.query(
-                query_embeddings=[query_emb],
-                n_results=min(necessary, total),
-                where=_where(candidate_ids, excluded),
-            )
-            added = 0
-            for meta, dist in zip(batch["metadatas"][0], batch["distances"][0]):
-                cafe_id = meta["cafe_id"]
-                if cafe_id in excluded:
-                    continue
-                excluded.add(cafe_id)
-                sel_metas.append(meta)
-                sel_distances.append(dist)
-                added += 1
-                if len(sel_metas) >= target:
-                    break
-
-            if added == 0:
-                break  # 더 이상 추가 가능한 리뷰 없음
-
-        # --- 벡터 검색 결과 로그 ---
-        _log_retrieved_reviews(text, sel_metas, sel_distances)
-
-        # 카페별 최고 유사도 점수로 그룹핑
-        cafe_map: dict[str, dict] = {}
-        for meta, dist in zip(sel_metas, sel_distances):
-            cafe_id   = meta["cafe_id"]
-            score = 1.0 - dist  # cosine distance → similarity
-            if cafe_id not in cafe_map or cafe_map[cafe_id]["score"] < score:
-                cafe_map[cafe_id] = {
-                    "cafe_id":   int(cafe_id),
-                    "cafe_name": meta["cafe_name"],
-                    "address":   meta["address"],
-                    "review":    meta["review"],
-                    "score":     score,
-                }
-
-        top_cafes = sorted(cafe_map.values(), key=lambda x: x["score"], reverse=True)[:top_n]
-        trace.step("   벡터 검색", started, f"카페 {len(top_cafes)}곳")
+        trace.step("   벡터 검색", started,
+                   f"조건 {len(conditions)}개 × 최대 {s.pickbot_reviews_per_condition}개(카페당 {s.pickbot_search_reviews_per_cafe}개) "
+                   f"→ 후보 리뷰 {len(pool)}건(중복 제거), 카페 {len(ranked)}곳, ChromaDB 조회 {queries}번")
+        for cond, ids in zip(conditions, per_condition):
+            trace.note(f"{cond!r}: 리뷰 {len(ids)}개, 카페 {len({pool[rid]['meta']['cafe_id'] for rid in ids})}곳")
+        trace.step("   커버리지 순위", None,
+                   f"임계값 {s.pickbot_condition_threshold} → 상위 {len(top_cafes)}곳을 판정 LLM 에 (전체 {len(ranked)}곳)")
         for c in top_cafes:
-            trace.note(f"[{c['cafe_id']}] {c['cafe_name']} 유사도 {c['score']:.3f} | {c['review'][:40]}")
+            evidence = ", ".join(f"{e['condition']} {e['score']:.3f}" for e in c["evidence"])
+            trace.note(f"[{c['cafe_id']}] {c['cafe_name']} {c['covered']}/{len(conditions)} {_TIER_LABEL[c['tier']]} "
+                       f"유사도 {c['score']:.3f} | {evidence} | {c['review'][:40]}")
 
-        # --- 최종 선별 카페 로그 (최대 5개) ---
-        _log_top_cafes(text, top_cafes)
+        _log_condition_search(conditions, pool, per_condition, top_cafes)
         return top_cafes
 
-    async def _pick_with_llm(self, purpose: str, top_cafes: list[dict],
+    def _search_by_condition(self, cond_embs: list, candidate_ids: list[str] | None
+                             ) -> tuple[dict[str, dict], list[list[str]], int]:
+        """조건마다 상위 리뷰를 카페당 상한까지 모은다. → (후보 리뷰 {id: {meta, emb}}, 조건별 리뷰 id 목록, 조회 횟수)
+
+        모든 조건을 ChromaDB 한 번의 조회로 묻는다. 카페당 상한 때문에 버려질 몫까지 넉넉히(_SEARCH_OVERFETCH 배) 받고,
+        리뷰가 많은 카페 몇 곳이 상위를 독차지해 그래도 모자란 조건만, 상한이 찬 카페를 빼고 다시 묻는다.
+        """
+        s = self.settings
+        per_cond, cap = s.pickbot_reviews_per_condition, s.pickbot_search_reviews_per_cafe
+        total = self._col.count()
+        include = ["metadatas", "distances", "embeddings"]
+        res = self._col.query(query_embeddings=cond_embs, n_results=min(per_cond * _SEARCH_OVERFETCH, total),
+                              where=_where(candidate_ids, set()), include=include)
+        queries = 1
+
+        pool: dict[str, dict] = {}
+        per_condition: list[list[str]] = []
+        for j, emb in enumerate(cond_embs):
+            picked: list[str] = []
+            per_cafe: dict[str, int] = {}
+            ids, metas, embs = res["ids"][j], res["metadatas"][j], res["embeddings"][j]
+            while True:
+                before = len(picked)
+                for rid, meta, review_emb in zip(ids, metas, embs):
+                    cafe_id = meta["cafe_id"]
+                    if rid in picked or per_cafe.get(cafe_id, 0) >= cap:
+                        continue
+                    per_cafe[cafe_id] = per_cafe.get(cafe_id, 0) + 1
+                    picked.append(rid)
+                    pool.setdefault(rid, {"meta": meta, "emb": review_emb})
+                    if len(picked) >= per_cond:
+                        break
+                full = {c for c, n in per_cafe.items() if n >= cap}
+                if (len(picked) >= per_cond or len(ids) < min(per_cond * _SEARCH_OVERFETCH, total)
+                        or not full or len(picked) == before):
+                    break  # 다 찼거나, 조건에 맞는 리뷰를 이미 다 받았거나, 다시 물어도 새로 고를 리뷰가 없음
+                # 상한이 찬 카페를 빼고 다시 묻는다. 이미 고른 리뷰는 그 카페들 것이라 다시 나오지 않는다.
+                more = self._col.query(query_embeddings=[emb], n_results=min(per_cond * _SEARCH_OVERFETCH, total),
+                                       where=_where(candidate_ids, full), include=include)
+                queries += 1
+                ids, metas, embs = more["ids"][0], more["metadatas"][0], more["embeddings"][0]
+                if not ids:
+                    break
+            per_condition.append(picked)
+        return pool, per_condition, queries
+
+    async def _pick_with_llm(self, conditions: list[str], top_cafes: list[dict],
                              trace: PickTrace = NO_TRACE) -> list[dict]:
-        """후보 카페의 리뷰만 보여주고 조건에 맞는 카페와 추천 이유를 LLM 에게 고르게 한다."""
+        """후보 카페의 대표 리뷰만 보여주고 요구사항(조건 목록 그대로)을 충족한 카페와 추천 이유를 LLM 에게 고르게 한다."""
         started, attempts = trace.now(), []
         try:
             raw = await call_llm(
                 system_prompt=_SYSTEM_PROMPT,
-                user_message=build_pick_user_message(purpose, top_cafes),
+                user_message=build_pick_user_message(conditions, top_cafes),
                 model=self.settings.llm_model,
                 base_url=self.settings.llm_base_url,
                 api_key=self.settings.llm_api_key,
@@ -428,7 +452,7 @@ class CafeRAG:
                 reasoning_effort=self.settings.llm_reasoning_effort or None,
                 attempt_log=attempts,
             )
-            picks, stats = validate_llm_response_and_select_cafes(raw, top_cafes)
+            picks, stats = validate_llm_response_and_select_cafes(raw, top_cafes, conditions)
         except Exception as e:
             logger.warning("LLM 호출 실패, 검색 결과 직접 반환: %s", e)
             trace.step("⑤ 판정 LLM", started,
@@ -445,10 +469,10 @@ class CafeRAG:
             ]
 
         _rag_logger.debug(
-            f"[요구사항 판정] 조건: {purpose!r}\n"
+            f"[요구사항 판정] 조건: {conditions}\n"
             f"  요구사항: {stats['requirements']}\n"
             f"  모두 충족 {stats['full_match']}곳"
-            f"{' → 일부 충족 후보 중 유사도 1위만 반환' if stats['fallback_top1'] else ''}"
+            f"{' → 일부 충족 후보 중 검색 순위 1위만 반환' if stats['fallback_top1'] else ''}"
             f"{' → 충족 조건이 있는 후보가 없어 빈 목록 반환' if not picks else ''}"
             f", 무시한 응답 항목 {stats['ignored']}개\n"
             + "\n".join(f"  [{cid}] 충족={v['matched']} 누락={v['missing']}" for cid, v in stats["verdicts"].items())
@@ -456,7 +480,7 @@ class CafeRAG:
         )
         retry = format_attempts(attempts)
         how = ("모두 충족한 카페" if stats["full_match"] else
-               "모두 충족 없음 → 일부 충족 중 유사도 1위" if picks else "충족 조건이 있는 카페 없음 → 빈 목록")
+               "모두 충족 없음 → 일부 충족 중 순위 1위" if picks else "충족 조건이 있는 카페 없음 → 빈 목록")
         trace.step("⑤ 판정 LLM", started, f"요구사항={stats['requirements']} 모두 충족 {stats['full_match']}곳 "
                    f"→ {how} {len(picks)}곳 반환" + (f"  ({retry})" if retry else ""))
         names = {c["cafe_id"]: c["cafe_name"] for c in top_cafes}
@@ -471,37 +495,49 @@ class CafeRAG:
 # LLM 2차 호출 메시지
 # ---------------------------------------------------------------------------
 
-def build_pick_user_message(purpose: str, top_cafes: list[dict]) -> str:
+def build_pick_user_message(conditions: list[str] | str, top_cafes: list[dict]) -> str:
     """LLM 2차 호출의 사용자 메시지. 테스트(test_pick_llm.py)도 같은 함수를 쓴다.
 
-    리뷰만 보여준다. 이름·주소는 판단에 섞지 않고 응답 변환 때 검색 결과에서 채운다.
+    요구사항은 1차 LLM 이 나눈 조건 목록을 그대로 준다. 카페마다 조건별 대표 리뷰(rank_cafes_by_coverage 의
+    reviews)를 검색 근거 조건과 함께 보여준다. 이름·주소는 판단에 섞지 않고 응답 변환 때 검색 결과에서 채운다.
     """
-    context = "\n\n".join(
-        f"[카페{i}] ID={c['cafe_id']}\n"
-        f"리뷰: {c['review']}"
-        for i, c in enumerate(top_cafes, 1)
-    )
+    if isinstance(conditions, str):
+        conditions = [conditions]
+
+    def cafe_block(i: int, c: dict) -> str:
+        reviews = c.get("reviews") or [{"text": c["review"], "conditions": []}]
+        lines = []
+        for k, r in enumerate(reviews, 1):
+            basis = f" (검색 근거: {', '.join(r['conditions'])})" if r["conditions"] else ""
+            lines.append(f"리뷰{k}{basis}: {r['text']}")
+        return f"[카페{i}] ID={c['cafe_id']}\n" + "\n".join(lines)
+
+    context = "\n\n".join(cafe_block(i, c) for i, c in enumerate(top_cafes, 1))
     return (
-        f"사용자 조건: {purpose}\n\n"
+        f"요구사항 (이 목록 그대로 판정): {json.dumps(conditions, ensure_ascii=False)}\n\n"
         f"검색된 카페 정보:\n{context}\n\n"
-        "위 카페 각각의 리뷰가 사용자 조건의 요구사항을 모두 충족하는지 판정해 JSON으로 반환하세요."
+        "위 카페 각각의 리뷰가 요구사항을 하나씩 충족하는지 판정해 JSON으로 반환하세요."
     )
 
 
-def validate_llm_response_and_select_cafes(raw: dict, top_cafes: list[dict]) -> tuple[list[dict], dict]:
+def validate_llm_response_and_select_cafes(raw: dict, top_cafes: list[dict],
+                                           requirements: list[str] | None = None) -> tuple[list[dict], dict]:
     """LLM 요구사항 판정으로 반환할 카페를 고른다. 테스트(test_pick_llm.py)도 같은 함수를 쓴다.
 
-    - 요구사항을 하나도 빠짐없이 충족(missing 이 빈 배열)한 카페를 전부, 벡터 유사도 순으로 반환한다.
-    - 모두 충족한 카페가 없으면 일부 조건을 충족한 후보 중 벡터 유사도 1위만 반환한다.
+    - 요구사항을 하나도 빠짐없이 충족(missing 이 빈 배열)한 카페를 전부, 검색 순위(top_cafes 순서)대로 반환한다.
+    - 모두 충족한 카페가 없으면 일부 조건을 충족한 후보 중 검색 순위 1위만 반환한다.
       이때 추천 이유는 LLM 이 충족한 조건만 근거로 쓴 snippet 이다.
     - 조건을 하나라도 충족한 후보가 없으면 빈 목록을 반환한다.
     - 후보에 없는 cafeId, 중복, 형식이 틀린 항목은 무시하고, 판정이 없는 후보는 미충족으로 본다.
-    - top_cafes 는 유사도 내림차순이고 비어 있지 않아야 한다.
+    - missing 이 없으면 requirements 에서 matched 를 뺀 것을 missing 으로 본다.
+    - top_cafes 는 검색 순위(커버리지·유사도) 순이고 비어 있지 않아야 한다.
+    - requirements 는 판정 LLM 에 넘긴 요구사항 목록이다. 없으면(예전 형식) 응답의 requirements 를 쓴다.
     """
     cafes = raw.get("cafes")
     if not isinstance(cafes, list):
         raise ValueError(f"cafes 필드가 리스트가 아님: {cafes!r}")
-    requirements = [r for r in (raw.get("requirements") or []) if isinstance(r, str)]
+    if requirements is None:
+        requirements = [r for r in (raw.get("requirements") or []) if isinstance(r, str)]
 
     candidate_ids = {c["cafe_id"] for c in top_cafes}
     verdicts: dict[int, dict] = {}
@@ -515,6 +551,10 @@ def validate_llm_response_and_select_cafes(raw: dict, top_cafes: list[dict]) -> 
         if cid not in candidate_ids or cid in verdicts:
             ignored += 1
             continue
+        # 모두 충족한 카페의 missing 을 빈 배열 대신 생략(null)하는 응답이 있다(실측 7곳 중 5곳).
+        # 요구사항 목록을 알 때는 목록에서 matched 를 빼서 채운다.
+        if requirements and not isinstance(item.get("missing"), list) and isinstance(item.get("matched"), list):
+            item = {**item, "missing": [r for r in requirements if r not in item["matched"]]}
         verdicts[cid] = item
 
     def all_met(verdict: dict) -> bool:
@@ -554,6 +594,92 @@ def validate_llm_response_and_select_cafes(raw: dict, top_cafes: list[dict]) -> 
         "verdicts":      {cid: {"matched": v.get("matched"), "missing": v.get("missing")} for cid, v in verdicts.items()},
     }
     return picks, stats
+
+
+# ---------------------------------------------------------------------------
+# 조건별 검색 — 커버리지 순위
+# ---------------------------------------------------------------------------
+
+# 카페당 상한 때문에 버려질 몫까지 한 번에 받기 위한 배수. 조건당 21개면 63개를 받는다.
+_SEARCH_OVERFETCH = 3
+
+_TIER_SINGLE, _TIER_MULTI, _TIER_PARTIAL = 2, 1, 0
+_TIER_LABEL = {_TIER_SINGLE: "리뷰 하나로 전부", _TIER_MULTI: "여러 리뷰로 전부", _TIER_PARTIAL: "일부"}
+
+
+def _normalize(rows) -> np.ndarray:
+    m = np.asarray(rows, dtype=np.float32)
+    norms = np.linalg.norm(m, axis=1, keepdims=True)
+    return m / np.where(norms == 0, 1, norms)
+
+
+def rank_cafes_by_coverage(conditions: list[str], cond_embs, pool: dict[str, dict],
+                           threshold: float, reviews_per_cafe: int) -> list[dict]:
+    """후보 리뷰 전부 × 조건 전부의 코사인 유사도로 카페별 조건 커버리지를 매기고 순위대로 돌려준다.
+
+    pool: {리뷰 id: {"meta": ChromaDB 메타데이터, "emb": 저장된 리뷰 임베딩}} — 조건별 검색 결과를 합친 것
+    - 리뷰는 유사도가 threshold 이상인 조건을 모두 충족한 후보다(리뷰 하나가 여러 조건 가능).
+    - 카페는 리뷰들이 충족한 조건의 합집합만큼 커버한다(리뷰A P1+P2, 리뷰B P3 → 3/3).
+    - 조건마다 그 카페에서 가장 잘 맞는 리뷰와 점수를 근거(evidence)로 보관한다.
+    - 순위: 리뷰 하나로 전부 > 여러 리뷰로 전부 > 일부(커버한 조건 수 많은 순), 같으면 조건별 최고 유사도의 평균.
+    - reviews 는 판정 LLM 에 보여줄 대표 리뷰(reviews_per_cafe 개 이하)다. 조건을 새로 커버하는 근거 리뷰부터
+      고르고, 자리가 남으면(조건 1개일 때 등) 그 카페의 다른 후보 리뷰를 유사도 순으로 채운다.
+    """
+    ids = list(pool)
+    sims = _normalize([pool[rid]["emb"] for rid in ids]) @ _normalize(cond_embs).T  # (리뷰 수, 조건 수)
+
+    rows_by_cafe: dict[str, list[int]] = {}
+    for i, rid in enumerate(ids):
+        rows_by_cafe.setdefault(pool[rid]["meta"]["cafe_id"], []).append(i)
+
+    cafes = []
+    for cafe_id, rows in rows_by_cafe.items():
+        sub = sims[rows]
+        best_row = sub.argmax(axis=0)
+        best = sub.max(axis=0)
+        met = sub >= threshold
+        covered = int((best >= threshold).sum())
+        if met.all(axis=1).any():
+            tier = _TIER_SINGLE
+        elif covered == len(conditions):
+            tier = _TIER_MULTI
+        else:
+            tier = _TIER_PARTIAL
+        meta = pool[ids[rows[0]]]["meta"]
+        reviews = [{"text": pool[ids[rows[r]]]["meta"]["review"],
+                    "conditions": [conditions[j] for j in range(len(conditions)) if met[r, j]]}
+                   for r in _pick_judge_reviews(sub, met, reviews_per_cafe)]
+        cafes.append({
+            "cafe_id":   int(cafe_id),
+            "cafe_name": meta["cafe_name"],
+            "address":   meta["address"],
+            "review":    reviews[0]["text"],
+            "reviews":   reviews,
+            "score":     float(best.mean()),
+            "covered":   covered,
+            "tier":      tier,
+            "evidence":  [{"condition": conditions[j], "review": pool[ids[rows[best_row[j]]]]["meta"]["review"],
+                           "score": float(best[j])} for j in range(len(conditions))],
+        })
+    cafes.sort(key=lambda c: (c["tier"], c["covered"], c["score"]), reverse=True)
+    return cafes
+
+
+def _pick_judge_reviews(sub: np.ndarray, met: np.ndarray, limit: int) -> list[int]:
+    """카페의 후보 리뷰 중 판정 LLM 에 보여줄 것을 limit 개 이하로 고른다. (sub 의 행 번호 목록)
+
+    아직 커버하지 않은 조건을 가장 많이 새로 충족하는 리뷰부터, 같으면 조건별 유사도 최댓값 순.
+    새로 커버할 조건이 없으면 남은 리뷰를 유사도 순으로 채운다.
+    """
+    chosen: list[int] = []
+    covered = np.zeros(sub.shape[1], dtype=bool)
+    remaining = list(range(sub.shape[0]))
+    while remaining and len(chosen) < limit:
+        best = max(remaining, key=lambda r: (int((met[r] & ~covered).sum()), float(sub[r].max())))
+        chosen.append(best)
+        covered |= met[best]
+        remaining.remove(best)
+    return chosen
 
 
 # ---------------------------------------------------------------------------
@@ -598,36 +724,22 @@ def _where(candidate_ids: list[str] | None, excluded: set[str]) -> dict | None:
 # 내부 로깅 헬퍼
 # ---------------------------------------------------------------------------
 
-def _log_retrieved_reviews(query: str, metas: list[dict], distances: list[float]) -> None:
-    """벡터 검색으로 뽑힌 리뷰 목록을 rag_selection.log에 기록."""
-    lines = [
-        f"[벡터 검색 결과] 쿼리: {query!r}  |  검색 건수: {len(metas)}",
-        "-" * 70,
-    ]
-    for i, (meta, dist) in enumerate(zip(metas, distances), 1):
-        similarity = round(1.0 - dist, 4)
-        review_preview = meta.get("review", "")[:80].replace("\n", " ")
-        lines.append(
-            f"  [{i:02d}] cafe_id={meta.get('cafe_id')}  sim={similarity:.4f}\n"
-            f"        카페명: {meta.get('cafe_name')}  |  주소: {meta.get('address')}\n"
-            f"        리뷰: {review_preview}{'...' if len(meta.get('review','')) > 80 else ''}"
-        )
-    lines.append("=" * 70)
-    _rag_logger.debug("\n".join(lines))
-
-
-def _log_top_cafes(query: str, top_cafes: list[dict]) -> None:
-    """카페별 그룹핑 후 최종 선별된 카페 목록을 rag_selection.log에 기록."""
-    lines = [
-        f"[최종 선별 카페] 쿼리: {query!r}  |  선별 건수: {len(top_cafes)}",
-        "-" * 70,
-    ]
-    for i, cafe in enumerate(top_cafes, 1):
-        review_preview = cafe.get("review", "")[:80].replace("\n", " ")
-        lines.append(
-            f"  [{i}] cafe_id={cafe['cafe_id']}  score={cafe['score']:.4f}\n"
-            f"      카페명: {cafe['cafe_name']}  |  주소: {cafe['address']}\n"
-            f"      대표리뷰: {review_preview}{'...' if len(cafe.get('review','')) > 80 else ''}"
-        )
+def _log_condition_search(conditions: list[str], pool: dict[str, dict], per_condition: list[list[str]],
+                          top_cafes: list[dict]) -> None:
+    """조건별 검색 결과와 커버리지 순위로 고른 카페를 rag_selection.log 에 기록."""
+    lines = [f"[조건별 검색] 조건: {conditions}  |  후보 리뷰 {len(pool)}건(중복 제거)", "-" * 70]
+    for cond, ids in zip(conditions, per_condition):
+        lines.append(f"  조건 {cond!r}: {len(ids)}건")
+        for rid in ids:
+            meta = pool[rid]["meta"]
+            preview = meta.get("review", "")[:80].replace("\n", " ")
+            lines.append(f"    cafe_id={meta.get('cafe_id')}  {meta.get('cafe_name')}  |  {preview}")
+    lines.append("-" * 70)
+    lines.append(f"[커버리지 순위] 판정 LLM 에 넘긴 카페 {len(top_cafes)}곳")
+    for i, c in enumerate(top_cafes, 1):
+        lines.append(f"  [{i}] cafe_id={c['cafe_id']}  {c['cafe_name']}  {c['covered']}/{len(conditions)} "
+                     f"{_TIER_LABEL[c['tier']]}  score={c['score']:.4f}")
+        for e in c["evidence"]:
+            lines.append(f"      {e['condition']} {e['score']:.4f} | {e['review'][:80]}")
     lines.append("=" * 70)
     _rag_logger.debug("\n".join(lines))
