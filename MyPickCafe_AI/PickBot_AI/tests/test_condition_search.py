@@ -77,7 +77,8 @@ class FakeEmbedding:
 
 def make_rag(reviews, **overrides) -> pickbot_rag.CafeRAG:
     rag = object.__new__(pickbot_rag.CafeRAG)
-    rag.settings = Settings(llm_reasoning_effort="", **overrides)
+    # .env 의 PICKBOT_TRACE=true 를 읽으면 가짜 카페 기록이 실제 추적 로그에 남는다
+    rag.settings = Settings(llm_reasoning_effort="", pickbot_trace=False, **overrides)
     rag._col = FakeCollection(reviews)
     rag._emb_fn = FakeEmbedding()
     return rag
