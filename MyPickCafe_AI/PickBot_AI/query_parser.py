@@ -229,7 +229,7 @@ async def _ask_llm_regions(expressions: list[str], settings: Settings,
                            attempt_log: list[dict] | None = None) -> dict[str, dict] | None:
     """맵에 없는 지역 표현의 실제 동·구를 LLM 에 묻는다. 실패하면 None.
 
-    정확도가 중요해 추론량은 지정하지 않고(모델 기본값), 타임아웃도 1차 호출보다 길게 둔다.
+    지명 지식이 필요해 1차 호출(low)보다 한 단계 높은 추론량(기본 medium)과 긴 타임아웃을 쓴다.
     """
     try:
         raw = await call_llm(
@@ -239,6 +239,7 @@ async def _ask_llm_regions(expressions: list[str], settings: Settings,
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key,
             timeout=settings.llm_region_timeout,
+            reasoning_effort=settings.llm_region_reasoning_effort or None,
             attempt_log=attempt_log,
         )
     except Exception as e:

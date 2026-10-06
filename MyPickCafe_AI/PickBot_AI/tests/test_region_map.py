@@ -97,10 +97,12 @@ class FakeLLM:
     def __init__(self, parse: dict | Exception, resolve: dict | Exception | None = None) -> None:
         self.parse, self.resolve = parse, resolve
         self.calls: list[str] = []
+        self.efforts: dict[str, str | None] = {}
 
     async def __call__(self, **kw):
         kind = "resolve" if kw["system_prompt"] is query_parser.RESOLVE_SYSTEM_PROMPT else "parse"
         self.calls.append(kind)
+        self.efforts[kind] = kw.get("reasoning_effort")
         answer = self.parse if kind == "parse" else self.resolve
         if isinstance(answer, Exception):
             raise answer
@@ -149,6 +151,7 @@ def check_flow() -> int:
         item = data.get("합정카페거리", {})
         expect("맵에 없는 표현은 LLM 에 묻고 구로 필터", llm.calls == ["parse", "resolve"] and p.regions == ["마포구"],
                f"calls={llm.calls} parsed={p}")
+        expect("지역 확인 호출은 추론량 medium", llm.efforts.get("resolve") == "medium", f"efforts={llm.efforts}")
         expect("후보 파일에 표현·횟수·예시·LLM 답 기록",
                item.get("count") == 1 and item.get("examples") == ["합정카페거리 브런치"]
                and item.get("llm") == {"areas": ["합정동", "서교동"], "gu": ["마포구"]}, f"후보={item}")
