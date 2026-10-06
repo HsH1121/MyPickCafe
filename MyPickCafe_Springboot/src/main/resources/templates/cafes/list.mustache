@@ -250,6 +250,10 @@
     .then(data => {
       loadingEl.remove();
       const results = (data && data.results) || [];
+      // 서울 밖 지명을 말하면 그 지역은 빼고 찾은 결과와 함께 안내한다
+      if (data && data.notice === 'OUTSIDE_SEOUL') {
+        addEntry({ kind: 'bot', text: '서울 내 카페만 검색할 수 있어요. 말씀하신 지역은 빼고 서울에서 찾았어요.' });
+      }
       if (!results.length) {
         const msg = data && data.notice === 'REGION_NOT_FOUND'
           ? '해당 지역에는 등록된 카페가 없어요.'

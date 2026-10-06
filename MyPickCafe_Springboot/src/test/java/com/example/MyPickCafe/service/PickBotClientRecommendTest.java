@@ -67,6 +67,17 @@ class PickBotClientRecommendTest {
     }
 
     @Test
+    @DisplayName("결과와 함께 안내(서울 밖 지역)를 주면 둘 다 전달한다")
+    void passesNoticeWithResults() {
+        respond(200, "{\"results\":[{\"cafeId\":1,\"cafeName\":\"카페\",\"address\":\"서울\",\"snippet\":\"달달해요\",\"score\":0.9}],"
+                + "\"notice\":\"OUTSIDE_SEOUL\"}", 0);
+
+        PickBotResponse response = client(Duration.ofSeconds(5)).recommend(QUERY);
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getNotice()).isEqualTo(PickBotResponse.NOTICE_OUTSIDE_SEOUL);
+    }
+
+    @Test
     @DisplayName("서버가 결과를 주면 그대로 반환한다")
     void returnsResults() {
         respond(200, "{\"results\":[{\"cafeId\":1,\"cafeName\":\"카페\",\"address\":\"서울\",\"snippet\":\"조용해요\",\"score\":0.9}],\"notice\":null}", 0);

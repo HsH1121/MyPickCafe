@@ -15,7 +15,7 @@ MyPickCafe는 실 방문자 리뷰를 바탕으로 취향과 목적에 맞는 �
 - JPA + PostgreSQL 16 (`docker-compose.yml`)
 - FastAPI + ChromaDB
 - 임베딩: `bge-m3` (Ollama 셀프 호스팅)
-- LLM: 배포 설정 예시는 GLM 5.3 Flash (Fireworks AI, OpenAI 호환 API), 개별 로컬 실행 기본값은 `qwen2.5:14b` (Ollama)
+- LLM: GLM 5.3 Flash (Fireworks AI, OpenAI 호환 API, 로컬·배포 공통), 더미 데이터 생성만 `qwen2.5:14b` (Ollama)
 - Docker / Docker Compose, AWS EC2 (기존 배포 기록: t3.large, Ubuntu 24.04)
 
 ## 아키텍처

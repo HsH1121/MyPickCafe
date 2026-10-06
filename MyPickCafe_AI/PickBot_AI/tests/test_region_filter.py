@@ -7,6 +7,7 @@
   추천이 막히지 않게 하기 위함이다.
 - 허용 지역이 하나라도 있으면 그 지역으로만 거른다. 허용 목록 밖의 지역은 무시한다.
 - 허용 지역으로 걸렀는데 남는 카페가 없을 때만 REGION_NOT_FOUND 를 안내한다.
+- 서울 밖 지명(outside_regions)을 말하면 그 지역은 거르지 않고 찾은 결과와 함께 OUTSIDE_SEOUL 을 안내한다.
 
 사용법 (MyPickCafe_AI/ 에서)
   python PickBot_AI/tests/test_region_filter.py
@@ -15,6 +16,7 @@
 from __future__ import annotations
 import asyncio
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -46,6 +48,15 @@ CASES = [
      ParsedQuery(exclude_regions=["마포구"], purpose="공부"),                      ("rag", ["3"]),        None),
     ("제외로 전부 빠짐",
      ParsedQuery(exclude_regions=["마포구", "성동구"], purpose="공부"),             ("none", None),        pickbot_rag.NOTICE_REGION_NOT_FOUND),
+    ("서울 밖 지명 (판교 디저트)",
+     ParsedQuery(unmatched_regions=["판교"], outside_regions=["판교"], purpose="디저트"),
+     ("rag", ALL), pickbot_rag.NOTICE_OUTSIDE_SEOUL),
+    ("서울 밖 지명, 조건 없음 (제주도 카페)",
+     ParsedQuery(unmatched_regions=["제주도"], outside_regions=["제주도"]),
+     ("rank", [1, 2, 3]), pickbot_rag.NOTICE_OUTSIDE_SEOUL),
+    ("서울 밖 + 서울 지역 (판교나 성수)",
+     ParsedQuery(regions=["성수동"], unmatched_regions=["판교"], outside_regions=["판교"], purpose="작업"),
+     ("rag", ["3"]), pickbot_rag.NOTICE_OUTSIDE_SEOUL),
 ]
 
 
@@ -57,21 +68,21 @@ class _FakeCollection:
 def make_rag(parsed: ParsedQuery, calls: list) -> pickbot_rag.CafeRAG:
     """ChromaDB·임베딩 없이 recommend() 의 분기만 확인하도록 외부 호출을 기록용 가짜로 바꾼다."""
     rag = object.__new__(pickbot_rag.CafeRAG)
-    rag.settings = None
+    rag.settings = SimpleNamespace(pickbot_trace=False)
     rag._col = _FakeCollection()
 
     async def directory():
         return DIRECTORY
 
-    async def rag_cafes(text, candidate_ids, top_n):
+    async def rag_cafes(text, candidate_ids, top_n, trace=None):
         calls.append(("rag", candidate_ids))
         return [{"cafe_id": 1}]
 
-    async def rank(candidates, top_n):
+    async def rank(candidates, top_n, trace=None):
         calls.append(("rank", [c["cafe_id"] for c in candidates]))
         return []
 
-    async def pick(purpose, top_cafes):
+    async def pick(purpose, top_cafes, trace=None):
         return []
 
     rag._cafe_directory = directory
@@ -79,7 +90,7 @@ def make_rag(parsed: ParsedQuery, calls: list) -> pickbot_rag.CafeRAG:
     rag._rank_with_only_region = rank
     rag._pick_with_llm = pick
 
-    async def parse(query, allowed, settings):
+    async def parse(query, allowed, settings, trace=None):
         return parsed
 
     pickbot_rag.parse_query = parse

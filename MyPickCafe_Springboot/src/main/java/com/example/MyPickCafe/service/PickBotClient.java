@@ -38,7 +38,7 @@ public class PickBotClient {
      * <p>호출 실패를 빈 목록으로 흡수하면 "조건에 맞는 카페 없음"과 구분할 수 없으므로,
      * 실패 원인을 분류해 로그로 남기고 {@link PickBotUnavailableException} 을 던진다.
      *
-     * <p>결과가 비었을 때 서버가 이유를 알려주면 {@link PickBotResponse#getNotice()} 에 담긴다.
+     * <p>화면에 따로 안내할 내용(결과가 빈 이유, 서울 밖 지역 등)은 {@link PickBotResponse#getNotice()} 에 담긴다.
      *
      * @throws PickBotUnavailableException 픽봇 서버에서 추천 결과를 받지 못한 경우
      */
@@ -67,7 +67,8 @@ public class PickBotClient {
             log.info("픽봇 추천 결과 없음 (서버 정상 응답) [{}ms] query=\"{}\" notice={}",
                     elapsedMs, query, res.getNotice());
         } else {
-            log.debug("픽봇 추천 {}건 [{}ms] query=\"{}\"", res.getResults().size(), elapsedMs, query);
+            log.debug("픽봇 추천 {}건 [{}ms] query=\"{}\" notice={}", res.getResults().size(), elapsedMs, query,
+                    res.getNotice());
         }
         return res;
     }

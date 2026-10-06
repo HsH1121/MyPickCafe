@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import ssl
+import time
 
 import certifi
 import httpx
@@ -34,11 +35,13 @@ async def call_llm(
     timeout: int,
     max_tokens: int = 1000,
     reasoning_effort: str | None = None,
+    attempt_log: list[dict] | None = None,
     _attempt: int = 0,
 ) -> dict:
     """
     OpenAI 호환 Chat Completions API를 호출하고 파싱된 JSON dict를 반환합니다.
     실패 시 최대 2회까지 시도합니다.
+    attempt_log 에 리스트를 주면 시도마다 {"sec": 걸린 시간, "error": 실패 예외 이름 또는 None} 을 덧붙입니다.
 
     Args:
         base_url: OpenAI 호환 베이스 URL (예: https://api.fireworks.ai/inference/v1)
@@ -70,6 +73,7 @@ async def call_llm(
 
     logger.debug("LLM request payload (attempt=%d): %s", _attempt + 1, json.dumps(payload, ensure_ascii=False))
 
+    started = time.perf_counter()
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), verify=_SSL_CONTEXT) as client:
             response = await client.post(
@@ -83,9 +87,14 @@ async def call_llm(
         raw_content: str = data["choices"][0]["message"]["content"]
         logger.debug("LLM raw content: %s", raw_content)
 
-        return json.loads(raw_content)
+        result = json.loads(raw_content)
+        if attempt_log is not None:
+            attempt_log.append({"sec": time.perf_counter() - started, "error": None})
+        return result
 
     except (httpx.HTTPStatusError, httpx.TransportError, ValueError, KeyError, IndexError) as exc:
+        if attempt_log is not None:
+            attempt_log.append({"sec": time.perf_counter() - started, "error": type(exc).__name__})
         if _attempt < _MAX_ATTEMPTS - 1:
             logger.warning("LLM 호출 실패 (attempt=%d), 재시도: %s: %s", _attempt + 1, type(exc).__name__, exc)
             return await call_llm(
@@ -97,6 +106,7 @@ async def call_llm(
                 timeout=timeout,
                 max_tokens=max_tokens,
                 reasoning_effort=reasoning_effort,
+                attempt_log=attempt_log,
                 _attempt=_attempt + 1,
             )
         logger.error("LLM 최종 실패 (attempt=%d): %s: %s", _attempt + 1, type(exc).__name__, exc)

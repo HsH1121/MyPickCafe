@@ -46,12 +46,12 @@
 | --- | --- |
 | 서버 | Python 3.11, FastAPI, Uvicorn |
 | 임베딩 | Ollama `bge-m3` — `/api/embed` |
-| LLM | 로컬 기본값: Ollama `qwen2.5:14b` / 배포 설정: Fireworks AI GLM 5.3 Flash |
+| LLM | Fireworks AI GLM 5.3 Flash (로컬·배포 공통) / 더미 데이터 생성만 Ollama `qwen2.5:14b` |
 | LLM 연동 | OpenAI 호환 API — `/chat/completions` |
 | 벡터 DB | ChromaDB `PersistentClient`, 코사인 유사도 |
 | 기타 | httpx, pydantic / pydantic-settings, psycopg |
 
-GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습니다. 임베딩은 서버 내 Ollama에서 처리하며, 기존 ChromaDB 인덱스와 동일한 모델·설정을 사용합니다. `shared/llm_client.py`는 OpenAI 호환 규격을 사용해 환경변수로 로컬 모델과 외부 API를 전환할 수 있습니다.
+GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습니다. 임베딩은 서버 내 Ollama에서 처리하며, 기존 ChromaDB 인덱스와 동일한 모델·설정을 사용합니다. `shared/llm_client.py`는 OpenAI 호환 규격을 사용해 환경변수로 로컬 모델과 외부 API를 전환할 수 있습니다. 로컬 개발도 배포와 같은 모델로 결과를 맞추기 위해 Fireworks를 기본값으로 쓰고, 리뷰 수만 건을 보내는 더미 데이터 생성만 로컬 Ollama `qwen2.5:14b`로 고정했습니다.
 
 ---
 
@@ -417,11 +417,12 @@ cp secret.properties.example secret.properties
 
 #### 3. FastAPI
 
-아래는 LLM과 임베딩을 로컬 Ollama에서 실행하는 예시입니다.
+LLM은 Fireworks AI를 쓰고(`MyPickCafe_AI/.env`의 `LLM_API_KEY` 필요), 임베딩은 로컬 Ollama에서 실행합니다.
+`qwen2.5:14b`는 더미 데이터를 생성할 때만 필요합니다.
 
 ```bash
 ollama pull bge-m3
-ollama pull qwen2.5:14b
+ollama pull qwen2.5:14b   # 더미 데이터 생성 시에만
 
 cd MyPickCafe_AI
 pip install -r requirements.txt
@@ -432,9 +433,9 @@ python app.py
 
 | 설정 | 값 |
 | --- | --- |
-| `LLM_BASE_URL` | 로컬: `http://127.0.0.1:11434/v1` / Fireworks: `https://api.fireworks.ai/inference/v1` |
-| `LLM_API_KEY` | 인증이 필요한 외부 API 사용 시 지정 |
-| `LLM_MODEL` | 로컬 기본값 `qwen2.5:14b`, 외부 API는 제공처의 모델 ID |
+| `LLM_BASE_URL` | 기본값 Fireworks `https://api.fireworks.ai/inference/v1` / 로컬 Ollama로 바꿀 때 `http://127.0.0.1:11434/v1` |
+| `LLM_API_KEY` | Fireworks API 키 (필수) |
+| `LLM_MODEL` | 기본값 `accounts/fireworks/models/glm-5p3-flash` |
 | `EMBED_BASE_URL` | 기본값 `http://127.0.0.1:11434` — `/v1` 없이 사용 |
 | `EMBED_MODEL` | 기본값 `bge-m3` |
 | `DB_PASSWORD` 등 | PostgreSQL 접속 정보 |
