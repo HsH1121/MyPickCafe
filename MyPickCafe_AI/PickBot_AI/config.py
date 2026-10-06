@@ -14,27 +14,29 @@ _ENV_FILE = _AI_ROOT / ".env"
 
 class Settings(BaseSettings):
     # LLM (OpenAI 호환 /chat/completions) — base_url 은 /chat/completions 바로 앞까지
-    # 호스트를 localhost 가 아닌 127.0.0.1 로 둔다. Windows 에서 localhost 는 IPv6(::1) 부터
-    # 시도하는데 Ollama 는 IPv4 에서만 대기해, 새 연결마다 약 2.2s 가 붙는다.
-    llm_base_url:   str = "http://127.0.0.1:11434/v1"
+    # 로컬·배포 모두 Fireworks 의 glm-5p3-flash 를 쓴다(2026-09 실측 비교로 선정). 키는 .env 의 LLM_API_KEY.
+    # 로컬 Ollama qwen2.5:14b 는 더미 생성(Create_Dummy/local_llm.py)에서만 쓴다.
+    llm_base_url:   str = "https://api.fireworks.ai/inference/v1"
     llm_api_key:    str = ""
-    llm_model:      str = "qwen2.5:14b"
+    llm_model:      str = "accounts/fireworks/models/glm-5p3-flash"
     llm_timeout:    int = 60
     # LLM 1차 호출(질문 분해)의 타임아웃(초). 공용 llm_timeout(60초)을 쓰면 Fireworks 가 가끔 응답을
     # 늦게 줄 때 사용자가 그대로 기다린다(실측: 평소 1~2초인 질문이 한 번 35.1초).
     # 1차 호출은 지역 표현만 뽑고 변환은 지역 맵이 해서 추론이 짧다(region_map.py 참고).
     # 타임아웃이 나면 call_llm 이 한 번 더 시도하고, 그래도 실패하면 질문 전체를 조건으로 보고
-    # 지역 필터 없이 진행한다. 로컬 qwen2.5:14b 는 모델을 처음 올리는 호출만 약 8초라 한 번 더 시도한다.
+    # 지역 필터 없이 진행한다.
     llm_parse_timeout: int = 5
     # 지역 맵에 없는 표현의 동·구를 LLM 에 물을 때의 타임아웃(초). 지명 지식을 추론해야 해서
     # 추론량을 지정하지 않고(모델 기본값), 1차 호출보다 길게 둔다. 맵이 커질수록 드물게 불린다.
     llm_region_timeout: int = 10
-    # LLM 1차 호출(질문 분해)과 판정 호출(추천 선택)의 추론량. 추론 모델(glm-5p3-flash)은 "low" 가 필요하고
-    # (pickbot_rag._PICK_MAX_TOKENS 주석 참고), 비추론 모델(qwen2.5)은 이 값을 보내면 400 이 난다.
-    # 그래서 기본값은 비워 로컬 Ollama 에 맞추고, 배포 환경은 compose 가 "low" 를 주입한다.
-    llm_reasoning_effort: str = ""
+    # LLM 1차 호출(질문 분해)과 판정 호출(추천 선택)의 추론량. 추론 모델(glm-5p3-flash)은 "low" 가 필요하다
+    # (pickbot_rag._PICK_MAX_TOKENS 주석 참고). 비추론 모델(예: Ollama qwen2.5)로 바꾸면 이 값을 보낼 때
+    # 400 이 나므로 .env 에 빈 값으로 둔다.
+    llm_reasoning_effort: str = "low"
 
     # 임베딩 (Ollama 네이티브 /api/embed) — LLM 과 다른 서버를 가리킬 수 있다
+    # 호스트를 localhost 가 아닌 127.0.0.1 로 둔다. Windows 에서 localhost 는 IPv6(::1) 부터
+    # 시도하는데 Ollama 는 IPv4 에서만 대기해, 새 연결마다 약 2.2s 가 붙는다.
     embed_base_url: str = "http://127.0.0.1:11434"
     embed_model:    str = "bge-m3"
     # 소량 임베딩(검색 쿼리·리뷰 1건 upsert)을 CPU 로 돌릴지. 로컬에서 LLM 과 GPU 를

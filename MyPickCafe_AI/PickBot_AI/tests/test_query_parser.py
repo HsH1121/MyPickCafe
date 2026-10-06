@@ -13,7 +13,7 @@
   python PickBot_AI/tests/test_query_parser.py                         # .env 의 LLM_MODEL
   python PickBot_AI/tests/test_query_parser.py glm-5p3-flash gpt-oss-120b  # 모델 여러 개 비교
   (accounts/fireworks/models/ 접두사는 생략 가능)
-  배포 환경과 같게 재려면 LLM_BASE_URL(Fireworks), LLM_REASONING_EFFORT=low 를 환경변수로 준다.
+  기본값이 배포와 같은 Fireworks glm-5p3-flash(1차 추론량 low)다. 다른 Fireworks 모델은 이름만 인자로 준다.
 """
 
 from __future__ import annotations
