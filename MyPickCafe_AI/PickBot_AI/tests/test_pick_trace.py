@@ -39,7 +39,7 @@ class FakeCollection:
     def count(self) -> int:
         return 3
 
-    def query(self, query_embeddings, n_results, where=None):
+    def query(self, query_embeddings, n_results, where=None, include=None):
         ids = [1, 2, 3]
         if where:
             conds = where.get("$and", [where])
@@ -52,12 +52,15 @@ class FakeCollection:
         ids = ids[:n_results]
         metas = [{"cafe_id": str(i), "cafe_name": DIRECTORY[i - 1]["cafe_name"],
                   "address": DIRECTORY[i - 1]["address"], "review": REVIEWS[i]} for i in ids]
-        return {"metadatas": [metas], "distances": [[0.3 + 0.01 * i for i in ids]]}
+        n = len(query_embeddings)
+        return {"ids": [[f"review_{i}" for i in ids]] * n, "metadatas": [metas] * n,
+                "distances": [[0.3 + 0.01 * i for i in ids]] * n,
+                "embeddings": [[[1.0, 0.1 * i] for i in ids]] * n}
 
 
 class FakeEmbedding:
-    def embed_query(self, text: str) -> list[float]:
-        return [0.0]
+    def __call__(self, texts: list[str]) -> list[list[float]]:
+        return [[1.0, 0.0] for _ in texts]
 
 
 class FakeLLM:

@@ -4,6 +4,7 @@
 - 서비스와 같은 시스템 프롬프트(_SYSTEM_PROMPT), 사용자 메시지(build_pick_user_message),
   반환 카페 선택 규칙(validate_llm_response_and_select_cafes: 모두 충족한 카페 전부, 없으면 일부 충족 후보 중 유사도 1위, 전부 미충족이면 빈 목록)을 쓴다.
 - 후보 카페는 실제 흐름대로(지역 필터 → 리뷰 벡터 검색) 한 번만 만들어 모든 모델에 똑같이 넘긴다.
+  조건 문장 하나를 조건 하나로 넘긴다(조건별 검색의 조건 1개 경로).
 - LLM 은 재시도 없이 직접 호출해 실패를 그대로 센다.
 
 채점 (정답 라벨이 없어 관련성·근거성은 근사치)
@@ -118,9 +119,9 @@ async def build_inputs(rag: pickbot_rag.CafeRAG) -> list[dict]:
         ids = None
         if regions:
             ids = [str(c["cafe_id"]) for c in pickbot_rag._filter_by_region(directory, ParsedQuery(regions=regions))]
-        top = await rag._rag_cafes(purpose, ids, 5)
+        top = await rag._rag_cafes([purpose], ids)
         inputs.append({"purpose": purpose, "regions": regions, "keywords": keywords, "negatives": negatives,
-                       "top": top, "message": pickbot_rag.build_pick_user_message(purpose, top)})
+                       "top": top, "message": pickbot_rag.build_pick_user_message([purpose], top)})
     return inputs
 
 
@@ -141,7 +142,7 @@ def run_model(model: str, inputs: list[dict]) -> dict:
             print(f"[{i:02d}] ✗ 실패 {rec['sec']:.1f}s — {inp['purpose']}{region}\n      {rec['err']}")
             continue
 
-        picks, stats = pickbot_rag.validate_llm_response_and_select_cafes(rec["raw"], inp["top"])
+        picks, stats = pickbot_rag.validate_llm_response_and_select_cafes(rec["raw"], inp["top"], [inp["purpose"]])
         ignored += stats["ignored"]
         fallback += stats["fallback_top1"]
         seen = {p["cafeId"] for p in picks}

@@ -74,7 +74,7 @@ def make_rag(parsed: ParsedQuery, calls: list) -> pickbot_rag.CafeRAG:
     async def directory():
         return DIRECTORY
 
-    async def rag_cafes(text, candidate_ids, top_n, trace=None):
+    async def rag_cafes(conditions, candidate_ids, trace=None):
         calls.append(("rag", candidate_ids))
         return [{"cafe_id": 1}]
 
@@ -82,7 +82,7 @@ def make_rag(parsed: ParsedQuery, calls: list) -> pickbot_rag.CafeRAG:
         calls.append(("rank", [c["cafe_id"] for c in candidates]))
         return []
 
-    async def pick(purpose, top_cafes, trace=None):
+    async def pick(conditions, top_cafes, trace=None):
         return []
 
     rag._cafe_directory = directory
