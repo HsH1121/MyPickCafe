@@ -91,8 +91,7 @@ public class SecurityConfig {
                                         // Pretendard 폰트 CSS 를 jsdelivr 에서 받는다(layout/header.mustache)
                                         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
                                         "font-src 'self' https:; " +
-                                        "base-uri 'self'; frame-ancestors 'self'; object-src 'none';" +
-                                        "... object-src 'none'; upgrade-insecure-requests;"
+                                        "base-uri 'self'; frame-ancestors 'self'; object-src 'none'; upgrade-insecure-requests;"
                         ))
                         .frameOptions(fo -> fo.sameOrigin())
                         .referrerPolicy(ref -> ref.policy(
