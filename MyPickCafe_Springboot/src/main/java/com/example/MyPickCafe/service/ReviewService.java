@@ -16,7 +16,6 @@ import com.example.MyPickCafe.entity.CafeTag;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.entity.Review;
 import com.example.MyPickCafe.entity.ReviewTag;
-import com.example.MyPickCafe.repository.CafePhotoRepository;
 import com.example.MyPickCafe.repository.CafeRepository;
 import com.example.MyPickCafe.repository.CafeTagRepository;
 import com.example.MyPickCafe.repository.ReviewRepository;
@@ -27,6 +26,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,7 +42,7 @@ import java.time.LocalDateTime;
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
-    private final CafePhotoRepository cafePhotoRepository;
+    private final CafePhotoService cafePhotoService;
     private final NotificationService notificationService;
     private final ReviewTagRepository reviewTagRepository;
     private final CafeRepository cafeRepository;
@@ -66,21 +68,23 @@ public class ReviewService {
         return reviewRepository.findByCafe_IdOrderByCreatedAtDesc(cafeId);
     }
 
+    @Transactional(readOnly = true)
     public Page<MyReviewItem> findMyReviews(Long memberId, Pageable pageable) {
-        return reviewRepository.findByMember_IdOrderByCreatedAtDesc(memberId, pageable)
-                .map(this::toItem);
+        Page<Review> reviews = reviewRepository.findByMember_IdOrderByCreatedAtDesc(memberId, pageable);
+        Set<Long> cafeIds = reviews.getContent().stream()
+                .map(Review::getCafe)
+                .filter(Objects::nonNull)
+                .map(Cafe::getId)
+                .collect(Collectors.toSet());
+        Map<Long, String> photoUrlByCafeId = cafePhotoService.findMainPhotoUrls(cafeIds);
+        return reviews.map(review -> toItem(review, photoUrlByCafeId));
     }
 
-    private MyReviewItem toItem(Review review) {
+    private MyReviewItem toItem(Review review, Map<Long, String> photoUrlByCafeId) {
         Cafe cafe = review.getCafe();
         Long cafeId = (cafe != null ? cafe.getId() : null);
         String cafeName = (cafe != null ? cafe.getName() : "(알 수 없음)");
-
-        String cafeMainPhotoUrl = null;
-        if (cafe != null) {
-            var photo = cafePhotoRepository.findMainPhoto(cafe.getId());
-            cafeMainPhotoUrl = (photo != null) ? photo.getUrl() : null;
-        }
+        String cafeMainPhotoUrl = (cafeId != null ? photoUrlByCafeId.get(cafeId) : null);
 
         return new MyReviewItem(
                 review.getId(),
