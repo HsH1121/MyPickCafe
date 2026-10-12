@@ -68,13 +68,6 @@ public class ReviewService {
         return reviewRepository.findByCafe_IdOrderByCreatedAtDesc(cafeId);
     }
 
-    /**
-     * 마이페이지 "내 리뷰" 목록.
-     *
-     * <p>대표 사진은 리뷰마다 조회하지 않고 페이지에 나온 카페 ID를 모아 한 번에 가져온다.
-     * 예전에는 {@code toItem}이 리뷰마다 {@code findMainPhoto}를 호출해 한 페이지 N건이면
-     * 사진 쿼리가 N번 더 나갔다.
-     */
     @Transactional(readOnly = true)
     public Page<MyReviewItem> findMyReviews(Long memberId, Pageable pageable) {
         Page<Review> reviews = reviewRepository.findByMember_IdOrderByCreatedAtDesc(memberId, pageable);
