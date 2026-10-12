@@ -1,5 +1,6 @@
 # MyPickCafe 로컬 개발 환경
-#   서비스: postgres, ollama(임베딩), mypickcafe-ai(통합 FastAPI), mypickcafe-web(Spring Boot)
+#   서비스: postgres, ollama(임베딩), mypickcafe-ai(통합 FastAPI), mypickcafe-web(Spring Boot),
+#           caddy(HTTPS 리버스 프록시)
 #
 # 값은 이 파일과 같은 위치의 .env 에서 읽습니다(.env.example 참고). .env 는 git 에 올라가지 않습니다.
 # 컨테이너끼리는 서비스 이름으로 통신합니다: postgres:5432, ollama:11434, mypickcafe-ai:8000
@@ -138,8 +139,9 @@ services:
       mypickcafe-ai:
         condition: service_started
     environment:
-      # dev: ddl-auto=update, Swagger 켜짐 / prod: ddl-auto=validate, CORS_ALLOWED_ORIGINS 필요
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # 이 컨테이너는 배포용이라 기본이 prod 입니다(로컬 개발은 IDE 로 실행하며 dev 를 씁니다).
+      # prod: ddl-auto=validate, Swagger 꺼짐, 에러 상세 숨김, 쿠키 Secure(HTTPS 전용)
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       # PostgreSQL — 같은 네트워크의 postgres 컨테이너(호스트의 localhost 가 아님)
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
@@ -151,17 +153,42 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       KAKAO_JS_KEY: ${KAKAO_JS_KEY:-}
       KAKAO_REST_KEY: ${KAKAO_REST_KEY:-}
-      # prod 프로파일에서만 쓰입니다(dev 는 application-dev.properties 의 * 를 씁니다)
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # prod 프로파일에서만 쓰입니다(dev 는 application-dev.properties 의 * 를 씁니다).
+      # 비워 두면 서비스 주소(https://DOMAIN)만 허용합니다.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://${DOMAIN:-localhost}}
       # 힙은 아래 mem_limit 기준 비율로 잡힙니다. 기본값은 이미지의 JAVA_OPTS 참고.
       JAVA_OPTS: ${SPRING_JAVA_OPTS:--XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError}
+    # 외부 접속은 caddy(443)를 거칩니다. 8080 은 서버 안(127.0.0.1)에서만 열어
+    # HTTPS 를 건너뛰는 직접 접속을 막습니다.
     ports:
-      - "${WEB_PORT:-8080}:8080"
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
     # 컨테이너 한도를 명시해야 JVM 이 호스트 전체 메모리를 기준으로 힙을 잡지 않습니다.
     mem_limit: ${WEB_MEM_LIMIT:-1g}
     volumes:
       # 업로드된 카페·메뉴 사진. 볼륨이 없으면 컨테이너를 다시 만들 때 사라집니다.
       - web-uploads:/app/uploads
+
+  # HTTPS 리버스 프록시. 설정은 루트 Caddyfile 입니다.
+  # .env 의 DOMAIN 으로 Let's Encrypt 인증서를 자동 발급·갱신합니다.
+  caddy:
+    image: caddy:2.8.4-alpine
+    container_name: mypickcafe-caddy
+    restart: unless-stopped
+    depends_on:
+      - mypickcafe-web
+    environment:
+      # 비워 두면 localhost(자체 서명 인증서)로 뜹니다. 배포 서버에서는 반드시 지정하세요.
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    mem_limit: ${CADDY_MEM_LIMIT:-128m}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 발급받은 인증서. 지우면 다시 발급받아야 하고, 반복하면 Let's Encrypt 발급 한도에 걸립니다.
+      - caddy-data:/data
+      - caddy-config:/config
 
   # ChromaDB 서버 — 기본으로 뜨지 않습니다: docker compose --profile chroma-server up -d
   #
@@ -186,4 +213,6 @@ volumes:
   chroma-index:        # 애플리케이션이 쓰는 ChromaDB 인덱스
   ai-logs:             # 픽봇 로그·지역 매핑 후보
   web-uploads:         # Spring Boot 가 저장하는 업로드 파일(file.upload-dir)
+  caddy-data:          # Caddy 가 발급받은 TLS 인증서
+  caddy-config:        # Caddy 자동 저장 설정
   chroma-server-data:  # chroma-server 프로필을 쓸 때만

@@ -4,6 +4,7 @@ import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.MemberService;
 import com.example.MyPickCafe.security.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.userdetails.User;
@@ -20,6 +21,8 @@ import java.util.Optional;
 @Controller
 public class AuthController {
 
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
     private final MemberService memberService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -85,7 +88,7 @@ public class AuthController {
 
         String token = jwtTokenProvider.generateToken(ud, member.getTokenVersion());
         ResponseCookie cookie = ResponseCookie.from("AT", token)
-                .httpOnly(true).secure(false).sameSite("Lax")
+                .httpOnly(true).secure(cookieSecure).sameSite("Lax")
                 .path("/").maxAge(jwtTokenProvider.getExpiration())
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
