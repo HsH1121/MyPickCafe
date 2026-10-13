@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spring:
+    name: Spring tests and JAR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: MyPickCafe_Springboot
+    env:
+      SPRING_PROFILES_ACTIVE: test
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            MyPickCafe_Springboot/*.gradle
+            MyPickCafe_Springboot/gradle/wrapper/gradle-wrapper.properties
+      - name: Test and build
+        run: bash ./gradlew --no-daemon --console=plain test bootJar
+      - name: Save Spring test reports (including failures)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: spring-test-reports
+          path: |
+            MyPickCafe_Springboot/build/reports/tests/test/
+            MyPickCafe_Springboot/build/test-results/test/*.xml
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Save application JAR
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: spring-boot-jar
+          path: MyPickCafe_Springboot/build/libs/*-SNAPSHOT.jar
+          retention-days: 7
+          if-no-files-found: error
+
+  ai:
+    name: AI offline tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: MyPickCafe_AI/requirements.txt
+      - name: Install the same dependencies as the AI image
+        run: python -m pip install -r MyPickCafe_AI/requirements.txt
+      - name: Check installed dependencies
+        run: python -m pip check
+      - name: Compile sources and run isolated offline tests
+        run: python scripts/ci/run_ai_tests.py
+      - name: Save AI reports (including failures)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ai-test-reports
+          path: MyPickCafe_Springboot/build/reports/ai/
+          retention-days: 7
+          if-no-files-found: warn
+
+  docker:
+    name: Docker build (${{ matrix.service }})
+    needs: [spring, ai]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: web
+            context: MyPickCafe_Springboot
+          - service: ai
+            context: MyPickCafe_AI
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Validate Compose without starting services
+        if: ${{ matrix.service == 'web' }}
+        # /dev/null prevents loading a .env; all values below are disposable CI values.
+        env:
+          POSTGRES_DB: ci_unused
+          POSTGRES_USER: ci_unused
+          POSTGRES_PASSWORD: ci_unused
+          LLM_BASE_URL: https://example.invalid/v1
+          LLM_API_KEY: ci_unused
+          LLM_MODEL: ci_unused
+          JWT_SECRET: ci_unused
+          DOMAIN: example.invalid
+        run: docker compose --env-file /dev/null -f docker-compose.yml config --quiet
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Build image (no registry push or deployment)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: ./${{ matrix.context }}
+          push: false
+          tags: mypickcafe-${{ matrix.service }}:ci-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  result:
+    name: CI result
+    if: ${{ always() }}
+    needs: [spring, ai, docker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every test and image build to succeed
+        env:
+          SPRING_RESULT: ${{ needs.spring.result }}
+          AI_RESULT: ${{ needs.ai.result }}
+          DOCKER_RESULT: ${{ needs.docker.result }}
+        run: |
+          echo "Spring: $SPRING_RESULT; AI: $AI_RESULT; Docker: $DOCKER_RESULT"
+          test "$SPRING_RESULT" = success
+          test "$AI_RESULT" = success
+          test "$DOCKER_RESULT" = success

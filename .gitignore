@@ -24,3 +24,6 @@
 *.[mM][dD]
 !/README.md
 !/ARCHITECTURE.md
+
+# CI/CD guide
+!/docs/CI_CD.md
