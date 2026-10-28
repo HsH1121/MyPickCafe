@@ -19,7 +19,7 @@ import java.io.InputStream;
  */
 @Service
 @ConditionalOnProperty(name = "file.storage", havingValue = "s3")
-public class S3FileStorageService extends FileStorageService {
+public class S3FileStorageService implements FileStorageService {
 
     // 파일명이 UUID라 같은 URL의 내용이 바뀌지 않으므로 브라우저가 오래 캐시해도 된다
     private static final String CACHE_CONTROL = "public, max-age=31536000, immutable";
@@ -47,8 +47,8 @@ public class S3FileStorageService extends FileStorageService {
 
     @Override
     public StoredFile store(MultipartFile file, String subDir) throws IOException {
-        String stored = newStoredName(file);
-        String key = normalizeSubDir(subDir) + "/" + stored;
+        String stored = StoredFiles.newStoredName(file);
+        String key = StoredFiles.normalizeSubDir(subDir) + "/" + stored;
 
         PutObjectRequest request = PutObjectRequest.builder()
                 .bucket(bucket)
@@ -75,6 +75,6 @@ public class S3FileStorageService extends FileStorageService {
                     .build());
             return;
         }
-        deleteLocalFile(uploadDir, url);
+        StoredFiles.deleteLocalFile(uploadDir, url);
     }
 }

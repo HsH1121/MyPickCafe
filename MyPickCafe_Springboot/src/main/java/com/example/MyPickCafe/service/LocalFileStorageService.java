@@ -15,15 +15,15 @@ import java.nio.file.StandardCopyOption;
 // 서버 디스크(file.upload-dir)에 저장하고 WebConfig 의 /uploads/** 로 서빙한다. 로컬 개발 기본값.
 @Service
 @ConditionalOnProperty(name = "file.storage", havingValue = "local", matchIfMissing = true)
-public class LocalFileStorageService extends FileStorageService {
+public class LocalFileStorageService implements FileStorageService {
 
     @Value("${file.upload-dir}")
     private String uploadDir;
 
     @Override
     public StoredFile store(MultipartFile file, String subDir) throws IOException {
-        String dirName = normalizeSubDir(subDir);
-        String stored = newStoredName(file);
+        String dirName = StoredFiles.normalizeSubDir(subDir);
+        String stored = StoredFiles.newStoredName(file);
 
         Path dir = Paths.get(uploadDir, dirName).toAbsolutePath().normalize();
         Files.createDirectories(dir);
@@ -37,6 +37,6 @@ public class LocalFileStorageService extends FileStorageService {
 
     @Override
     public void delete(String url) {
-        deleteLocalFile(uploadDir, url);
+        StoredFiles.deleteLocalFile(uploadDir, url);
     }
 }
