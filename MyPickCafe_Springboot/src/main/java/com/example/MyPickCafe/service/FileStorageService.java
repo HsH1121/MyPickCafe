@@ -1,40 +1,36 @@
 // src/main/java/com/example/MyPickCafe/service/FileStorageService.java
 package com.example.MyPickCafe.service;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.*;
-import java.util.UUID;
+import java.io.UncheckedIOException;
 
-public abstract class FileStorageService {
+// 저장소 구현은 file.storage 값으로 고른다: local(기본) → LocalFileStorageService, s3 → S3FileStorageService
+public interface FileStorageService {
 
-    @Value("${file.upload-dir}")
-    private String root;
+    // 저장 후 DB에 넣을 URL과 메타데이터를 돌려준다
+    StoredFile store(MultipartFile file, String subDir) throws IOException;
 
-    // 공통 저장 로직
-    public StoredFile store(MultipartFile file, String subDir) throws IOException {
-        String ext = "";
-        String original = file.getOriginalFilename();
-        int dot = original != null ? original.lastIndexOf('.') : -1;
-        if (dot > -1) ext = original.substring(dot);
-        String stored = UUID.randomUUID().toString().replace("-", "") + ext;
+    void delete(String url);
 
-        Path dir = Paths.get(root, subDir).toAbsolutePath().normalize();
-        Files.createDirectories(dir);
-
-        Path target = dir.resolve(stored);
-        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-
-        String url = "/uploads/" + subDir.replace('\\', '/').replaceAll("^/+", "") + "/" + stored;
-        return new StoredFile(stored, original, url, file.getContentType(), file.getSize());
+    // DB 컬럼 값 ↔ 화면용 URL 변환(StoredFileUrlConverter 가 사용). 기본은 그대로 저장한다.
+    default String toStoredValue(String url) {
+        return url;
     }
 
-    public abstract String save(MultipartFile file, String subDir);
+    default String toUrl(String storedValue) {
+        return storedValue;
+    }
 
-    public abstract void delete(String url);
+    default String save(MultipartFile file, String subDir) {
+        try {
+            return store(file, subDir).url();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
-    public record StoredFile(String storedName, String originalName, String url,
-                             String contentType, long sizeBytes) {}
+    record StoredFile(String storedName, String originalName, String url,
+                      String contentType, long sizeBytes) {}
 }

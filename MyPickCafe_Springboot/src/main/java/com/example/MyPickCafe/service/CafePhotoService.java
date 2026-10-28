@@ -33,7 +33,8 @@ public class CafePhotoService {
         if (cafeIds == null || cafeIds.isEmpty()) return Map.of();
         Map<Long, String> urlByCafeId = new HashMap<>();
         for (Object[] row : cafePhotoRepository.findMainPhotoUrlsForCafeIds(cafeIds)) {
-            urlByCafeId.put(((Number) row[0]).longValue(), (String) row[1]);
+            // 네이티브 쿼리라 StoredFileUrlConverter 를 거치지 않으므로 직접 URL로 바꾼다
+            urlByCafeId.put(((Number) row[0]).longValue(), fileStorageService.toUrl((String) row[1]));
         }
         return urlByCafeId;
     }

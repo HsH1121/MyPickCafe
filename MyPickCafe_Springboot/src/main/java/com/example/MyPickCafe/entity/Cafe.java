@@ -1,5 +1,6 @@
     package com.example.MyPickCafe.entity;
 
+    import com.example.MyPickCafe.config.StoredFileUrlConverter;
     import com.example.MyPickCafe.domain.CafeStatus;
     import jakarta.persistence.*;
     import lombok.AllArgsConstructor;
@@ -56,6 +57,7 @@
         @Column(name = "status", nullable = false, length = 10)
         private CafeStatus status = CafeStatus.PENDING;
 
+        @Convert(converter = StoredFileUrlConverter.class)
         @Column(name = "biz_doc", length = 255) // 사업자 증빙 문서 URL
         private String bizDoc;
 

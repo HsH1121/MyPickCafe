@@ -33,6 +33,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	// WebClient (외부 AI 서버 호출용). starter-web이 함께 있으므로 앱은 서블릿 스택으로 기동된다.
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+	// 업로드 파일 저장소(file.storage=s3). BOM 으로 AWS SDK 모듈 버전을 맞춘다.
+	implementation platform('software.amazon.awssdk:bom:2.46.7')
+	implementation 'software.amazon.awssdk:s3'
 	// OpenAPI 3 문서 자동 생성 + Swagger UI (dev 프로파일에서만 노출)
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
 	// 테스트 전용 인메모리 DB — 로컬 PostgreSQL/Docker 없이도 테스트가 돌아야 한다.
