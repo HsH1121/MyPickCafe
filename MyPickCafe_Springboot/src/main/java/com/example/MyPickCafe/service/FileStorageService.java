@@ -14,6 +14,15 @@ public interface FileStorageService {
 
     void delete(String url);
 
+    // DB 컬럼 값 ↔ 화면용 URL 변환(StoredFileUrlConverter 가 사용). 기본은 그대로 저장한다.
+    default String toStoredValue(String url) {
+        return url;
+    }
+
+    default String toUrl(String storedValue) {
+        return storedValue;
+    }
+
     default String save(MultipartFile file, String subDir) {
         try {
             return store(file, subDir).url();

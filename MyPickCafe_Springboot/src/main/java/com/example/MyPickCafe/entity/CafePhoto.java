@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.entity;
 
+import com.example.MyPickCafe.config.StoredFileUrlConverter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
@@ -19,6 +20,7 @@ public class CafePhoto {
     @JsonIgnore
     private Cafe cafe;
 
+    @Convert(converter = StoredFileUrlConverter.class)
     @Column(name = "url", nullable = false, length = 255)
     private String url;
 

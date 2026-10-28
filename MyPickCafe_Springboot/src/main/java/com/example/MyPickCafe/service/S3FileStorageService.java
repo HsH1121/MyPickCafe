@@ -13,7 +13,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * S3 버킷에 저장하고 DB에는 공개 URL(public-base-url + 객체 키)을 넣는다.
+ * S3 버킷에 저장한다. 엔티티에는 공개 URL(public-base-url + 객체 키)을 쓰고,
+ * DB 컬럼에는 객체 키만 넣는다(toStoredValue/toUrl). 그래서 CloudFront 등으로 주소가 바뀌어도 데이터는 그대로다.
  * 객체 읽기는 버킷 정책(또는 CloudFront)으로 공개해야 브라우저가 이미지를 띄울 수 있다.
  * S3 전환 전에 저장된 /uploads/... 파일은 그대로 로컬에서 서빙·삭제한다.
  */
@@ -76,5 +77,22 @@ public class S3FileStorageService implements FileStorageService {
             return;
         }
         StoredFiles.deleteLocalFile(uploadDir, url);
+    }
+
+    // 이 버킷의 URL이면 객체 키만 남긴다. /uploads/... 같은 예전 값은 그대로 둔다.
+    @Override
+    public String toStoredValue(String url) {
+        String prefix = publicBaseUrl + "/";
+        return url != null && url.startsWith(prefix) ? url.substring(prefix.length()) : url;
+    }
+
+    // 객체 키면 공개 URL을 붙인다. "/"로 시작하거나 스킴이 있는 값(예전 로컬 경로·외부 URL)은 그대로 둔다.
+    @Override
+    public String toUrl(String storedValue) {
+        if (storedValue == null || storedValue.isBlank()
+                || storedValue.startsWith("/") || storedValue.contains("://")) {
+            return storedValue;
+        }
+        return publicBaseUrl + "/" + storedValue;
     }
 }

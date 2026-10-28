@@ -91,6 +91,27 @@ class S3FileStorageServiceTest {
     }
 
     @Test
+    void storedValue_keepsOnlyKeyForOwnUrlsAndLeavesOthers() {
+        var s = service("https://cdn.example.com");
+
+        assertThat(s.toStoredValue("https://cdn.example.com/cafes/7/a.jpg")).isEqualTo("cafes/7/a.jpg");
+        assertThat(s.toStoredValue("/uploads/cafes/7/old.jpg")).isEqualTo("/uploads/cafes/7/old.jpg");
+        assertThat(s.toStoredValue("https://other.example.com/x.jpg")).isEqualTo("https://other.example.com/x.jpg");
+        assertThat(s.toStoredValue(null)).isNull();
+    }
+
+    @Test
+    void toUrl_prefixesKeysOnly() {
+        var s = service("https://cdn.example.com");
+
+        assertThat(s.toUrl("cafes/7/a.jpg")).isEqualTo("https://cdn.example.com/cafes/7/a.jpg");
+        assertThat(s.toUrl("/uploads/cafes/7/old.jpg")).isEqualTo("/uploads/cafes/7/old.jpg");
+        assertThat(s.toUrl("https://other.example.com/x.jpg")).isEqualTo("https://other.example.com/x.jpg");
+        assertThat(s.toUrl("")).isEmpty();
+        assertThat(s.toUrl(null)).isNull();
+    }
+
+    @Test
     void constructor_failsFastWithoutBucket() {
         assertThatThrownBy(() -> new S3FileStorageService(s3, "", "ap-northeast-2", "", uploadDir.toString()))
                 .isInstanceOf(IllegalStateException.class);

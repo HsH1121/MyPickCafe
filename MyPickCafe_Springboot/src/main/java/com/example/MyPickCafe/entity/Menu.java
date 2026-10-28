@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.entity;
 
+import com.example.MyPickCafe.config.StoredFileUrlConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.OnDelete;
@@ -40,6 +41,7 @@ public class Menu {
     @Column(name = "is_recommended", nullable = false)
     private boolean isRecommended;
 
+    @Convert(converter = StoredFileUrlConverter.class)
     @Column(name = "photo", length = 255)
     private String photo;
 }
