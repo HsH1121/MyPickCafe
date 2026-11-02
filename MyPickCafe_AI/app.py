@@ -9,6 +9,9 @@ PickBot_AI + Review_Tag_AI 엔드포인트를 단일 서버에서 제공합니�
   POST /pickbot/delete-one  — 단일 리뷰 ChromaDB 삭제
   POST /review/analyze      — 리뷰 분석 (태그 + 감성 추출)
   GET  /health              — 헬스체크
+
+내부 서비스다. 외부에서 직접 부를 수 없게 compose 는 포트를 열지 않고,
+AI_INTERNAL_TOKEN 이 있으면 Spring 이 보내는 X-Internal-Token 헤더를 검사한다(shared/internal_auth.py).
 """
 
 from __future__ import annotations
@@ -22,6 +25,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+if BASE not in sys.path:
+    sys.path.append(BASE)
+
+from shared.internal_auth import docs_enabled_from_env, install_internal_auth
 
 # PickBot_AI 와 Review_Tag_AI 가 같은 이름의 모듈을 갖고 있어, 각 패키지를
 # import 하기 직전에 캐시에서 지워야 올바른 쪽이 로드된다.
@@ -99,7 +106,12 @@ app = FastAPI(
     description="픽봇 추천 + 리뷰 태그 분석 통합 FastAPI 서버",
     version="1.0.0",
     lifespan=lifespan,
+    # 배포(compose)에서는 AI_DOCS_ENABLED=false 로 API 문서·스키마를 숨긴다
+    docs_url="/docs" if docs_enabled_from_env() else None,
+    redoc_url="/redoc" if docs_enabled_from_env() else None,
+    openapi_url="/openapi.json" if docs_enabled_from_env() else None,
 )
+install_internal_auth(app)
 
 _VALID_SENTIMENTS: frozenset[str] = frozenset({"GOOD", "BAD"})
 
@@ -238,4 +250,6 @@ async def health_check() -> JSONResponse:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    # 로컬 개발 전용 실행 경로. 기본은 이 PC 에서만 접속(127.0.0.1)되게 하고,
+    # 같은 네트워크의 다른 기기에서 접속해야 할 때만 AI_HOST=0.0.0.0 으로 연다.
+    uvicorn.run("app:app", host=os.getenv("AI_HOST", "127.0.0.1"), port=8000, reload=True)
