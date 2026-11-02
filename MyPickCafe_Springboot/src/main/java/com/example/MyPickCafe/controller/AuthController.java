@@ -5,6 +5,7 @@ import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.LoginService;
 import com.example.MyPickCafe.service.MemberService;
 import com.example.MyPickCafe.security.JwtTokenProvider;
+import com.example.MyPickCafe.security.PasswordPolicy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -28,15 +29,18 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final LoginService loginService;
+    private final PasswordPolicy passwordPolicy;
 
     public AuthController(MemberService memberService,
                           PasswordEncoder passwordEncoder,
                           JwtTokenProvider jwtTokenProvider,
-                          LoginService loginService) {
+                          LoginService loginService,
+                          PasswordPolicy passwordPolicy) {
         this.memberService = memberService;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.loginService = loginService;
+        this.passwordPolicy = passwordPolicy;
     }
 
     @GetMapping("/login")
@@ -112,6 +116,12 @@ public class AuthController {
         }
         if (memberService.existsByNickname(memberNickname)) {
             model.addAttribute("error", "이미 사용 중인 닉네임입니다.");
+            return "auth/signup";
+        }
+        try {
+            passwordPolicy.validate(memberPassword, memberEmail, memberNickname);
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("error", e.getMessage());
             return "auth/signup";
         }
 

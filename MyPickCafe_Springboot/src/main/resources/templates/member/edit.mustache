@@ -88,9 +88,19 @@
               <div class="cg-field">
                 <label class="cg-label" for="new_password">새 비밀번호</label>
                 <input class="cg-input" id="new_password" name="new_password"
-                       type="password" autocomplete="new-password" placeholder="변경 시에만 입력"/>
-                <p class="cg-hint">현재/새 비밀번호를 모두 입력한 경우에만 변경됩니다.</p>
+                       type="password" autocomplete="new-password" placeholder="변경 시에만 입력"
+                       maxlength="64" data-password-policy data-password-optional/>
+                <p class="cg-hint" data-password-policy-hint="new_password">12~64자. 흔한 비밀번호·이메일 아이디·닉네임이 들어간 비밀번호는 쓸 수 없습니다. 변경하면 모든 기기에서 로그아웃됩니다.</p>
               </div>
+              <div class="cg-field">
+                <label class="cg-label" for="new_password_confirm">새 비밀번호 확인</label>
+                <input class="cg-input" id="new_password_confirm" name="new_password_confirm"
+                       type="password" autocomplete="new-password" placeholder="변경 시에만 입력"
+                       maxlength="64" data-password-confirm="new_password"/>
+              </div>
+              {{#pwError}}
+                <p class="cg-hint" style="color:var(--danger)">{{pwError}}</p>
+              {{/pwError}}
             </div>
           </div>
 
@@ -132,4 +142,5 @@
 })();
 </script>
 
+<script src="/js/password-policy.js"></script>
 {{>layout/footer}}

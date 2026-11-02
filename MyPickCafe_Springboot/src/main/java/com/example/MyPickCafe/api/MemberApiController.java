@@ -66,4 +66,11 @@ public class MemberApiController {
     public void delete(@PathVariable Long id) {
         service.delete(id);
     }
+
+    /** 이메일·닉네임 중복, 비밀번호 정책 위반 등 입력 오류는 500 이 아니라 400 으로 돌려준다. */
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public java.util.Map<String, Object> handleBadRequest(IllegalArgumentException ex) {
+        return java.util.Map.of("status", 400, "error", "Bad Request", "message", ex.getMessage());
+    }
 }

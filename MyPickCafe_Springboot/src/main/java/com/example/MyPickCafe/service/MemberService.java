@@ -5,6 +5,7 @@ import com.example.MyPickCafe.dto.MemberCreateRequest;
 import com.example.MyPickCafe.dto.MemberUpdateRequest;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.MemberRepository;
+import com.example.MyPickCafe.security.PasswordPolicy;
 import com.example.MyPickCafe.support.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,6 +21,7 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder; // BCrypt 빈 등록 가정
+    private final PasswordPolicy passwordPolicy;
 
     @Transactional(readOnly = true)
     public List<Member> findAll() {
@@ -45,6 +47,7 @@ public class MemberService {
         if (memberRepository.existsByNickname(req.nickname())) {
             throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
         }
+        passwordPolicy.validate(req.password(), req.email(), req.nickname());
 
         Member m = new Member();
         m.setEmail(req.email());
@@ -109,7 +112,11 @@ public class MemberService {
 
     /**
      * 프로필 수정 + (옵션) 비밀번호 변경을 한 번에 처리.
-     * @return changedPassword: 비밀번호가 실제로 변경되었으면 true
+     *
+     * <p>비밀번호 변경은 현재 비밀번호 확인이 필수다(세션·토큰을 탈취당해도 비밀번호까지 바꾸지 못하게).
+     * 변경되면 tokenVersion 을 올려 이미 발급된 모든 JWT(다른 기기·브라우저 포함)를 무효화한다.
+     *
+     * @return 비밀번호가 실제로 변경되었으면 true — 호출부는 재로그인을 안내한다
      */
     @Transactional
     public boolean updateSelf(Long memberId,
@@ -129,23 +136,34 @@ public class MemberService {
             throw new IllegalArgumentException("이미 사용 중인 닉네임입니다.");
         }
 
+        // 비밀번호 변경 요청 검사를 프로필 반영보다 먼저 한다(실패하면 아무것도 바꾸지 않음).
+        boolean wantsNewPw = newPasswordNullable != null && !newPasswordNullable.isEmpty();
+        boolean hasCurrentPw = currentPasswordNullable != null && !currentPasswordNullable.isEmpty();
+        if (wantsNewPw) {
+            if (!hasCurrentPw) {
+                throw new IllegalArgumentException("비밀번호를 바꾸려면 현재 비밀번호를 입력해주세요.");
+            }
+            if (!passwordEncoder.matches(currentPasswordNullable, m.getPassword())) {
+                throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
+            }
+            if (newPasswordNullable.equals(currentPasswordNullable)) {
+                throw new IllegalArgumentException("현재 비밀번호와 다른 비밀번호를 입력해주세요.");
+            }
+            String nicknameAfter = (nickname != null && !nickname.isBlank()) ? nickname : m.getNickname();
+            passwordPolicy.validate(newPasswordNullable, m.getEmail(), nicknameAfter);
+        }
+
         // 일반 프로필 변경
         if (nickname != null && !nickname.isBlank()) m.setNickname(nickname);
         if (age != null) m.setAge(age);
         if (gender != null && !gender.isBlank()) m.setGender(gender);
         if (photo != null) m.setPhoto(photo);
 
-        // 비번 변경 (둘 다 들어온 경우에만 시도)
-        boolean changePw = (currentPasswordNullable != null && !currentPasswordNullable.isBlank()
-                && newPasswordNullable != null && !newPasswordNullable.isBlank());
-
-        if (changePw) {
-            if (!passwordEncoder.matches(currentPasswordNullable, m.getPassword())) {
-                throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
-            }
+        if (wantsNewPw) {
             m.setPassword(passwordEncoder.encode(newPasswordNullable));
+            bumpTokenVersionInternal(m);
+            return true;
         }
-
         return false;
     }
 

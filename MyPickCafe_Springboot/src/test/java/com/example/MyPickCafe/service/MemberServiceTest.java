@@ -5,12 +5,14 @@ import com.example.MyPickCafe.dto.MemberCreateRequest;
 import com.example.MyPickCafe.dto.MemberUpdateRequest;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.MemberRepository;
+import com.example.MyPickCafe.security.PasswordPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -30,6 +32,8 @@ class MemberServiceTest {
 
     @Mock private MemberRepository repository;
     @Mock private PasswordEncoder passwordEncoder;
+    // 정책은 순수 로직이라 실제 객체를 쓴다(@InjectMocks 가 생성자에 넣어 준다)
+    @Spy private PasswordPolicy passwordPolicy = new PasswordPolicy();
 
     @InjectMocks private MemberService memberService;
 
