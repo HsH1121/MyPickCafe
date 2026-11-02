@@ -1,5 +1,7 @@
 package com.example.MyPickCafe.controller;
 
+import com.example.MyPickCafe.dto.CafeResponse;
+import com.example.MyPickCafe.service.CafeService;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.service.FavoriteService;
 import com.example.MyPickCafe.service.MemberService;
@@ -20,6 +22,7 @@ public class FavoriteController {
 
     private final FavoriteService favoriteService;
     private final MemberService memberService;
+    private final CafeService cafeService;
 
     private Long currentMemberId(Authentication authentication) {
         return memberService.findByEmail(authentication.getName()).getId();
@@ -34,14 +37,15 @@ public class FavoriteController {
     }
 
     @GetMapping
-    public Page<Cafe> myFavorites(@RequestParam(defaultValue = "0") int page,
-                                  @RequestParam(defaultValue = "12") int size,
-                                  Authentication auth) {
-        return favoriteService.listMyFavorites(currentMemberId(auth), PageRequest.of(page, size));
+    public Page<CafeResponse> myFavorites(@RequestParam(defaultValue = "0") int page,
+                                          @RequestParam(defaultValue = "12") int size,
+                                          Authentication auth) {
+        return favoriteService.listMyFavoritesForApi(currentMemberId(auth), PageRequest.of(page, size));
     }
 
     @GetMapping("/cafes/{cafeId}/count")
-    public Map<String, Long> countFavorited(@PathVariable Long cafeId) {
+    public Map<String, Long> countFavorited(@PathVariable Long cafeId, Authentication auth) {
+        cafeService.findVisibleById(cafeId, auth);
         return Map.of("count", favoriteService.countFavoriteForCafe(cafeId));
     }
 }

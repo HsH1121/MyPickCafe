@@ -40,16 +40,16 @@ public class CafeApiController {
     private final CafeOwnershipGuard ownershipGuard;
 
     @GetMapping
-    @Operation(summary = "카페 전체 조회", description = "인증 없이 호출할 수 있다.")
+    @Operation(summary = "카페 전체 조회", description = "인증 없이 호출할 수 있다. 승인된 카페만 돌려준다.")
     public List<CafeResponse> getAll() {
         return cafeService.findAllForApi();
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "카페 단건 조회")
-    @ApiResponse(responseCode = "404", description = "해당 ID의 카페가 없음")
-    public CafeResponse getOne(@PathVariable Long id) {
-        return cafeService.findByIdForApi(id);
+    @ApiResponse(responseCode = "404", description = "해당 ID의 카페가 없거나, 승인 전 카페인데 점주·관리자가 아님")
+    public CafeResponse getOne(@PathVariable Long id, Authentication auth) {
+        return cafeService.findByIdForApi(id, auth);
     }
 
     @PostMapping

@@ -306,8 +306,13 @@ class CafeRAG:
             trace.step("⑤ 판정 LLM", None, "건너뜀 → 긍정 리뷰 수 순위")
             return {"results": await self._rank_with_only_region(candidates, top_n, trace), "notice": notice}
 
-        # 3-b. 조건별 리뷰 벡터 검색 → 카페별 조건 커버리지 순위 (지역을 걸렀으면 후보 카페로 제한)
-        candidate_ids = [str(c["cafe_id"]) for c in candidates] if region_filtered else None
+        # 3-b. 조건별 리뷰 벡터 검색 → 카페별 조건 커버리지 순위
+        # 지역 조건이 없어도 항상 후보(=승인된 카페 목록)로 제한한다. 인덱스에는 승인 취소된 카페나
+        # 승인 전에 index-one 으로 들어간 리뷰가 남아 있을 수 있어서, 목록에 없는 카페는 검색에서 뺀다.
+        # (목록은 최대 _DIRECTORY_TTL_SEC 늦을 수 있어 Spring 이 응답 직전에 DB 기준으로 한 번 더 거른다.)
+        candidate_ids = [str(c["cafe_id"]) for c in candidates]
+        if not candidate_ids:
+            return {"results": [], "notice": notice}
         top_cafes = await self._rag_cafes(conditions, candidate_ids, trace=trace)
         if not top_cafes:
             trace.step("⑤ 판정 LLM", None, "건너뜀 (검색 결과 없음)")
