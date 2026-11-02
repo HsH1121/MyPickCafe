@@ -2,6 +2,7 @@ package com.example.MyPickCafe.controller;
 
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Member;
+import com.example.MyPickCafe.service.LoginService;
 import com.example.MyPickCafe.service.MemberService;
 import com.example.MyPickCafe.security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,9 +15,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Controller
 public class AuthController {
@@ -26,13 +27,16 @@ public class AuthController {
     private final MemberService memberService;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final LoginService loginService;
 
     public AuthController(MemberService memberService,
                           PasswordEncoder passwordEncoder,
-                          JwtTokenProvider jwtTokenProvider) {
+                          JwtTokenProvider jwtTokenProvider,
+                          LoginService loginService) {
         this.memberService = memberService;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.loginService = loginService;
     }
 
     @GetMapping("/login")
@@ -42,42 +46,31 @@ public class AuthController {
         if (error != null && !error.isBlank()) model.addAttribute("error", error);
         if (redirect != null && !redirect.isBlank()) model.addAttribute("redirect", redirect);
         if (!model.containsAttribute("prefillEmail")) model.addAttribute("prefillEmail", "");
-        if (!model.containsAttribute("prefillPassword")) model.addAttribute("prefillPassword", "");
         return "auth/login";
     }
 
     @PostMapping("/login")
     public String loginSubmit(@RequestParam("memberEmail") String email,
                               @RequestParam("memberPassword") String password,
+                              HttpServletRequest request,
                               HttpServletResponse response,
                               RedirectAttributes ra,
                               Model model) {
-        Optional<Member> memberTryingLogin = memberService.findByEmailOptional(email);
-        if (memberTryingLogin.isEmpty()) {
-            ra.addFlashAttribute("error", "이메일 또는 비밀번호가 올바르지 않습니다.");
+        // 실패 시 입력한 이메일만 다시 채운다. 비밀번호는 플래시(세션)에 담거나 HTML 에 다시 쓰지 않는다.
+        LoginService.Result result = loginService.authenticate(email, password, request.getRemoteAddr());
+        if (result.status() == LoginService.Status.BLOCKED) {
+            long minutes = Math.max(1, (result.retryAfter().toSeconds() + 59) / 60);
+            ra.addFlashAttribute("error", "로그인 시도가 너무 많습니다. " + minutes + "분 후 다시 시도해주세요.");
             ra.addFlashAttribute("prefillEmail", email);
-            ra.addFlashAttribute("prefillPassword", password);
             return "redirect:/login";
         }
-        Member member = memberTryingLogin.get();
-        // 저장된 해시와만 비교한다. (REST 로그인과 같은 규칙)
-        // 과거에는 해시 불일치 시 평문 비교로 폴백했는데, 프로파일 구분 없이 동작해
-        // 평문 비밀번호가 저장된 계정이 하나라도 생기면 그대로 로그인이 뚫렸다.
-        boolean matches = false;
-        if (member.getPassword() != null) {
-            try {
-                matches = passwordEncoder.matches(password, member.getPassword());
-            } catch (IllegalArgumentException e) {
-                // 해시 형식이 아닌 값이 저장된 경우 — 인증 실패로 처리
-                matches = false;
-            }
-        }
-        if (!matches) {
+        if (!result.isSuccess()) {
+            // 없는 이메일과 틀린 비밀번호는 같은 문구
             ra.addFlashAttribute("error", "이메일 또는 비밀번호가 올바르지 않습니다.");
             ra.addFlashAttribute("prefillEmail", email);
-            ra.addFlashAttribute("prefillPassword", password);
             return "redirect:/login";
         }
+        Member member = result.member();
 
         String roleName = member.getRoleKind() == null ? "MEMBER" : member.getRoleKind().name();
         var ud = User

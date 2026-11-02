@@ -2,6 +2,7 @@ package com.example.MyPickCafe.api;
 
 import com.example.MyPickCafe.dto.MemberForm;
 import com.example.MyPickCafe.entity.Member;
+import com.example.MyPickCafe.service.LoginService;
 import com.example.MyPickCafe.service.MemberService;
 import com.example.MyPickCafe.security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,8 +12,9 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Map;
 import java.util.Optional;
@@ -22,7 +24,7 @@ import java.util.Optional;
 public class AuthApiController {
 
     private final MemberService memberService;
-    private final PasswordEncoder passwordEncoder;
+    private final LoginService loginService;
     private final JwtTokenProvider jwtTokenProvider;
 
     /** 인증 쿠키에 Secure 속성을 붙일지 여부. dev=false(HTTP), prod=true(HTTPS 전용). */
@@ -30,42 +32,33 @@ public class AuthApiController {
     private boolean cookieSecure;
 
     public AuthApiController(MemberService memberService,
-                             PasswordEncoder passwordEncoder,
+                             LoginService loginService,
                              JwtTokenProvider jwtTokenProvider) {
         this.memberService = memberService;
-        this.passwordEncoder = passwordEncoder;
+        this.loginService = loginService;
         this.jwtTokenProvider = jwtTokenProvider;
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody MemberForm body) {
+    public ResponseEntity<?> login(@RequestBody MemberForm body, HttpServletRequest request) {
         String email = body.getEmail();
         String pw = body.getPassword();
         if (email == null || email.isBlank() || pw == null || pw.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "email/password required"));
         }
 
-        Optional<Member> memberOpt = memberService.findByEmailOptional(email);
-        if (memberOpt.isEmpty()) {
+        // 없는 이메일과 틀린 비밀번호는 같은 응답(401 Invalid credentials)을 준다.
+        LoginService.Result result = loginService.authenticate(email, pw, request.getRemoteAddr());
+        if (result.status() == LoginService.Status.BLOCKED) {
+            long seconds = Math.max(1, result.retryAfter().toSeconds());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header(HttpHeaders.RETRY_AFTER, String.valueOf(seconds))
+                    .body(Map.of("message", "Too many login attempts. Try again later."));
+        }
+        if (!result.isSuccess()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid credentials"));
         }
-        Member member = memberOpt.get();
-
-        // 저장된 해시와만 비교한다.
-        // (과거에는 해시 불일치 시 평문 비교로 폴백했는데, 평문 비밀번호가 저장된
-        //  계정이 하나라도 생기면 그대로 로그인이 뚫리므로 제거했다.)
-        boolean matches = false;
-        if (member.getPassword() != null) {
-            try {
-                matches = passwordEncoder.matches(pw, member.getPassword());
-            } catch (IllegalArgumentException e) {
-                // 해시 형식이 아닌 값이 저장된 경우 — 인증 실패로 처리
-                matches = false;
-            }
-        }
-        if (!matches) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid credentials"));
-        }
+        Member member = result.member();
 
         String roleName = member.getRoleKind() == null ? "MEMBER" : member.getRoleKind().name();
         var ud = User
