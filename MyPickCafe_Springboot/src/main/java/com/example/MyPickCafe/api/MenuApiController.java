@@ -4,6 +4,7 @@ import com.example.MyPickCafe.dto.MenuResponse;
 import com.example.MyPickCafe.dto.MenuUpdateRequest;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.Menu;
+import com.example.MyPickCafe.support.NotFoundException;
 import com.example.MyPickCafe.security.CafeOwnershipGuard;
 import com.example.MyPickCafe.service.CafeService;
 import com.example.MyPickCafe.service.FileStorageService;
@@ -41,13 +42,19 @@ public class MenuApiController {
     private final FileStorageService storage;
     private final CafeOwnershipGuard ownershipGuard;
 
+    // 조회도 카페 승인 상태를 따른다. 승인 전 카페의 메뉴는 점주·관리자만(아니면 404).
     @GetMapping("/{id}")
-    public MenuResponse getOne(@PathVariable Long id) {
+    public MenuResponse getOne(@PathVariable Long id, Authentication auth) {
+        Menu menu = service.findById(id);
+        if (!ownershipGuard.canView(auth, menu.getCafe())) {
+            throw new NotFoundException("Menu not found: " + id);
+        }
         return service.findByIdForApi(id);
     }
 
     @GetMapping("/by-cafe/{cafeId}")
-    public List<MenuResponse> listByCafe(@PathVariable Long cafeId) {
+    public List<MenuResponse> listByCafe(@PathVariable Long cafeId, Authentication auth) {
+        cafeService.findVisibleById(cafeId, auth);
         return service.findByCafeIdForApi(cafeId);
     }
 

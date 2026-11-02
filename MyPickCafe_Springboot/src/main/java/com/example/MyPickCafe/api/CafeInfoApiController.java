@@ -24,7 +24,8 @@ public class CafeInfoApiController {
     private final MemberService memberService;
 
     @GetMapping("/by-cafe/{cafeId}")
-    public ResponseEntity<CafeInfo> byCafe(@PathVariable Long cafeId) {
+    public ResponseEntity<CafeInfo> byCafe(@PathVariable Long cafeId, Authentication auth) {
+        cafeService.findVisibleById(cafeId, auth); // 승인 전 카페는 점주·관리자만(아니면 404)
         return service.findByCafeId(cafeId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());

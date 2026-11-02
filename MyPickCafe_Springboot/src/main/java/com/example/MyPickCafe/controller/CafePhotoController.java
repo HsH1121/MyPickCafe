@@ -44,7 +44,8 @@ public class CafePhotoController {
     }
 
     @GetMapping("/{cafeId}/photos")
-    public List<CafePhoto> list(@PathVariable Long cafeId) {
+    public List<CafePhoto> list(@PathVariable Long cafeId, Authentication auth) {
+        cafeService.findVisibleById(cafeId, auth); // 승인 전 카페 사진은 점주·관리자만(아니면 404)
         return cafePhotoService.list(cafeId);
     }
 

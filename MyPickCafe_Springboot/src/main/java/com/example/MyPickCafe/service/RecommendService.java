@@ -70,6 +70,8 @@ public class RecommendService {
         return topCafeIds.stream()
                 .map(cafeMap::get)
                 .filter(Objects::nonNull)
+                .filter(Cafe::isApproved) // 쿼리와 별개로 응답 직전에 한 번 더 확인
+
                 .map(c -> new CafeCardForm(
                         c.getId(), c.getName(), c.getAddress(),
                         c.getNumber(), c.getCode(), c.getViews(),

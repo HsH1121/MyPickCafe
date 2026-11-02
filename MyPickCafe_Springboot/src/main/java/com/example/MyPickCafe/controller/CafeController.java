@@ -267,14 +267,10 @@ public class CafeController {
         boolean isOwner = (meId != null && cafe.getOwner() != null
                 && meId.equals(cafe.getOwner().getId()));
 
-        // 3) 승인 전 접근 제한
+        // 3) 승인 전 접근 제한 — 점주·관리자가 아니면 PENDING·REJECTED 모두 "없는 카페"와 같은 404.
+        //    (예전에는 PENDING 만 "검토 중" 안내와 함께 리다이렉트해 ID 만으로 심사 중인 카페가 있는지 알 수 있었다.)
         if (cafe.getStatus() != CafeStatus.APPROVED && !(isOwner || isAdmin)) {
-            if (cafe.getStatus() == CafeStatus.PENDING) {
-                ra.addFlashAttribute("flashInfo", "카페가 현재 검토 중입니다. 승인 후 열람할 수 있어요. (보통 수 분 소요)");
-                return "redirect:/";
-            } else {
-                throw new NotFoundException("승인되지 않은 카페입니다.");
-            }
+            throw new NotFoundException("Cafe not found: " + cafeId);
         }
 
         // 4) 기본 모델

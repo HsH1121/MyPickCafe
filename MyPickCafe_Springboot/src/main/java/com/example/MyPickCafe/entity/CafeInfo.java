@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -20,6 +21,9 @@ public class CafeInfo {
     @Column(name = "cafe_info_id", nullable = false, unique = true)
     private Long id;
 
+    // 응답에 카페 엔티티 전체(점주 회원 정보, 사업자 증빙 경로, 승인 상태)가 따라 나가지 않게 한다.
+    // 저장할 때는 컨트롤러가 경로의 cafeId 로 카페를 직접 넣으므로 요청 본문의 cafe 는 쓰지 않는다.
+    @JsonIgnore
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cafe_id", nullable = false, unique = true)
     @OnDelete(action = OnDeleteAction.CASCADE)

@@ -7,6 +7,7 @@ import com.example.MyPickCafe.entity.Review;
 import com.example.MyPickCafe.service.CafeService;
 import com.example.MyPickCafe.service.MemberService;
 import com.example.MyPickCafe.service.ReviewService;
+import com.example.MyPickCafe.support.NotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -67,6 +68,10 @@ public class ReviewController {
 
         Member me = memberService.findByEmail(authentication.getName());
         Cafe cafe = cafeService.findById(form.getCafeId());
+        // 리뷰는 승인된 카페에만 쓴다. 승인 전 카페에 리뷰가 쌓이면 리뷰·태그·픽봇 인덱스로 존재가 드러난다.
+        if (!cafe.isApproved()) {
+            throw new NotFoundException("Cafe not found: " + form.getCafeId());
+        }
 
         reviewService.saveWithTags(form, me, cafe);
 
@@ -86,6 +91,9 @@ public class ReviewController {
         }
 
         Review review = reviewService.findById(id);
+        if (!review.getCafe().isApproved()) {
+            throw new NotFoundException("Review not found: " + id);
+        }
         if (!review.getMember().getEmail().equals(authentication.getName())) {
             ra.addFlashAttribute("message", "본인의 리뷰만 수정할 수 있습니다.");
             return "redirect:/cafes/" + form.getCafeId();
@@ -98,7 +106,8 @@ public class ReviewController {
     }
 
     @GetMapping("/cafes/{cafeId}/reviews")
-    public String list(@PathVariable Long cafeId, Model model) {
+    public String list(@PathVariable Long cafeId, Model model, Authentication authentication) {
+        cafeService.findVisibleById(cafeId, authentication);
         List<Review> reviews = reviewService.findReviewsForCafe(cafeId);
         model.addAttribute("reviews", reviews);
         return "reviews/list";

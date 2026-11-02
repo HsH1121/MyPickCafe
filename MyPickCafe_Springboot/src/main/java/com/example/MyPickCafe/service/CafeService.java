@@ -17,10 +17,12 @@ import com.example.MyPickCafe.repository.CafeRepository;
 import com.example.MyPickCafe.repository.CafeTagRepository;
 import com.example.MyPickCafe.repository.MemberRepository;
 import com.example.MyPickCafe.repository.ReviewRepository;
+import com.example.MyPickCafe.security.CafeOwnershipGuard;
 import com.example.MyPickCafe.support.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -44,6 +46,7 @@ public class CafeService {
     private final ReviewRepository reviewRepository;
     private final FileStorageService fileStorageService;
     private final NotificationService notificationService;
+    private final CafeOwnershipGuard cafeOwnershipGuard;
 
     @Transactional(readOnly = true)
     public List<Cafe> findAll() {
@@ -56,6 +59,28 @@ public class CafeService {
                 .orElseThrow(() -> new NotFoundException("Cafe not found: " + id));
     }
 
+    /**
+     * 일반 사용자용 조회. 승인 전(PENDING)·반려(REJECTED) 카페는 관리자와 그 카페의 점주만 받을 수 있다.
+     * 볼 수 없으면 "없는 카페"와 똑같은 {@link NotFoundException} 을 던져 존재 여부도 드러내지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public Cafe findVisibleById(Long id, Authentication auth) {
+        Cafe cafe = findById(id);
+        if (!cafeOwnershipGuard.canView(auth, cafe)) {
+            throw new NotFoundException("Cafe not found: " + id);
+        }
+        return cafe;
+    }
+
+    /** 주어진 ID 중 승인된 카페의 ID 만. 픽봇 등 외부에서 받은 추천 결과를 마지막에 거를 때 쓴다. */
+    @Transactional(readOnly = true)
+    public Set<Long> filterApprovedIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) return Set.of();
+        return cafeRepository.findByStatusAndIdInOrderByViewsDesc(CafeStatus.APPROVED, ids).stream()
+                .map(Cafe::getId)
+                .collect(Collectors.toSet());
+    }
+
     @Transactional(readOnly = true)
     public List<Cafe> findByStatus(CafeStatus status) {
         return cafeRepository.findByStatus(status);
@@ -64,14 +89,15 @@ public class CafeService {
     // ===== REST API용 조회 (엔티티 대신 DTO 반환) =====
     // 매핑을 트랜잭션 안에서 끝내므로 open-in-view에 의존하지 않는다.
 
+    /** 공개 목록 — 승인된 카페만. 승인 대기 목록은 관리자 API(/admin/cafes/pending)가 따로 준다. */
     @Transactional(readOnly = true)
     public List<CafeResponse> findAllForApi() {
-        return cafeRepository.findAll().stream().map(CafeResponse::from).toList();
+        return cafeRepository.findByStatus(CafeStatus.APPROVED).stream().map(CafeResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public CafeResponse findByIdForApi(Long id) {
-        return CafeResponse.from(findById(id));
+    public CafeResponse findByIdForApi(Long id, Authentication auth) {
+        return CafeResponse.from(findVisibleById(id, auth));
     }
 
     @Transactional(readOnly = true)
