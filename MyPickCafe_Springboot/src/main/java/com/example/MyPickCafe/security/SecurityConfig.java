@@ -12,7 +12,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer; // ✅ 추가
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -182,7 +181,11 @@ public class SecurityConfig {
         return source;
     }
 
-    @Bean public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+    /**
+     * BCrypt(기본 cost 10). 예전 XSS 필터가 정리한 폼 비밀번호의 해시도 맞춰 보는 호환 래퍼를 씌운다.
+     * cost 를 올리면 새 해시부터 적용되고 기존 해시도 그대로 검증된다(해시에 cost 가 들어 있음).
+     */
+    @Bean public PasswordEncoder passwordEncoder() { return new LegacyFormPasswordEncoder(); }
 
     private boolean isApiRequest(jakarta.servlet.http.HttpServletRequest req) {
         String uri = req.getRequestURI();

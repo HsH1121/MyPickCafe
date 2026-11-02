@@ -20,8 +20,8 @@ public record MemberCreateRequest(
         @Size(max = 100)
         String email,
 
+        /** 길이·흔한 비밀번호 등은 MemberService 에서 PasswordPolicy 로 검사한다(규칙을 한곳에만 둠). */
         @NotBlank(message = "비밀번호는 필수입니다.")
-        @Size(min = 8, max = 72, message = "비밀번호는 8자 이상이어야 합니다.")
         String password,
 
         @NotBlank(message = "닉네임은 필수입니다.")

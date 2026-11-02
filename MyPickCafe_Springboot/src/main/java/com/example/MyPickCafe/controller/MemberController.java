@@ -14,6 +14,10 @@ import com.example.MyPickCafe.service.NeedsService;
 import com.example.MyPickCafe.service.ReviewService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -38,6 +42,10 @@ public class MemberController {
     private final ReviewService reviewService;
     private final NeedsService needsService;
     private final com.example.MyPickCafe.service.CafeService cafeService;
+
+    /** 인증 쿠키(AT)의 Secure 속성 — 비밀번호 변경 후 쿠키를 지울 때 발급 때와 같은 속성으로 맞춘다. */
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
 
     /* =========================
      *        MY PAGE
@@ -140,20 +148,38 @@ public class MemberController {
                          @RequestParam(value = "member_photo", required = false) String photo,
                          @RequestParam(value = "current_password", required = false) String currentPassword,
                          @RequestParam(value = "new_password", required = false) String newPassword,
+                         @RequestParam(value = "new_password_confirm", required = false) String newPasswordConfirm,
                          HttpServletRequest request,
-                         HttpServletResponse response) {
+                         HttpServletResponse response,
+                         RedirectAttributes ra) {
         if (principal == null) return "redirect:/login";
 
         Member me = memberService.findByEmail(principal.getUsername());
         if (me == null) return "redirect:/login";
 
-        boolean pwChanged = memberService.updateSelf(
-                me.getId(), nickname, age, gender, photo, currentPassword, newPassword
-        );
+        if (newPasswordConfirm != null && newPassword != null && !newPassword.equals(newPasswordConfirm)) {
+            ra.addFlashAttribute("pwError", "새 비밀번호와 확인 값이 일치하지 않습니다.");
+            return "redirect:/member/edit";
+        }
+
+        boolean pwChanged;
+        try {
+            pwChanged = memberService.updateSelf(
+                    me.getId(), nickname, age, gender, photo, currentPassword, newPassword
+            );
+        } catch (IllegalArgumentException e) {
+            // 현재 비밀번호 불일치·정책 위반·닉네임 중복 — 메시지에 비밀번호 원문은 없다
+            ra.addFlashAttribute("pwError", e.getMessage());
+            return "redirect:/member/edit";
+        }
 
         if (pwChanged) {
+            // updateSelf 가 tokenVersion 을 올려 이 기기를 포함한 모든 JWT 가 이미 무효다. 쿠키도 지운다.
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             new SecurityContextLogoutHandler().logout(request, response, auth);
+            response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from("AT", "")
+                    .httpOnly(true).secure(cookieSecure).sameSite("Lax").path("/").maxAge(0)
+                    .build().toString());
             return "redirect:/login?password=changed";
         }
         return "redirect:/member/me?update=success";
