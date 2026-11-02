@@ -45,10 +45,20 @@ public class AiClientConfig {
     @Value("${pickbot.api.base-url}")
     private String pickBotApiBaseUrl;
 
+    /**
+     * AI 서버가 Spring 의 호출인지 확인하는 공유 토큰(X-Internal-Token).
+     * AI 서버의 엔드포인트에는 사용자 인증이 없으므로, 포트를 닫는 것과 별개로 이 토큰을 맞춰 둔다.
+     * 비어 있으면 헤더를 보내지 않는다(로컬 개발).
+     */
+    @Value("${ai.internal-token:}")
+    private String internalToken;
+
+    static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+
     /** 리뷰 태그·감성 분석 서버 전용 WebClient. */
     @Bean
     public WebClient pythonTagWebClient(WebClient.Builder builder) {
-        return builder.baseUrl(pythonApiBaseUrl)
+        return withInternalToken(builder.baseUrl(pythonApiBaseUrl))
                 .clientConnector(new ReactorClientHttpConnector(httpClient(readTimeoutMs)))
                 .build();
     }
@@ -56,9 +66,16 @@ public class AiClientConfig {
     /** 추천 픽봇(RAG) 서버 전용 WebClient. */
     @Bean
     public WebClient pickBotWebClient(WebClient.Builder builder) {
-        return builder.baseUrl(pickBotApiBaseUrl)
+        return withInternalToken(builder.baseUrl(pickBotApiBaseUrl))
                 .clientConnector(new ReactorClientHttpConnector(httpClient(pickBotReadTimeoutMs)))
                 .build();
+    }
+
+    private WebClient.Builder withInternalToken(WebClient.Builder builder) {
+        if (internalToken != null && !internalToken.isBlank()) {
+            builder.defaultHeader(INTERNAL_TOKEN_HEADER, internalToken.trim());
+        }
+        return builder;
     }
 
     private HttpClient httpClient(int readTimeoutMs) {

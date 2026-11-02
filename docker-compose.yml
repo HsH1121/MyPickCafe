@@ -5,6 +5,14 @@
 # 값은 이 파일과 같은 위치의 .env 에서 읽습니다(.env.example 참고). .env 는 git 에 올라가지 않습니다.
 # 컨테이너끼리는 서비스 이름으로 통신합니다: postgres:5432, ollama:11434, mypickcafe-ai:8000
 #
+# 외부 노출 원칙 (EC2 보안 그룹 정리는 docs/ec2-security-group.md)
+#   - 인터넷에 여는 포트는 caddy 의 80·443 뿐입니다.
+#   - mypickcafe-web(8080)과 postgres(5432)는 호스트의 127.0.0.1 에만 엽니다.
+#     postgres 는 로컬 개발(IDE 로 띄운 Spring·FastAPI)과 서버에서의 SSH 터널 접속용입니다.
+#   - mypickcafe-ai, ollama, chromadb 는 호스트 포트를 열지 않고 backend 네트워크 안에서만 접근합니다.
+#   - 네트워크는 두 개입니다. edge: caddy ↔ web, backend: web ↔ ai ↔ postgres ↔ ollama.
+#     caddy 는 backend 에 붙지 않으므로 프록시가 뚫려도 DB·AI 서버로 바로 넘어가지 못합니다.
+#
 # 프로젝트 이름을 고정합니다. 기존 데이터가 들어 있는 mypickcafe_pgdata 볼륨을 계속 쓰기 위함입니다.
 name: mypickcafe
 
@@ -17,8 +25,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # 127.0.0.1 에만 엽니다. "5432:5432" 처럼 주소를 생략하면 0.0.0.0(모든 인터페이스)에 열려
+    # 보안 그룹만 남은 방어선이 됩니다. Docker 가 연 포트는 호스트 방화벽(ufw 등)도 우회합니다.
+    # 로컬 개발: IDE 의 Spring(localhost:5432)·FastAPI 가 그대로 접속합니다.
+    # 서버에서 DB 를 직접 보려면: ssh -L 5432:127.0.0.1:5432 ec2-user@<서버>
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    networks:
+      - backend
     # 한도를 정해 두지 않으면 컨테이너가 호스트 메모리를 끝까지 쓸 수 있습니다.
     # t3.large(8GB) 기준 배분이며(상시 4개 합계 6.5GB), .env 에서 조정합니다.
     mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
@@ -44,8 +58,11 @@ services:
     mem_limit: ${OLLAMA_MEM_LIMIT:-2.5g}
     # 호스트에서 이미 Ollama 가 11434 를 쓰고 있으면 충돌하므로 기본적으로 포트를 열지 않습니다.
     # 컨테이너 밖에서 확인하려면 아래 두 줄의 주석을 풀고 http://localhost:11435 로 접속하세요.
+    # Ollama API 는 인증이 없으므로 반드시 127.0.0.1 에만 엽니다.
     # ports:
-    #   - "11435:11434"
+    #   - "127.0.0.1:11435:11434"
+    networks:
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
       interval: 5s
@@ -73,6 +90,8 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
     entrypoint: ["/bin/sh", "-c", "ollama pull ${EMBED_MODEL:-bge-m3}"]
+    networks:
+      - backend
     # 모델을 내려받아 볼륨에 저장만 합니다(추론 없음).
     mem_limit: ${OLLAMA_INIT_MEM_LIMIT:-512m}
     restart: "no"
@@ -114,8 +133,19 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       # ChromaDB 인덱스 위치 (아래 볼륨)
       CHROMA_PATH: /app/chroma_db
-    ports:
-      - "8000:8000"
+      # Spring 만 호출할 수 있게 하는 공유 토큰. 값이 있으면 /health 를 뺀 모든 요청에
+      # X-Internal-Token 헤더가 일치해야 합니다. 아래 mypickcafe-web 과 같은 값이 들어갑니다.
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-}
+      # /docs·/redoc·/openapi.json 을 끕니다(엔드포인트 목록과 스키마를 숨김).
+      AI_DOCS_ENABLED: "false"
+    # 호스트 포트를 열지 않습니다. Spring 은 backend 네트워크에서 http://mypickcafe-ai:8000 으로 부릅니다.
+    # (예전의 "8000:8000" 은 인증 없는 /pickbot/reindex·index-one·delete-one·/review/analyze 를
+    #  인터넷에 그대로 열어 Spring Security 를 건너뛰는 경로였습니다.)
+    # 로컬에서 컨테이너를 직접 확인해야 할 때만 아래 주석을 풉니다(127.0.0.1 전용).
+    # ports:
+    #   - "127.0.0.1:8000:8000"
+    networks:
+      - backend
     # ChromaDB 인덱스를 프로세스 안에 들고 있어 리뷰 수에 따라 사용량이 늘어납니다.
     # 현재 리뷰 약 2.8만 건 기준 220MB 정도를 쓰며, 여유를 둔 값입니다.
     mem_limit: ${AI_MEM_LIMIT:-2g}
@@ -149,6 +179,8 @@ services:
       # 통합 FastAPI — 리뷰 태그 분석과 픽봇 추천이 같은 주소를 씁니다
       PYTHON_API_BASE_URL: http://mypickcafe-ai:8000
       PICKBOT_API_BASE_URL: http://mypickcafe-ai:8000
+      # AI 서버 호출에 붙이는 공유 토큰(mypickcafe-ai 의 AI_INTERNAL_TOKEN 과 같은 값)
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-}
       # 인증·외부 키
       JWT_SECRET: ${JWT_SECRET}
       KAKAO_JS_KEY: ${KAKAO_JS_KEY:-}
@@ -168,6 +200,10 @@ services:
     # HTTPS 를 건너뛰는 직접 접속을 막습니다.
     ports:
       - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    # edge: caddy 가 들어오는 길, backend: DB·AI 로 나가는 길
+    networks:
+      - edge
+      - backend
     # 컨테이너 한도를 명시해야 JVM 이 호스트 전체 메모리를 기준으로 힙을 잡지 않습니다.
     mem_limit: ${WEB_MEM_LIMIT:-1g}
     volumes:
@@ -190,6 +226,9 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"   # HTTP/3
+    # edge 에만 붙입니다. caddy 에서는 mypickcafe-web 만 보이고 postgres·AI 는 보이지 않습니다.
+    networks:
+      - edge
     mem_limit: ${CADDY_MEM_LIMIT:-128m}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -208,11 +247,22 @@ services:
     container_name: mypickcafe-chromadb
     profiles: ["chroma-server"]
     restart: unless-stopped
-    ports:
-      - "8002:8000"
+    # 인증 없는 ChromaDB API 라 호스트 포트를 열지 않습니다. 확인이 필요하면 127.0.0.1 로만 여세요.
+    # ports:
+    #   - "127.0.0.1:8002:8000"
+    networks:
+      - backend
     mem_limit: ${CHROMA_SERVER_MEM_LIMIT:-1g}
     volumes:
       - chroma-server-data:/data
+
+networks:
+  # caddy ↔ mypickcafe-web
+  edge:
+  # mypickcafe-web ↔ mypickcafe-ai ↔ postgres ↔ ollama
+  # internal: true 로 두지 않습니다. AI 서버의 원격 LLM 호출과 ollama-init 의 모델 다운로드가
+  # 이 네트워크로 밖에 나가야 하기 때문입니다(들어오는 포트는 위에서 열지 않음).
+  backend:
 
 volumes:
   pgdata:              # 기존 볼륨 (mypickcafe_pgdata) — DB 데이터가 이미 들어 있습니다
