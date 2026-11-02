@@ -289,9 +289,10 @@ public class CafeController {
         if (cafeInfoOpt.isPresent()) {
             var ci = cafeInfoOpt.get();
             model.addAttribute("info", true);
-            model.addAttribute("cafeOpenTime",  ci.getOpenTime());
-            model.addAttribute("cafeCloseTime", ci.getCloseTime());
-            model.addAttribute("cafeHoliday",   ci.getHoliday());
+            // {{변수}} 값이 null 이면 JMustache 가 예외를 던지므로 빈 문자열로 넘긴다
+            model.addAttribute("cafeOpenTime",  ci.getOpenTime()  != null ? ci.getOpenTime()  : "");
+            model.addAttribute("cafeCloseTime", ci.getCloseTime() != null ? ci.getCloseTime() : "");
+            model.addAttribute("cafeHoliday",   ci.getHoliday()   != null ? ci.getHoliday()   : "");
             model.addAttribute("cafeNotice",    ci.getNotice());
             model.addAttribute("cafeInfo",      ci.getInfo());
         } else {
