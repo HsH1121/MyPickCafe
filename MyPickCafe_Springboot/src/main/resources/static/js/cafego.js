@@ -74,11 +74,11 @@
       const res = await fetch('/api/auth/me', { headers:{ ...getAuthHeaders() }});
       if(res.ok){
         const me = await res.json();
-        if(meEmailHeader) meEmailHeader.textContent = me.memberEmail || '';
+        if(meEmailHeader) meEmailHeader.textContent = me.email || '';
         if(authOut) authOut.style.display='none';
         if(authIn)  authIn.hidden=false;
         if(meBoxBody) meBoxBody.hidden=false;
-        if(meEmailBody) meEmailBody.textContent = me.memberEmail || '';
+        if(meEmailBody) meEmailBody.textContent = me.email || '';
       }else{
         if(authOut) authOut.style.display='';
         if(authIn)  authIn.hidden=true;
