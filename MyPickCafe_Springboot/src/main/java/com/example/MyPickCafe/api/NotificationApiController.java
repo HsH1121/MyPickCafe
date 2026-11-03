@@ -1,6 +1,6 @@
 package com.example.MyPickCafe.api;
 
-import com.example.MyPickCafe.entity.Notification;
+import com.example.MyPickCafe.dto.NotificationResponse;
 import com.example.MyPickCafe.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -24,8 +24,10 @@ public class NotificationApiController {
     }
 
     @GetMapping
-    public List<Notification> list(Authentication auth) {
-        return notificationService.recent(email(auth));
+    public List<NotificationResponse> list(Authentication auth) {
+        return notificationService.recent(email(auth)).stream()
+                .map(NotificationResponse::from)
+                .toList();
     }
 
     @GetMapping("/unread-count")
