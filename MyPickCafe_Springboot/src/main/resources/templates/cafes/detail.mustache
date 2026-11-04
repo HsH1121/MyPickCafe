@@ -319,7 +319,7 @@
   }
   async function saveCafeInfo(){
     const f=document.getElementById('cafeInfoFormModal');
-    const payload={cafe:{id:Number(cafeId)},openTime:f.openTime.value,closeTime:f.closeTime.value,holiday:f.holiday.value,notice:f.notice.value,info:f.info.value};
+    const payload={openTime:f.openTime.value,closeTime:f.closeTime.value,holiday:f.holiday.value,notice:f.notice.value,info:f.info.value};
     const id=document.getElementById('cafeInfoIdModal').value;
     const url=id?`/api/cafe-infos/${id}`:`/api/cafe-infos/upsert/${cafeId}`;
     const res=await fetch(url,AUTH.withJwt({method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));

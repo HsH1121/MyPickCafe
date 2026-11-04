@@ -1,5 +1,7 @@
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.dto.CafeInfoRequest;
+import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafeInfo;
 import com.example.MyPickCafe.repository.CafeInfoRepository;
 import com.example.MyPickCafe.support.EntityIdUtil;
@@ -35,12 +37,10 @@ public class CafeInfoService {
     }
 
     @Transactional
-    public CafeInfo update(Long id, CafeInfo entity) {
-        if (!cafeInfoRepository.existsById(id)) {
-            throw new NotFoundException("CafeInfo not found: " + id);
-        }
-        EntityIdUtil.setId(entity, id);
-        return cafeInfoRepository.save(entity);
+    public CafeInfo update(Long id, CafeInfoRequest req) {
+        CafeInfo cur = findById(id);
+        apply(cur, req);
+        return cur;
     }
 
     @Transactional
@@ -55,16 +55,27 @@ public class CafeInfoService {
         return cafeInfoRepository.findByCafe_Id(cafeId);
     }
 
+    /**
+     * 카페의 영업정보를 만들거나 수정한다. 어느 행을 쓸지는 cafe 로만 정한다
+     * (요청에서 id 를 받으면 다른 카페의 행을 덮어쓸 수 있다).
+     */
     @Transactional
-    public CafeInfo upsertByCafeId(Long cafeId, CafeInfo entity) {
-        Optional<CafeInfo> cur = cafeInfoRepository.findByCafe_Id(cafeId);
-        if (cur.isPresent()) {
-            // 기존 행이 있으면 id를 복사해 update로 전환
-            com.example.MyPickCafe.support.EntityIdUtil.setId(entity,
-                    com.example.MyPickCafe.support.EntityIdUtil.getId(cur.get()));
-        }
-        return cafeInfoRepository.save(entity);
+    public CafeInfo upsertByCafe(Cafe cafe, CafeInfoRequest req) {
+        CafeInfo info = cafeInfoRepository.findByCafe_Id(cafe.getId()).orElseGet(() -> {
+            CafeInfo created = new CafeInfo();
+            created.setCafe(cafe);
+            return created;
+        });
+        apply(info, req);
+        return cafeInfoRepository.save(info);
     }
 
+    private static void apply(CafeInfo info, CafeInfoRequest req) {
+        info.setNotice(req.notice());
+        info.setInfo(req.info());
+        info.setOpenTime(req.openTime());
+        info.setCloseTime(req.closeTime());
+        info.setHoliday(req.holiday());
+    }
 
 }
