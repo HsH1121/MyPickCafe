@@ -1,5 +1,7 @@
 package com.example.MyPickCafe.api;
 
+import com.example.MyPickCafe.dto.CafeInfoRequest;
+import com.example.MyPickCafe.dto.CafeInfoResponse;
 import com.example.MyPickCafe.entity.Cafe;
 import com.example.MyPickCafe.entity.CafeInfo;
 import com.example.MyPickCafe.entity.Member;
@@ -24,36 +26,33 @@ public class CafeInfoApiController {
     private final MemberService memberService;
 
     @GetMapping("/by-cafe/{cafeId}")
-    public ResponseEntity<CafeInfo> byCafe(@PathVariable Long cafeId, Authentication auth) {
+    public ResponseEntity<CafeInfoResponse> byCafe(@PathVariable Long cafeId, Authentication auth) {
         cafeService.findVisibleById(cafeId, auth); // 승인 전 카페는 점주·관리자만(아니면 404)
         return service.findByCafeId(cafeId)
+                .map(CafeInfoResponse::from)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
+    // 요청은 DTO 로 받는다. 엔티티로 받으면 본문의 id 가 바인딩되어 다른 카페의 영업정보를 덮어쓸 수 있었다.
     @PostMapping("/upsert/{cafeId}")
     @PreAuthorize("isAuthenticated()")
-    public CafeInfo upsert(@PathVariable Long cafeId,
-                           @RequestBody @Valid CafeInfo body,
-                           Authentication auth) {
+    public CafeInfoResponse upsert(@PathVariable Long cafeId,
+                                   @RequestBody @Valid CafeInfoRequest body,
+                                   Authentication auth) {
         Cafe cafe = cafeService.findById(cafeId);
         ensureOwner(auth, cafe);
-
-        body.setCafe(cafe);
-        return service.upsertByCafeId(cafeId, body);
+        return CafeInfoResponse.from(service.upsertByCafe(cafe, body));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public CafeInfo update(@PathVariable Long id,
-                           @RequestBody @Valid CafeInfo body,
-                           Authentication auth) {
+    public CafeInfoResponse update(@PathVariable Long id,
+                                   @RequestBody @Valid CafeInfoRequest body,
+                                   Authentication auth) {
         CafeInfo cur = service.findById(id);
         ensureOwner(auth, cur.getCafe());
-
-        body.setId(id);
-        body.setCafe(cur.getCafe());
-        return service.update(id, body);
+        return CafeInfoResponse.from(service.update(id, body));
     }
 
     @DeleteMapping("/{id}")
