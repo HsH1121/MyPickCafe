@@ -24,7 +24,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         Member m = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException("회원을 찾을 수 없습니다: " + email));
 
         // enum 기반 (null이면 기본 MEMBER)
         RoleKind kind = (m.getRoleKind() == null) ? RoleKind.MEMBER : m.getRoleKind();

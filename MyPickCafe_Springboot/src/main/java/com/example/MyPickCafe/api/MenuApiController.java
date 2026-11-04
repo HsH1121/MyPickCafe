@@ -47,7 +47,7 @@ public class MenuApiController {
     public MenuResponse getOne(@PathVariable Long id, Authentication auth) {
         Menu menu = service.findById(id);
         if (!ownershipGuard.canView(auth, menu.getCafe())) {
-            throw new NotFoundException("Menu not found: " + id);
+            throw new NotFoundException("메뉴를 찾을 수 없습니다: " + id);
         }
         return service.findByIdForApi(id);
     }

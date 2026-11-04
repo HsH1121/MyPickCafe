@@ -160,9 +160,9 @@ class PendingCafeVisibilityTest {
     void singleIsHiddenFromOthers() throws Exception {
         long missing = 987654321L;
         mvc.perform(get("/api/cafes/{id}", missing)).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Cafe not found: " + missing));
+                .andExpect(jsonPath("$.message").value("카페를 찾을 수 없습니다: " + missing));
         mvc.perform(get("/api/cafes/{id}", pendingId)).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Cafe not found: " + pendingId));
+                .andExpect(jsonPath("$.message").value("카페를 찾을 수 없습니다: " + pendingId));
         mvc.perform(get("/api/cafes/{id}", rejectedId).with(stranger())).andExpect(status().isNotFound());
         mvc.perform(get("/api/cafes/{id}", approvedId)).andExpect(status().isOk());
     }

@@ -27,7 +27,7 @@ public class CafeInfoService {
     @Transactional(readOnly = true)
     public CafeInfo findById(Long id) {
         return cafeInfoRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("CafeInfo not found: " + id));
+                .orElseThrow(() -> new NotFoundException("카페 영업정보를 찾을 수 없습니다: " + id));
     }
 
     @Transactional
@@ -46,7 +46,7 @@ public class CafeInfoService {
     @Transactional
     public void delete(Long id) {
         if (!cafeInfoRepository.existsById(id)) {
-            throw new NotFoundException("CafeInfo not found: " + id);
+            throw new NotFoundException("카페 영업정보를 찾을 수 없습니다: " + id);
         }
         cafeInfoRepository.deleteById(id);
     }

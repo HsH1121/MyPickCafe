@@ -27,7 +27,7 @@ public class NeedsService {
     @Transactional(readOnly = true)
     public UserNeeds findById(Long id) {
         return repository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Needs not found: " + id));
+                .orElseThrow(() -> new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + id));
     }
 
     @Transactional
@@ -39,7 +39,7 @@ public class NeedsService {
     @Transactional
     public UserNeeds update(Long id, UserNeeds entity) {
         if (!repository.existsById(id)) {
-            throw new NotFoundException("Needs not found: " + id);
+            throw new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + id);
         }
         EntityIdUtil.setId(entity, id);
         return repository.save(entity);
@@ -48,7 +48,7 @@ public class NeedsService {
     @Transactional
     public void delete(Long id) {
         if (!repository.existsById(id)) {
-            throw new NotFoundException("Needs not found: " + id);
+            throw new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + id);
         }
         repository.deleteById(id);
     }

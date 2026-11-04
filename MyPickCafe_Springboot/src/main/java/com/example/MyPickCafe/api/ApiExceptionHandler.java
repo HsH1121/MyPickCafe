@@ -49,7 +49,7 @@ public class ApiExceptionHandler {
                 "timestamp", java.time.Instant.now().toString(),
                 "status", 400,
                 "error", "Bad Request",
-                "message", "Validation failed",
+                "message", "입력값이 올바르지 않습니다.",
                 "errors", fieldErrors
         );
     }

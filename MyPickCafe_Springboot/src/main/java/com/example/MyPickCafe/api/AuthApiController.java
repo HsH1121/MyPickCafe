@@ -45,19 +45,19 @@ public class AuthApiController {
         String email = body.getEmail();
         String pw = body.getPassword();
         if (email == null || email.isBlank() || pw == null || pw.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "email/password required"));
+            return ResponseEntity.badRequest().body(Map.of("message", "이메일과 비밀번호를 입력해주세요."));
         }
 
-        // 없는 이메일과 틀린 비밀번호는 같은 응답(401 Invalid credentials)을 준다.
+        // 없는 이메일과 틀린 비밀번호는 같은 응답(401)을 준다.
         LoginService.Result result = loginService.authenticate(email, pw, request.getRemoteAddr());
         if (result.status() == LoginService.Status.BLOCKED) {
             long seconds = Math.max(1, result.retryAfter().toSeconds());
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .header(HttpHeaders.RETRY_AFTER, String.valueOf(seconds))
-                    .body(Map.of("message", "Too many login attempts. Try again later."));
+                    .body(Map.of("message", "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."));
         }
         if (!result.isSuccess()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid credentials"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "이메일 또는 비밀번호가 올바르지 않습니다."));
         }
         Member member = result.member();
 
@@ -117,7 +117,7 @@ public class AuthApiController {
         }
         Optional<Member> memberOpt = memberService.findByEmailOptional(auth.getName());
         if (memberOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "User not found"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "회원을 찾을 수 없습니다."));
         }
         // 입력 폼 DTO(MemberForm)를 응답에 재사용하면 tokenVersion·password 키가 함께 나간다.
         return ResponseEntity.ok(MemberResponse.from(memberOpt.get()));
