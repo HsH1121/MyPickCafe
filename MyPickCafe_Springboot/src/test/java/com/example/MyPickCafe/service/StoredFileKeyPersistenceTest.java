@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StoredFileKeyPersistenceTest {
 
     private static final String BASE = "https://mpc-bucket.s3.ap-northeast-2.amazonaws.com/";
+    private static final String BIZ_DOC_KEY = "bizdocs/1/0123456789abcdef0123456789abcdef.pdf";
 
     @MockitoBean S3Client s3;
     @Autowired EntityManager em;
@@ -57,7 +58,7 @@ class StoredFileKeyPersistenceTest {
         cafe.setDate(LocalDateTime.now());
         cafe.setViews(0L);
         cafe.setStatus(CafeStatus.APPROVED);
-        cafe.setBizDoc(BASE + "cafes/1/docs/biz.pdf");
+        cafe.setBizDoc(BIZ_DOC_KEY);
         em.persist(cafe);
         em.flush();
     }
@@ -81,13 +82,14 @@ class StoredFileKeyPersistenceTest {
                 .isEqualTo("cafes/1/a.jpg");
         assertThat(column("select photo from menu where menu_id = " + menu.getId()))
                 .isEqualTo("menus/1/m.png");
+        // 사업자 증빙은 공개 URL 이 아니라 비공개 저장소 키라서 변환 없이 그대로 저장·조회된다
         assertThat(column("select biz_doc from cafe where cafe_id = " + cafe.getId()))
-                .isEqualTo("cafes/1/docs/biz.pdf");
+                .isEqualTo(BIZ_DOC_KEY);
 
         em.clear();
         assertThat(em.find(CafePhoto.class, photo.getId()).getUrl()).isEqualTo(BASE + "cafes/1/a.jpg");
         assertThat(em.find(Menu.class, menu.getId()).getPhoto()).isEqualTo(BASE + "menus/1/m.png");
-        assertThat(em.find(Cafe.class, cafe.getId()).getBizDoc()).isEqualTo(BASE + "cafes/1/docs/biz.pdf");
+        assertThat(em.find(Cafe.class, cafe.getId()).getBizDoc()).isEqualTo(BIZ_DOC_KEY);
     }
 
     @Test

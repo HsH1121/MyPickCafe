@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -45,6 +47,7 @@ public class CafeService {
     private final MemberRepository memberRepository;
     private final ReviewRepository reviewRepository;
     private final FileStorageService fileStorageService;
+    private final BizDocService bizDocService;
     private final NotificationService notificationService;
     private final CafeOwnershipGuard cafeOwnershipGuard;
 
@@ -204,10 +207,13 @@ public class CafeService {
             }
         }
 
-        // 5) 사업자 증빙 파일
+        // 5) 사업자 증빙 파일 — 공개 업로드 폴더가 아니라 비공개 저장소에 둔다(관리자만 받음)
         if (bizDocFile != null && !bizDocFile.isEmpty()) {
-            String docUrl = fileStorageService.save(bizDocFile, "cafes/" + saved.getId() + "/docs");
-            saved.setBizDoc(docUrl);
+            try {
+                saved.setBizDoc(bizDocService.store(saved.getId(), bizDocFile));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         // 6) CafeInfo 저장

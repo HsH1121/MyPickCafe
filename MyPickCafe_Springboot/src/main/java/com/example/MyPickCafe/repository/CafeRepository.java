@@ -29,4 +29,7 @@ public interface CafeRepository extends JpaRepository<Cafe, Long> {
     long countByStatus(CafeStatus status);
 
     List<Cafe> findByOwner_IdOrderByDateDesc(Long ownerId);
+
+    // 사업자 증빙 이전(BizDocService.migrateLegacy)용
+    List<Cafe> findByBizDocIsNotNull();
 }

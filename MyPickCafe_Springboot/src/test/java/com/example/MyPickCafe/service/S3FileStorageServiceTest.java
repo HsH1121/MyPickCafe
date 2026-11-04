@@ -4,9 +4,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.nio.file.Files;
@@ -109,6 +113,30 @@ class S3FileStorageServiceTest {
         assertThat(s.toUrl("https://other.example.com/x.jpg")).isEqualTo("https://other.example.com/x.jpg");
         assertThat(s.toUrl("")).isEmpty();
         assertThat(s.toUrl(null)).isNull();
+    }
+
+    @Test
+    void read_s3UrlReadsObjectAndMissingIsEmpty() throws Exception {
+        String base = "https://mpc-bucket.s3.ap-northeast-2.amazonaws.com/";
+        when(s3.getObjectAsBytes(GetObjectRequest.builder().bucket("mpc-bucket").key("cafes/7/docs/a.pdf").build()))
+                .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), new byte[]{4}));
+        when(s3.getObjectAsBytes(GetObjectRequest.builder().bucket("mpc-bucket").key("cafes/7/docs/none.pdf").build()))
+                .thenThrow(NoSuchKeyException.builder().build());
+
+        assertThat(service("").read(base + "cafes/7/docs/a.pdf")).contains(new byte[]{4});
+        assertThat(service("").read(base + "cafes/7/docs/none.pdf")).isEmpty();
+    }
+
+    @Test
+    void read_legacyLocalUrlReadsDiskAndIgnoresForeignOrOutsidePaths() throws Exception {
+        Path legacy = uploadDir.resolve("cafes/7/docs/old.pdf");
+        Files.createDirectories(legacy.getParent());
+        Files.write(legacy, new byte[]{7});
+
+        assertThat(service("").read("/uploads/cafes/7/docs/old.pdf")).contains(new byte[]{7});
+        assertThat(service("").read("/uploads/../outside.txt")).isEmpty();
+        assertThat(service("").read("https://other-bucket.s3.amazonaws.com/cafes/7/docs/old.pdf")).isEmpty();
+        verifyNoInteractions(s3);
     }
 
     @Test
