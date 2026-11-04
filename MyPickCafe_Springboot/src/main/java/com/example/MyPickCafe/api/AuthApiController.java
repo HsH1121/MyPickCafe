@@ -1,6 +1,7 @@
 package com.example.MyPickCafe.api;
 
 import com.example.MyPickCafe.dto.MemberForm;
+import com.example.MyPickCafe.dto.MemberResponse;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.LoginService;
 import com.example.MyPickCafe.service.MemberService;
@@ -118,17 +119,7 @@ public class AuthApiController {
         if (memberOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "User not found"));
         }
-        Member m = memberOpt.get();
-        MemberForm out = new MemberForm();
-        out.setId(m.getId());
-        out.setEmail(m.getEmail());
-        out.setNickname(m.getNickname());
-        out.setAge(m.getAge());
-        out.setGender(m.getGender());
-        out.setRoleKind(m.getRoleKind() == null ? null : m.getRoleKind().name());
-        out.setCreatedAt(m.getCreatedAt());
-        out.setPhoto(m.getPhoto());
-        out.setTokenVersion(m.getTokenVersion());
-        return ResponseEntity.ok(out);
+        // 입력 폼 DTO(MemberForm)를 응답에 재사용하면 tokenVersion·password 키가 함께 나간다.
+        return ResponseEntity.ok(MemberResponse.from(memberOpt.get()));
     }
 }

@@ -301,7 +301,6 @@ public class MemberController {
         view.setRoleKind(member.getRoleKind() != null ? member.getRoleKind().name() : null);
         view.setCreatedAt(member.getCreatedAt());
         view.setPhoto(member.getPhoto());
-        view.setTokenVersion(member.getTokenVersion());
         return view;
     }
 

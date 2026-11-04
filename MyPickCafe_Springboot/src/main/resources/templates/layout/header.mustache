@@ -83,6 +83,8 @@
   });
 
   function fmt(ts){ try{ return new Date(ts).toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ts; } }
+  // 알림 message 에는 카페명 등 사용자 입력이 들어가므로 innerHTML 에 넣기 전에 escape 한다.
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function render(items){
     if (!Array.isArray(items) || !items.length){
       list.innerHTML = '<li style="padding:12px 14px;color:var(--text-muted);font-size:13px">알림이 없습니다.</li>';
@@ -92,9 +94,9 @@
     countEl.textContent = String(unread);
     list.innerHTML = items.map(it => `
       <li>
-        <div style="font-size:13px;color:var(--text);font-weight:${it.read?'400':'600'}">${it.message||'(알림)'}</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${fmt(it.createdAt)}</div>
-        ${it.read ? '' : `<button data-id="${it.id}" class="markRead cg-btn-ghost cg-btn--sm" style="margin-top:6px" type="button">읽음 처리</button>`}
+        <div style="font-size:13px;color:var(--text);font-weight:${it.read?'400':'600'}">${esc(it.message||'(알림)')}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(fmt(it.createdAt))}</div>
+        ${it.read ? '' : `<button data-id="${esc(it.id)}" class="markRead cg-btn-ghost cg-btn--sm" style="margin-top:6px" type="button">읽음 처리</button>`}
       </li>`).join('');
     list.querySelectorAll('.markRead').forEach(b => {
       b.addEventListener('click', () => fetch('/api/notifications/'+b.dataset.id+'/read',{method:'POST'}).then(fetchList));
