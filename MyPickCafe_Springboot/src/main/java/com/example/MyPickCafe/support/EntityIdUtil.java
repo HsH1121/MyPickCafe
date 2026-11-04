@@ -17,7 +17,7 @@ public final class EntityIdUtil {
             }
             t = t.getSuperclass();
         }
-        throw new IllegalStateException("No @Id field found on " + type.getName());
+        throw new IllegalStateException("@Id 필드가 없습니다: " + type.getName());
     }
 
     public static Object getId(Object entity) {
@@ -28,7 +28,7 @@ public final class EntityIdUtil {
             f.setAccessible(true);
             return f.get(entity);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to get id via reflection", e);
+            throw new RuntimeException("리플렉션으로 id 를 읽지 못했습니다.", e);
         }
     }
 
@@ -40,7 +40,7 @@ public final class EntityIdUtil {
             f.setAccessible(true);
             f.set(entity, id);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to set id via reflection", e);
+            throw new RuntimeException("리플렉션으로 id 를 설정하지 못했습니다.", e);
         }
     }
 

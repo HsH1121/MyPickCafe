@@ -59,7 +59,7 @@ public class ReviewService {
     @Transactional(readOnly = true)
     public Review findById(Long id) {
         return reviewRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Review not found: " + id));
+                .orElseThrow(() -> new NotFoundException("리뷰를 찾을 수 없습니다: " + id));
     }
 
     // 카페 상세에서 사용할 리뷰 목록(최신순)
@@ -145,7 +145,7 @@ public class ReviewService {
     public Review updateWithTags(Long reviewId, ReviewForm form) {
         // 1. 기존 리뷰 조회 및 필드 업데이트
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new NotFoundException("Review not found: " + reviewId));
+                .orElseThrow(() -> new NotFoundException("리뷰를 찾을 수 없습니다: " + reviewId));
 
         review.setContent(form.getReviewContent());
         review.setSentiment(null);

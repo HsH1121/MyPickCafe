@@ -26,7 +26,7 @@ public class MenuService {
     @Transactional(readOnly = true)
     public Menu findById(Long id) {
         return repository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Menu not found: " + id));
+                .orElseThrow(() -> new NotFoundException("메뉴를 찾을 수 없습니다: " + id));
     }
 
     // ===== REST API용 (엔티티 대신 DTO 반환) =====
@@ -74,7 +74,7 @@ public class MenuService {
     @Transactional
     public void delete(Long id) {
         if (!repository.existsById(id)) {
-            throw new NotFoundException("Menu not found: " + id);
+            throw new NotFoundException("메뉴를 찾을 수 없습니다: " + id);
         }
         repository.deleteById(id);
     }

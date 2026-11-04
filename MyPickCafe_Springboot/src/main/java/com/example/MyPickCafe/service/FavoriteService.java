@@ -35,7 +35,7 @@ public class FavoriteService {
                 .orElseGet(() -> {
                     Cafe cafe = cafeRepository.findById(cafeId)
                             .filter(Cafe::isApproved)
-                            .orElseThrow(() -> new NotFoundException("Cafe not found: " + cafeId));
+                            .orElseThrow(() -> new NotFoundException("카페를 찾을 수 없습니다: " + cafeId));
                     Favorite f = new Favorite();
                     f.setMember(memberRepository.getReferenceById(memberId));
                     f.setCafe(cafe);

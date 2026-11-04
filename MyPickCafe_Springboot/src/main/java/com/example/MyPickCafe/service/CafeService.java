@@ -56,7 +56,7 @@ public class CafeService {
     @Transactional(readOnly = true)
     public Cafe findById(Long id) {
         return cafeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Cafe not found: " + id));
+                .orElseThrow(() -> new NotFoundException("카페를 찾을 수 없습니다: " + id));
     }
 
     /**
@@ -67,7 +67,7 @@ public class CafeService {
     public Cafe findVisibleById(Long id, Authentication auth) {
         Cafe cafe = findById(id);
         if (!cafeOwnershipGuard.canView(auth, cafe)) {
-            throw new NotFoundException("Cafe not found: " + id);
+            throw new NotFoundException("카페를 찾을 수 없습니다: " + id);
         }
         return cafe;
     }
@@ -109,7 +109,7 @@ public class CafeService {
     @Transactional
     public CafeResponse createFromRequest(CafeCreateRequest req, Long ownerId) {
         Member owner = memberRepository.findById(ownerId)
-                .orElseThrow(() -> new NotFoundException("Member not found: " + ownerId));
+                .orElseThrow(() -> new NotFoundException("회원을 찾을 수 없습니다: " + ownerId));
 
         if (cafeRepository.existsByName(req.name())) {
             throw new IllegalArgumentException("이미 존재하는 카페명입니다.");
@@ -138,7 +138,7 @@ public class CafeService {
     @Transactional
     public CafeResponse updateFromRequest(Long id, CafeUpdateRequest req) {
         Cafe cafe = cafeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Cafe not found: " + id));
+                .orElseThrow(() -> new NotFoundException("카페를 찾을 수 없습니다: " + id));
 
         if (req.name() != null && !req.name().isBlank())       cafe.setName(req.name());
         if (req.address() != null && !req.address().isBlank()) cafe.setAddress(req.address());
@@ -152,7 +152,7 @@ public class CafeService {
 
     @Transactional
     public void delete(Long id) {
-        if (!cafeRepository.existsById(id)) throw new NotFoundException("Cafe not found: " + id);
+        if (!cafeRepository.existsById(id)) throw new NotFoundException("카페를 찾을 수 없습니다: " + id);
         cafeRepository.deleteById(id);
         // 파일 스토리지 정리 필요시 fileStorageService.delete(...) 추가
     }
@@ -230,7 +230,7 @@ public class CafeService {
     @Transactional
     public void changeStatus(Long cafeId, CafeStatus status) {
         Cafe c = cafeRepository.findById(cafeId)
-                .orElseThrow(() -> new IllegalArgumentException("Cafe not found: " + cafeId));
+                .orElseThrow(() -> new IllegalArgumentException("카페를 찾을 수 없습니다: " + cafeId));
         c.setStatus(status);
         // ✅ 승인/거절 알림
         try { notificationService.notifyCafeStatus(c, status); } catch (Exception ignore) {}
@@ -239,7 +239,7 @@ public class CafeService {
     @Transactional
     public void approve(Long cafeId) {
         Cafe c = cafeRepository.findById(cafeId)
-                .orElseThrow(() -> new IllegalArgumentException("Cafe not found: " + cafeId));
+                .orElseThrow(() -> new IllegalArgumentException("카페를 찾을 수 없습니다: " + cafeId));
         c.setStatus(CafeStatus.APPROVED);
         try { notificationService.notifyCafeStatus(c, CafeStatus.APPROVED); } catch (Exception ignore) {}
         Member owner = c.getOwner();

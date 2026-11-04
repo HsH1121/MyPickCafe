@@ -270,7 +270,7 @@ public class CafeController {
         // 3) 승인 전 접근 제한 — 점주·관리자가 아니면 PENDING·REJECTED 모두 "없는 카페"와 같은 404.
         //    (예전에는 PENDING 만 "검토 중" 안내와 함께 리다이렉트해 ID 만으로 심사 중인 카페가 있는지 알 수 있었다.)
         if (cafe.getStatus() != CafeStatus.APPROVED && !(isOwner || isAdmin)) {
-            throw new NotFoundException("Cafe not found: " + cafeId);
+            throw new NotFoundException("카페를 찾을 수 없습니다: " + cafeId);
         }
 
         // 4) 기본 모델

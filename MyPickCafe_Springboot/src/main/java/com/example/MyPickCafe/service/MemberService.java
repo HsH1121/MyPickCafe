@@ -31,7 +31,7 @@ public class MemberService {
     @Transactional(readOnly = true)
     public Member findById(Long id) {
         return memberRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("User not found: " + id));
+                .orElseThrow(() -> new NotFoundException("회원을 찾을 수 없습니다: " + id));
     }
 
     /**
@@ -97,7 +97,7 @@ public class MemberService {
     @Transactional
     public void delete(Long id) {
         if (!memberRepository.existsById(id)) {
-            throw new NotFoundException("User not found: " + id);
+            throw new NotFoundException("회원을 찾을 수 없습니다: " + id);
         }
         memberRepository.deleteById(id);
     }
@@ -105,7 +105,7 @@ public class MemberService {
     @Transactional(readOnly = true)
     public Member findByEmail(String email) {
         return memberRepository.findByEmail(email)
-                .orElseThrow(() -> new NotFoundException("User not found by email: " + email));
+                .orElseThrow(() -> new NotFoundException("해당 이메일의 회원을 찾을 수 없습니다: " + email));
     }
 
     // ===== 여기에 추가: 프로필 수정(+선택적 비번변경), 탈퇴, 토큰버전 =====
