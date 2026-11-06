@@ -113,7 +113,10 @@ public class PasswordPolicy {
     static boolean isSequential(String s) {
         String doubled;
         for (String row : KEYBOARD_ROWS) {
-            doubled = row + row + row + row + row + row + row + row; // 1234567890 을 넘겨 이어 친 경우
+            // 1234567890 을 넘겨 이어 친 경우까지 보려고 줄을 이어 붙인다. 최대 길이 문자열이 줄의 어느 위치에서
+            // 시작해도 담기도록 (줄 길이 - 1) + MAX_LENGTH 글자 이상이 되게 반복한다(20자 기준 zxcvbnm 4번, 1234567890 3번).
+            int repeats = (row.length() - 1 + MAX_LENGTH + row.length() - 1) / row.length();
+            doubled = row.repeat(repeats);
             String reversed = new StringBuilder(doubled).reverse().toString();
             if (doubled.contains(s) || reversed.contains(s)) return true;
         }

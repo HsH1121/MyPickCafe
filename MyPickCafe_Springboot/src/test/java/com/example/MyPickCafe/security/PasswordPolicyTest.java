@@ -104,6 +104,14 @@ class PasswordPolicyTest {
     }
 
     @Test
+    @DisplayName("키보드 줄을 넘겨 이어 친 20자(가장 짧은 줄 zxcvbnm, 중간 위치에서 시작)도 연속 문자열로 거절")
+    void sequentialWrapsAtMaxLength() {
+        rejected("nmzxcvbnmzxcvbnmzxcv", "흔하거나"); // 20자
+        rejected(new StringBuilder("nmzxcvbnmzxcvbnmzxcv").reverse().toString(), "흔하거나");
+        rejected("78901234567890123456", "흔하거나"); // 20자
+    }
+
+    @Test
     @DisplayName("이메일 아이디·닉네임이 들어간 비밀번호 거절")
     void personalInfo() {
         assertThatThrownBy(() -> policy.validate("johnsmith-coffee", "JohnSmith@example.com", "barista"))
