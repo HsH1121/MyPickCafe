@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Cafe;
@@ -44,7 +45,7 @@ class StoredFileKeyPersistenceTest {
     void setUp() {
         Member owner = new Member();
         owner.setEmail("s3-key-test@example.com");
-        owner.setPassword("unused");
+        owner.setPassword(TestPasswords.HASH);
         owner.setNickname("s3-key-owner");
         owner.setRoleKind(RoleKind.CAFEOWNER);
         em.persist(owner);

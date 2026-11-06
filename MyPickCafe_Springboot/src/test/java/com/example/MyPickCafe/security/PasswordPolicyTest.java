@@ -44,10 +44,10 @@ class PasswordPolicyTest {
     }
 
     @Test
-    @DisplayName("대문자·숫자·특수문자 조합을 강제하지 않는다(긴 문장 통과)")
+    @DisplayName("대문자·숫자·특수문자 조합을 강제하지 않는다(띄어쓰기 없는 긴 문장 통과)")
     void noCompositionRules() {
-        ok("blue tram at dawn");
-        ok("오늘은 홍대에서 라떼 한잔");
+        ok("bluetramatdawn");
+        ok("오늘은홍대에서라떼한잔");
     }
 
     @Test
@@ -75,10 +75,57 @@ class PasswordPolicyTest {
     }
 
     @Test
-    @DisplayName("공백: 앞뒤 공백 포함 허용(잘라내지 않음), 공백만은 거절")
-    void whitespace() {
-        ok("  river otter lamp  ");
-        rejected("              ", "입력해주세요");
+    @DisplayName("빈 값은 '입력해주세요', 공백만 입력하면 길이와 상관없이 공백 금지로 거절")
+    void emptyAndBlank() {
+        // 빈 문자열은 어떤 메시지에도 '포함'되므로 rejected() 의 원문 미포함 검사를 쓰지 않는다
+        assertThatThrownBy(() -> policy.validate("", "someone@example.com", "nick"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("비밀번호를 입력해주세요.");
+        assertThatThrownBy(() -> policy.validate(null, "someone@example.com", "nick"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("비밀번호를 입력해주세요.");
+        rejected("              ", "공백을 쓸 수 없습니다"); // 14칸
+        rejected("   ", "공백을 쓸 수 없습니다"); // 3칸 — 길이(8자) 메시지가 아니다
+        rejected("\u3000\u3000\u3000\u3000\u3000\u3000\u3000\u3000", "공백을 쓸 수 없습니다"); // 전각 공백
+        rejected(" ".repeat(21), "공백을 쓸 수 없습니다"); // 21칸 — 길이(20자) 메시지가 아니다
+        rejected("\t\t\t", "제어 문자"); // 탭은 제어 문자 메시지가 먼저
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "river otter lamp",       // 중간 스페이스
+            " riverotterlamp",        // 앞 공백
+            "riverotterlamp ",        // 뒤 공백
+            "river\u00a0otterlamp",   // NBSP
+            "river\u3000otterlamp",   // 전각 공백
+            "river\u2003otterlamp",   // EM SPACE
+            "오늘은 홍대에서 라떼"
+    })
+    @DisplayName("공백: 위치·종류와 상관없이 공백이 들어가면 거절(잘라내서 통과시키지 않음)")
+    void whitespaceRejected(String pw) {
+        rejected(pw, "공백을 쓸 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("containsWhitespace(로그인·현재 비밀번호 확인용): 공백 종류 전부 감지, 길이·흔함 등 다른 규칙은 보지 않음")
+    void containsWhitespace() {
+        // 스페이스, 탭, 줄바꿈, CR, NBSP, OGHAM, EN QUAD, HAIR SPACE, 좁은 NBSP, 수학 공백, 줄/문단 구분자, 전각 공백
+        int[] spaces = {0x20, 0x09, 0x0A, 0x0D, 0xA0, 0x1680, 0x2000, 0x200A, 0x202F, 0x205F, 0x2028, 0x2029, 0x3000};
+        for (int cp : spaces) {
+            String pw = "abc" + new String(Character.toChars(cp)) + "def";
+            org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace(pw))
+                    .as("U+%04X 를 공백으로 봐야 함", cp).isTrue();
+        }
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace(" leading")).isTrue();
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace("trailing ")).isTrue();
+
+        // 공백이 없으면 false — 짧거나 흔한 비밀번호라도 로그인 검사에서는 막지 않는다
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace("1234")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace("password")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace("오늘은홍대에서라떼")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace("☕🍰_-·")).isFalse();
+        // 폭 없는 문자(U+200B ZERO WIDTH SPACE)는 유니코드상 공백(Zs)이 아니라 서식 문자(Cf)라 대상이 아니다
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace("ab" + (char) 0x200B + "cd")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace("")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(PasswordPolicy.containsWhitespace(null)).isFalse();
     }
 
     @Test
@@ -116,10 +163,10 @@ class PasswordPolicyTest {
     void personalInfo() {
         assertThatThrownBy(() -> policy.validate("johnsmith-coffee", "JohnSmith@example.com", "barista"))
                 .hasMessageContaining("이메일 아이디나 닉네임");
-        assertThatThrownBy(() -> policy.validate("my barista life 77", "a@example.com", "Barista"))
+        assertThatThrownBy(() -> policy.validate("my-barista-life-77", "a@example.com", "Barista"))
                 .hasMessageContaining("이메일 아이디나 닉네임");
         // 3자 이하 아이디는 우연히 겹치기 쉬워 비교하지 않는다
-        assertThatCode(() -> policy.validate("bob is a builder 77", "bob@example.com", "xyz"))
+        assertThatCode(() -> policy.validate("bob-is-a-builder-77", "bob@example.com", "xyz"))
                 .doesNotThrowAnyException();
     }
 }

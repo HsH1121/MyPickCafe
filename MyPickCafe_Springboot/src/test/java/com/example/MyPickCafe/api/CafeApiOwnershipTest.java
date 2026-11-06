@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.api;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Cafe;
@@ -69,7 +70,7 @@ class CafeApiOwnershipTest {
     private Member saveOwner(String email, String nickname) {
         Member m = new Member();
         m.setEmail(email);
-        m.setPassword("$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW");
+        m.setPassword(TestPasswords.HASH);
         m.setNickname(nickname);
         m.setRoleKind(RoleKind.CAFEOWNER);
         m.setTokenVersion(0L);

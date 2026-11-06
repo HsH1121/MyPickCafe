@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.api;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Cafe;
@@ -86,7 +87,7 @@ class BizDocPrivacyTest {
     void setUp() {
         owner = new Member();
         owner.setEmail(OWNER);
-        owner.setPassword("$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW");
+        owner.setPassword(TestPasswords.HASH);
         owner.setNickname("bizdoc-owner");
         owner.setRoleKind(RoleKind.MEMBER);
         owner.setTokenVersion(0L);

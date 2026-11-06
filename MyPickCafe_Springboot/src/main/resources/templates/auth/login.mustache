@@ -19,7 +19,8 @@
       <div class="cg-field">
         <label class="cg-label" for="memberPassword">비밀번호</label>
         <input class="cg-input" id="memberPassword" name="memberPassword"
-               type="password" placeholder="••••••••" required autocomplete="current-password"/>
+               type="password" placeholder="••••••••" required autocomplete="current-password"
+               data-password-nospace/>
       </div>
       <button class="cg-btn cg-auth-submit" type="submit">로그인</button>
     </form>
@@ -35,4 +36,5 @@
   </section>
 </main>
 
+<script src="/js/password-policy.js"></script>
 {{>layout/footer}}

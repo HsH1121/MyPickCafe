@@ -3,6 +3,7 @@ package com.example.MyPickCafe.service;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.MemberRepository;
 import com.example.MyPickCafe.security.LoginAttemptService;
+import com.example.MyPickCafe.security.PasswordPolicy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,7 +38,11 @@ public class LoginService {
         this.dummyHash = passwordEncoder.encode("timing-equalizer-not-a-real-password");
     }
 
-    public enum Status { SUCCESS, INVALID_CREDENTIALS, BLOCKED }
+    /**
+     * INVALID_FORMAT: 비밀번호에 공백이 있어 해시 비교 없이 거절했다. 공백이 든 비밀번호는 저장될 수 없으므로
+     * 어느 계정과도 맞을 수 없고, 이메일과 무관하게 같은 응답이라 가입 여부도 드러나지 않는다.
+     */
+    public enum Status { SUCCESS, INVALID_CREDENTIALS, INVALID_FORMAT, BLOCKED }
 
     /**
      * @param member     SUCCESS 일 때만 값이 있다
@@ -55,6 +60,12 @@ public class LoginService {
         Optional<Duration> blocked = attempts.blockedFor(email, ip);
         if (blocked.isPresent()) {
             return new Result(Status.BLOCKED, null, blocked.get());
+        }
+
+        // 공백이 든 비밀번호는 정책상 존재할 수 없다. DB 조회·BCrypt 비교 없이 거절하고,
+        // 비밀번호를 맞혀 본 시도가 아니므로 실패 횟수에도 넣지 않는다.
+        if (PasswordPolicy.containsWhitespace(rawPassword)) {
+            return new Result(Status.INVALID_FORMAT, null, null);
         }
 
         Optional<Member> memberOpt = (email == null || email.isBlank())

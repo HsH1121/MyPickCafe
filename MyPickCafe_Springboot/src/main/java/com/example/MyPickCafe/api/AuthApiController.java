@@ -6,6 +6,7 @@ import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.service.LoginService;
 import com.example.MyPickCafe.service.MemberService;
 import com.example.MyPickCafe.security.JwtTokenProvider;
+import com.example.MyPickCafe.security.PasswordPolicy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -44,7 +45,8 @@ public class AuthApiController {
     public ResponseEntity<?> login(@RequestBody MemberForm body, HttpServletRequest request) {
         String email = body.getEmail();
         String pw = body.getPassword();
-        if (email == null || email.isBlank() || pw == null || pw.isBlank()) {
+        // 비밀번호는 빈 값만 여기서 막는다. 공백만 보낸 경우는 LoginService 가 공백 금지로 거절한다.
+        if (email == null || email.isBlank() || pw == null || pw.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "이메일과 비밀번호를 입력해주세요."));
         }
 
@@ -55,6 +57,9 @@ public class AuthApiController {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .header(HttpHeaders.RETRY_AFTER, String.valueOf(seconds))
                     .body(Map.of("message", "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."));
+        }
+        if (result.status() == LoginService.Status.INVALID_FORMAT) {
+            return ResponseEntity.badRequest().body(Map.of("message", PasswordPolicy.WHITESPACE_MESSAGE));
         }
         if (!result.isSuccess()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "이메일 또는 비밀번호가 올바르지 않습니다."));

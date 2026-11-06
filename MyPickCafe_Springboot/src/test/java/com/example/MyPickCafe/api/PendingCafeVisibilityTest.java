@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.api;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.dto.PickBotResponse;
@@ -119,7 +120,7 @@ class PendingCafeVisibilityTest {
     private Member member(String email, String nickname, RoleKind role) {
         Member m = new Member();
         m.setEmail(email);
-        m.setPassword("$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW");
+        m.setPassword(TestPasswords.HASH);
         m.setNickname(nickname);
         m.setRoleKind(role);
         m.setTokenVersion(0L);

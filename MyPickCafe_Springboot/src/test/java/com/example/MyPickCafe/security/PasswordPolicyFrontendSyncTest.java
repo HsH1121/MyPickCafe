@@ -35,6 +35,40 @@ class PasswordPolicyFrontendSyncTest {
         assertThat(Integer.parseInt(m.group(3))).isEqualTo(PasswordPolicy.MAX_BCRYPT_BYTES);
     }
 
+    @Test
+    @DisplayName("password-policy.js 의 SPACE_RE 가 서버 containsWhitespace 와 모든 코드 포인트에서 같다")
+    void spaceRegexMatchesServer() throws IOException {
+        Matcher m = Pattern.compile("var SPACE_RE = /(\\[[^\\]]+\\])/;").matcher(read("static/js/password-policy.js"));
+        assertThat(m.find()).as("password-policy.js 에서 SPACE_RE 를 찾지 못함").isTrue();
+        // JS 문자 클래스([\t-\r\u001c-...])는 Java 정규식에서도 같은 뜻이다.
+        Pattern js = Pattern.compile(m.group(1));
+        for (int cp = 0; cp <= Character.MAX_CODE_POINT; cp++) {
+            if (Character.isSurrogate((char) cp) && cp <= 0xFFFF) continue;
+            String s = new String(Character.toChars(cp));
+            assertThat(js.matcher(s).find())
+                    .as("U+%04X: 화면과 서버의 공백 판정이 다름", cp)
+                    .isEqualTo(PasswordPolicy.containsWhitespace(s));
+        }
+    }
+
+    @Test
+    @DisplayName("로그인·현재 비밀번호 입력에 공백 차단(data-password-nospace)과 스크립트가 붙어 있다")
+    void noSpaceInputsAreBound() throws IOException {
+        String login = read("templates/auth/login.mustache");
+        assertThat(passwordInput(login, "memberPassword")).contains("data-password-nospace");
+        assertThat(login).contains("<script src=\"/js/password-policy.js\"></script>");
+
+        String edit = read("templates/member/edit.mustache");
+        assertThat(passwordInput(edit, "current_password")).contains("data-password-nospace");
+        assertThat(edit).contains("<script src=\"/js/password-policy.js\"></script>");
+    }
+
+    private static String passwordInput(String html, String id) {
+        Matcher m = Pattern.compile("<input[^>]*id=\"" + id + "\"[^>]*>").matcher(html);
+        assertThat(m.find()).as("id=%s 입력을 찾지 못함", id).isTrue();
+        return m.group();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"templates/auth/signup.mustache", "templates/member/edit.mustache"})
     @DisplayName("템플릿 안내 문구의 글자 수 범위, 그리고 UTF-16 기준인 maxlength 를 쓰지 않는지")

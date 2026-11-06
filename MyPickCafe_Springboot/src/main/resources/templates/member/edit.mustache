@@ -83,14 +83,15 @@
               <div class="cg-field">
                 <label class="cg-label" for="current_password">현재 비밀번호</label>
                 <input class="cg-input" id="current_password" name="current_password"
-                       type="password" autocomplete="current-password" placeholder="변경 시에만 입력"/>
+                       type="password" autocomplete="current-password" placeholder="변경 시에만 입력"
+                       data-password-nospace/>
               </div>
               <div class="cg-field">
                 <label class="cg-label" for="new_password">새 비밀번호</label>
                 <input class="cg-input" id="new_password" name="new_password"
                        type="password" autocomplete="new-password" placeholder="변경 시에만 입력"
                        data-password-policy data-password-optional/>
-                <p class="cg-hint" data-password-policy-hint="new_password">8~20자. 흔한 비밀번호·이메일 아이디·닉네임이 들어간 비밀번호는 쓸 수 없습니다. 변경하면 모든 기기에서 로그아웃됩니다.</p>
+                <p class="cg-hint" data-password-policy-hint="new_password">8~20자, 공백 불가. 흔한 비밀번호·이메일 아이디·닉네임이 들어간 비밀번호는 쓸 수 없습니다. 변경하면 모든 기기에서 로그아웃됩니다.</p>
               </div>
               <div class="cg-field">
                 <label class="cg-label" for="new_password_confirm">새 비밀번호 확인</label>

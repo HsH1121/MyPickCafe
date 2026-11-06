@@ -68,6 +68,11 @@ public class AuthController {
             ra.addFlashAttribute("prefillEmail", email);
             return "redirect:/login";
         }
+        if (result.status() == LoginService.Status.INVALID_FORMAT) {
+            ra.addFlashAttribute("error", PasswordPolicy.WHITESPACE_MESSAGE);
+            ra.addFlashAttribute("prefillEmail", email);
+            return "redirect:/login";
+        }
         if (!result.isSuccess()) {
             // 없는 이메일과 틀린 비밀번호는 같은 문구
             ra.addFlashAttribute("error", "이메일 또는 비밀번호가 올바르지 않습니다.");
