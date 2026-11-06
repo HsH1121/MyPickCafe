@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 비밀번호를 설정·확인하는 경로를 끝에서 끝까지 확인한다. 비밀번호 값은 모두 {@link TestPasswords} 상수를 쓴다.
  *
  * <p>회원 생성은 일반회원(POST /signup, 폼 → AuthController)과 관리자(POST /api/members, JSON → MemberApiController)가
- * 서로 다른 엔드포인트라 각 테스트에서 둘 다 확인한다. 로그인과 비밀번호 변경(/member/edit)은 역할과 상관없이
+ * 서로 다른 엔드포인트라 같은 내용을 경로별 테스트로 나눠 둘 다 확인한다. 로그인과 비밀번호 변경(/member/edit)은 역할과 상관없이
  * 같은 엔드포인트·로직이라 일반회원으로만 확인한다.
  */
 @SpringBootTest
@@ -95,56 +95,69 @@ class PasswordFlowIntegrationTest {
         return mvc.perform(apiLoginRequest(email, pw)).andReturn().getResponse().getStatus();
     }
 
-    /* ===== 회원 생성: 일반회원 + 관리자 ===== */
-
     static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> ruleViolations() {
         return PasswordPolicyTest.ruleViolations();
     }
 
+    /** 생성된 계정에 같은 원문으로 폼·API 로그인이 되는지. */
+    private void assertLoginWorks(String email, String pw) throws Exception {
+        assertThat(apiLogin(email, pw)).as("API 로그인 %s", email).isEqualTo(200);
+        mvc.perform(post("/login").param("memberEmail", email).param("memberPassword", pw))
+                .andExpect(redirectedUrl("/"));
+    }
+
+    /* ===== 회원 생성: 일반회원 (POST /signup, 폼 → AuthController) ===== */
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("ruleViolations")
-    @DisplayName("회원 생성: 규칙별 위반 비밀번호는 회원가입·관리자 생성 모두 해당 메시지로 거절되고 저장되지 않는다")
-    void createRejectsEachRule(String name, String pw, String messagePart) throws Exception {
-        // 일반회원: 폼 가입 → 같은 화면에 오류 메시지
+    @DisplayName("회원가입: 규칙별 위반 비밀번호는 가입 화면에 해당 메시지를 보여 주고 저장되지 않는다")
+    void signupRejectsEachRule(String name, String pw, String messagePart) throws Exception {
         mvc.perform(signup(TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME, pw))
                 .andExpect(view().name("auth/signup"))
                 .andExpect(model().attribute("error", containsString(messagePart)));
-        assertThat(memberRepository.findByEmail(TestPasswords.POLICY_EMAIL)).as("회원가입 [%s]", name).isEmpty();
-
-        // 관리자: JSON 생성 → 400. 빈 값은 DTO 의 @NotBlank 가 먼저 막아 필드 오류로 응답한다.
-        var admin = mvc.perform(adminCreate(TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME, pw))
-                .andExpect(status().isBadRequest());
-        if (pw.isEmpty()) {
-            admin.andExpect(jsonPath("$.errors.password").exists());
-        } else {
-            admin.andExpect(jsonPath("$.message", containsString(messagePart)));
-        }
-        assertThat(memberRepository.findByEmail(TestPasswords.POLICY_EMAIL)).as("관리자 생성 [%s]", name).isEmpty();
+        assertThat(memberRepository.findByEmail(TestPasswords.POLICY_EMAIL)).as("[%s]", name).isEmpty();
     }
 
     @Test
-    @DisplayName("회원 생성(XSS): & < > \" ' 가 든 비밀번호를 회원가입·관리자 생성 모두 원문 그대로 해시하고, 그 값으로 로그인된다")
-    void createStoresRawPasswordWithoutXssFiltering() throws Exception {
-        // 일반회원: 폼 파라미터라 XSS 필터를 지난다 — 비밀번호 파라미터는 정리하지 않아야 한다
+    @DisplayName("회원가입(XSS): & < > \" ' 가 든 비밀번호를 XSS 필터가 바꾸지 않고 원문 그대로 해시하며, 그 값으로 로그인된다")
+    void signupStoresRawPasswordWithoutXssFiltering() throws Exception {
+        // 폼 파라미터라 XSS 필터를 지난다 — 비밀번호 파라미터는 정리하지 않아야 한다
         mvc.perform(signup("xss-member@example.com", "xss-member", TestPasswords.XSS))
                 .andExpect(redirectedUrl("/login"));
-        Member member = memberRepository.findByEmail("xss-member@example.com").orElseThrow();
-        assertThat(passwordEncoder.matches(TestPasswords.XSS, member.getPassword()))
-                .as("회원가입: XSS 필터가 & < > \" ' 를 바꾸지 않고 원문을 해시해야 한다").isTrue();
 
-        // 관리자: JSON 본문
+        Member saved = memberRepository.findByEmail("xss-member@example.com").orElseThrow();
+        assertThat(passwordEncoder.matches(TestPasswords.XSS, saved.getPassword()))
+                .as("XSS 필터가 & < > \" ' 를 바꾸지 않고 원문을 해시해야 한다").isTrue();
+        assertLoginWorks("xss-member@example.com", TestPasswords.XSS);
+    }
+
+    /* ===== 회원 생성: 관리자 (POST /api/members, JSON → MemberApiController → MemberService) ===== */
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("ruleViolations")
+    @DisplayName("관리자 회원 생성: 규칙별 위반 비밀번호는 400 과 해당 메시지로 거절되고 저장되지 않는다")
+    void adminCreateRejectsEachRule(String name, String pw, String messagePart) throws Exception {
+        var result = mvc.perform(adminCreate(TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME, pw))
+                .andExpect(status().isBadRequest());
+        if (pw.isEmpty()) {
+            // 빈 값은 DTO 의 @NotBlank 가 정책보다 먼저 막아 필드 오류로 응답한다
+            result.andExpect(jsonPath("$.errors.password").exists());
+        } else {
+            result.andExpect(jsonPath("$.message", containsString(messagePart)));
+        }
+        assertThat(memberRepository.findByEmail(TestPasswords.POLICY_EMAIL)).as("[%s]", name).isEmpty();
+    }
+
+    @Test
+    @DisplayName("관리자 회원 생성(XSS): & < > \" ' 가 든 비밀번호를 원문 그대로 해시하며, 그 값으로 로그인된다")
+    void adminCreateStoresRawPassword() throws Exception {
         mvc.perform(adminCreate("xss-admin@example.com", "xss-admin", TestPasswords.XSS))
                 .andExpect(status().isCreated());
+
         Member made = memberRepository.findByEmail("xss-admin@example.com").orElseThrow();
         assertThat(passwordEncoder.matches(TestPasswords.XSS, made.getPassword()))
-                .as("관리자 생성: 원문을 해시해야 한다").isTrue();
-
-        // 두 계정 모두 같은 원문으로 폼·API 로그인
-        for (String email : new String[]{"xss-member@example.com", "xss-admin@example.com"}) {
-            assertThat(apiLogin(email, TestPasswords.XSS)).as("API 로그인 %s", email).isEqualTo(200);
-            mvc.perform(post("/login").param("memberEmail", email).param("memberPassword", TestPasswords.XSS))
-                    .andExpect(redirectedUrl("/"));
-        }
+                .as("원문을 해시해야 한다").isTrue();
+        assertLoginWorks("xss-admin@example.com", TestPasswords.XSS);
     }
 
     /* ===== 로그인: 역할과 무관하게 같은 엔드포인트 → 일반회원만 ===== */
