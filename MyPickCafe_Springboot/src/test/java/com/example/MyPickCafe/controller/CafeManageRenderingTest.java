@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.controller;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Cafe;
@@ -40,7 +41,7 @@ class CafeManageRenderingTest {
     void setUp() {
         Member owner = new Member();
         owner.setEmail("manage-test@example.com");
-        owner.setPassword("unused-in-mock-authentication");
+        owner.setPassword(TestPasswords.HASH);
         owner.setNickname("manage-test-owner");
         owner.setRoleKind(RoleKind.CAFEOWNER);
         members.save(owner);

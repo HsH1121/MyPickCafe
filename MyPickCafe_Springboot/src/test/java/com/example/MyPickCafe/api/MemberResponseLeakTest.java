@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.api;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Cafe;
@@ -42,8 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class MemberResponseLeakTest {
 
-    private static final String BCRYPT_HASH =
-            "$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW";
+    private static final String BCRYPT_HASH = TestPasswords.HASH;
 
     @Autowired private MockMvc mvc;
     @Autowired private MemberRepository memberRepository;

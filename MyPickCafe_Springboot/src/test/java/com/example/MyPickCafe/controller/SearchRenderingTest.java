@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.controller;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.domain.FacilityTag;
@@ -56,7 +57,7 @@ class SearchRenderingTest {
     void setUp() {
         owner = new Member();
         owner.setEmail("search-test@example.com");
-        owner.setPassword("$2a$10$LfeiDObpfbKJOFzAIVH3ruGqdCpG2zy.yQAMWPQaZciCPTaM38uSW");
+        owner.setPassword(TestPasswords.HASH);
         owner.setNickname("search-test-owner");
         owner.setAge(30L);
         owner.setGender("F");

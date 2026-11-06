@@ -143,6 +143,10 @@ public class MemberService {
             if (!hasCurrentPw) {
                 throw new IllegalArgumentException("비밀번호를 바꾸려면 현재 비밀번호를 입력해주세요.");
             }
+            // 공백이 든 비밀번호는 저장될 수 없으므로 해시 비교 전에 거절한다.
+            if (PasswordPolicy.containsWhitespace(currentPasswordNullable)) {
+                throw new IllegalArgumentException(PasswordPolicy.WHITESPACE_MESSAGE);
+            }
             if (!passwordEncoder.matches(currentPasswordNullable, m.getPassword())) {
                 throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
             }
