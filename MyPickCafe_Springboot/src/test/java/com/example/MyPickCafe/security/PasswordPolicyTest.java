@@ -2,10 +2,16 @@ package com.example.MyPickCafe.security;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.example.MyPickCafe.TestPasswords;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -168,5 +174,86 @@ class PasswordPolicyTest {
         // 3자 이하 아이디는 우연히 겹치기 쉬워 비교하지 않는다
         assertThatCode(() -> policy.validate("bob-is-a-builder-77", "bob@example.com", "xyz"))
                 .doesNotThrowAnyException();
+    }
+
+    /* ===== TestPasswords 상수: 규칙마다 하나씩 ===== */
+
+    /** (상수 이름, 값, 기대 메시지 일부). 통합 테스트(PasswordFlowIntegrationTest)도 같은 목록을 쓴다. */
+    static Stream<Arguments> ruleViolations() {
+        return Stream.of(
+                Arguments.of("EMPTY", TestPasswords.EMPTY, "비밀번호를 입력해주세요."),
+                Arguments.of("CONTROL_CHAR", TestPasswords.CONTROL_CHAR, "제어 문자"),
+                Arguments.of("WHITESPACE", TestPasswords.WHITESPACE, PasswordPolicy.WHITESPACE_MESSAGE),
+                Arguments.of("TOO_SHORT", TestPasswords.TOO_SHORT, "8자 이상"),
+                Arguments.of("TOO_LONG", TestPasswords.TOO_LONG, "20자 이하"),
+                Arguments.of("OVER_72_BYTES", TestPasswords.OVER_72_BYTES, "72바이트를 넘었습니다"),
+                Arguments.of("BLOCKLISTED", TestPasswords.BLOCKLISTED, "흔하거나"),
+                Arguments.of("REPETITIVE", TestPasswords.REPETITIVE, "흔하거나"),
+                Arguments.of("SEQUENTIAL", TestPasswords.SEQUENTIAL, "흔하거나"),
+                Arguments.of("COMMON_WORD_AFFIX", TestPasswords.COMMON_WORD_AFFIX, "흔하거나"),
+                Arguments.of("CONTAINS_EMAIL_ID", TestPasswords.CONTAINS_EMAIL_ID, "이메일 아이디나 닉네임"),
+                Arguments.of("CONTAINS_NICKNAME", TestPasswords.CONTAINS_NICKNAME, "이메일 아이디나 닉네임")
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("ruleViolations")
+    @DisplayName("규칙별 위반 상수는 해당 규칙의 메시지로 거절되고, 메시지에 원문이 없다")
+    void eachRuleRejectsItsConstant(String name, String pw, String messagePart) {
+        assertThatThrownBy(() -> policy.validate(pw, TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(messagePart)
+                .satisfies(e -> {
+                    if (!pw.isEmpty()) assertThat(e.getMessage()).doesNotContain(pw);
+                });
+    }
+
+    @Test
+    @DisplayName("'흔한 비밀번호' 메시지를 공유하는 네 상수는 각자 자기 규칙에만 걸린다")
+    void commonRuleConstantsHitOnlyTheirOwnDetector() {
+        String blocklisted = TestPasswords.BLOCKLISTED.toLowerCase();
+        String repetitive = TestPasswords.REPETITIVE.toLowerCase();
+        String sequential = TestPasswords.SEQUENTIAL.toLowerCase();
+        String common = TestPasswords.COMMON_WORD_AFFIX.toLowerCase();
+
+        // BLOCKLISTED: 반복·연속·흔한 단어 어디에도 안 걸리는데 거절된다 → 목록 때문이다
+        assertThat(PasswordPolicy.isRepetitive(blocklisted)).isFalse();
+        assertThat(PasswordPolicy.isSequential(blocklisted)).isFalse();
+        assertThat(PasswordPolicy.isCommonWordWithAffixes(blocklisted)).isFalse();
+
+        assertThat(PasswordPolicy.isRepetitive(repetitive)).isTrue();
+        assertThat(PasswordPolicy.isSequential(repetitive)).isFalse();
+        assertThat(PasswordPolicy.isCommonWordWithAffixes(repetitive)).isFalse();
+
+        assertThat(PasswordPolicy.isRepetitive(sequential)).isFalse();
+        assertThat(PasswordPolicy.isSequential(sequential)).isTrue();
+        assertThat(PasswordPolicy.isCommonWordWithAffixes(sequential)).isFalse();
+
+        assertThat(PasswordPolicy.isRepetitive(common)).isFalse();
+        assertThat(PasswordPolicy.isSequential(common)).isFalse();
+        assertThat(PasswordPolicy.isCommonWordWithAffixes(common)).isTrue();
+    }
+
+    @Test
+    @DisplayName("이메일 아이디·닉네임 상수는 해당 회원 정보가 없으면 통과한다(그 규칙 하나만 어긴다)")
+    void personalInfoConstantsOnlyBreakPersonalInfoRule() {
+        assertThatCode(() -> policy.validate(TestPasswords.CONTAINS_EMAIL_ID, "someone@example.com", "nick"))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> policy.validate(TestPasswords.CONTAINS_NICKNAME, "someone@example.com", "nick"))
+                .doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {TestPasswords.RAW, TestPasswords.VALID_NEW, TestPasswords.WRONG, TestPasswords.XSS})
+    @DisplayName("정상 상수(RAW·VALID_NEW·WRONG·XSS)는 정책 검사 회원 정보로도 통과한다")
+    void validConstantsPass(String pw) {
+        assertThatCode(() -> policy.validate(pw, TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("TestPasswords.HASH 는 RAW 의 해시다")
+    void hashMatchesRaw() {
+        assertThat(new BCryptPasswordEncoder().matches(TestPasswords.RAW, TestPasswords.HASH)).isTrue();
     }
 }
