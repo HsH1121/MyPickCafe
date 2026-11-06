@@ -161,22 +161,29 @@ public class MemberService {
 
         if (wantsNewPw) {
             m.setPassword(passwordEncoder.encode(newPasswordNullable));
-            bumpTokenVersionInternal(m);
+            increaseTokenVersion(m);
             return true;
         }
         return false;
     }
 
-    /** 자기 자신 탈퇴 */
+    // 탈퇴
     @Transactional
     public void withdrawSelf(Long memberId) {
         delete(memberId);
     }
 
-    /** 토큰버전 증가 (내부용) */
-    private void bumpTokenVersionInternal(Member m) {
-        Long v = (m.getTokenVersion() == null ? 0L : m.getTokenVersion());
+    private void increaseTokenVersion(Member m) {
+        long v = (m.getTokenVersion() == null ? 0L : m.getTokenVersion());
         m.setTokenVersion(v + 1);
+    }
+
+    @Transactional
+    public boolean increaseTokenVersion(String email) {
+        return memberRepository.findByEmail(email).map(m -> {
+            increaseTokenVersion(m);
+            return true;
+        }).orElse(false);
     }
 
     @Transactional(readOnly = true)
@@ -196,13 +203,5 @@ public class MemberService {
         return memberRepository.save(m);
     }
 
-    @Transactional
-    public boolean bumpTokenVersion(String email) {
-        return memberRepository.findByEmail(email).map(m -> {
-            long nv = (m.getTokenVersion() == null ? 0L : m.getTokenVersion()) + 1L;
-            m.setTokenVersion(nv);
-            memberRepository.save(m);
-            return true;
-        }).orElse(false);
-    }
+
 }

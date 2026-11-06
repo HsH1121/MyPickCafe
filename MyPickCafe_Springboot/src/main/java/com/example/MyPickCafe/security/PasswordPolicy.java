@@ -65,7 +65,7 @@ public class PasswordPolicy {
      * @param nickname 비밀번호와 비교할 닉네임(없으면 null)
      */
     public void validate(String password, String email, String nickname) {
-        if (password == null || password.isEmpty() || password.isBlank()) {
+        if (password == null || password.isBlank()) {
             throw new IllegalArgumentException("비밀번호를 입력해주세요.");
         }
         int length = password.codePointCount(0, password.length());
@@ -93,7 +93,9 @@ public class PasswordPolicy {
 
     private static boolean isControl(int cp) {
         int type = Character.getType(cp);
-        return type == Character.CONTROL || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR;
+        return type == Character.CONTROL ||
+                type == Character.LINE_SEPARATOR ||
+                type == Character.PARAGRAPH_SEPARATOR;
     }
 
     /** 1~4글자 단위가 계속 반복되는 경우(aaaaaaaaaaaa, abababababab, abcabcabcabc). */
