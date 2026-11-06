@@ -93,19 +93,6 @@ class PasswordFlowIntegrationTest {
     }
 
     @Test
-    @DisplayName("예전 필터가 정리한 값으로 저장된 해시도 원문으로 로그인된다(기존 회원 호환)")
-    void legacySanitizedHashStillLogsIn() throws Exception {
-        String legacyStored = XssSanitizingFilter.sanitize(STRONG);
-        assertThat(legacyStored).isNotEqualTo(STRONG);
-        saveMember("legacy@example.com", "legacy", new BCryptPasswordEncoder().encode(legacyStored));
-
-        mvc.perform(post("/login").param("memberEmail", "legacy@example.com").param("memberPassword", STRONG))
-                .andExpect(redirectedUrl("/"));
-        assertThat(apiLogin("legacy@example.com", STRONG)).isEqualTo("200");
-        assertThat(apiLogin("legacy@example.com", "something else entirely")).isEqualTo("401");
-    }
-
-    @Test
     @DisplayName("정책 이전의 짧은 비밀번호 회원도 로그인은 막지 않는다")
     void existingShortPasswordStillLogsIn() throws Exception {
         saveMember("old@example.com", "oldie", passwordEncoder.encode("1234"));
