@@ -38,6 +38,7 @@ out/
 
 ### Uploads ###
 uploads/
+private-uploads/
 
 ### Secrets ###
 secret.properties

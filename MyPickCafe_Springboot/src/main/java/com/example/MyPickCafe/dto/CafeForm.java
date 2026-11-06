@@ -26,7 +26,8 @@ public class CafeForm {
     private String number;
     private Long views;
     private String code;
-    private String bizDoc;
+    // 사업자 증빙은 폼 값으로 받지 않는다. 업로드 파일(bizDocFile)만 CafeService 가 비공개 저장소에 넣고 키를 정한다.
+    // (예전에는 bizDoc 문자열이 그대로 바인딩돼 외부 URL·서버 경로를 넣을 수 있었다)
 
     // 카페 소개 (CafeInfo)
     private String openTime;
@@ -46,7 +47,6 @@ public class CafeForm {
         cafe.setDate(LocalDateTime.now());
         cafe.setViews(views != null ? views : 0L);
         cafe.setCode(code);
-        cafe.setBizDoc(bizDoc);
         cafe.setStatus(CafeStatus.PENDING);
         return cafe;
     }

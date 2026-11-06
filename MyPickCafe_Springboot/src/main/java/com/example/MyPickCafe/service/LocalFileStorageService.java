@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Optional;
 
 // 서버 디스크(file.upload-dir)에 저장하고 WebConfig 의 /uploads/** 로 서빙한다. 로컬 개발 기본값.
 @Service
@@ -39,5 +40,10 @@ public class LocalFileStorageService implements FileStorageService {
     @Override
     public void delete(String url) {
         StoredFiles.deleteLocalFile(uploadDir, url);
+    }
+
+    @Override
+    public Optional<byte[]> read(String url) throws IOException {
+        return StoredFiles.readLocalFile(uploadDir, url);
     }
 }

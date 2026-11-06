@@ -1,7 +1,7 @@
     package com.example.MyPickCafe.entity;
 
-    import com.example.MyPickCafe.config.StoredFileUrlConverter;
     import com.example.MyPickCafe.domain.CafeStatus;
+    import com.fasterxml.jackson.annotation.JsonIgnore;
     import jakarta.persistence.*;
     import lombok.AllArgsConstructor;
     import lombok.Getter;
@@ -57,8 +57,13 @@
         @Column(name = "status", nullable = false, length = 10)
         private CafeStatus status = CafeStatus.PENDING;
 
-        @Convert(converter = StoredFileUrlConverter.class)
-        @Column(name = "biz_doc", length = 255) // 사업자 증빙 문서 URL
+        /**
+         * 사업자 증빙 문서의 비공개 저장소 키(bizdocs/{cafeId}/{uuid}.pdf). 공개 URL 이 아니다.
+         * 내용은 BizDocService 를 거쳐 관리자 엔드포인트로만 내려준다.
+         * 엔티티가 실수로 JSON 응답에 실려도 키가 나가지 않게 직렬화에서 뺀다.
+         */
+        @JsonIgnore
+        @Column(name = "biz_doc", length = 255)
         private String bizDoc;
 
         public boolean isApproved() {

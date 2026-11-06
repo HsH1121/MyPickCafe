@@ -8,15 +8,19 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 
 /**
  * S3 버킷에 저장한다. 엔티티에는 공개 URL(public-base-url + 객체 키)을 쓰고,
  * DB 컬럼에는 객체 키만 넣는다(toStoredValue/toUrl). 그래서 CloudFront 등으로 주소가 바뀌어도 데이터는 그대로다.
  * 객체 읽기는 버킷 정책(또는 CloudFront)으로 공개해야 브라우저가 이미지를 띄울 수 있다.
+ * 공개 범위는 사진 경로(cafes/*, menus/*)로만 잡고, 사업자 증빙이 들어가는 private/* 는 빼야 한다(S3PrivateFileStorage).
  * S3 전환 전에 저장된 /uploads/... 파일은 그대로 로컬에서 서빙·삭제한다.
  */
 @Service
@@ -78,6 +82,23 @@ public class S3FileStorageService implements FileStorageService {
             return;
         }
         StoredFiles.deleteLocalFile(uploadDir, url);
+    }
+
+    @Override
+    public Optional<byte[]> read(String url) throws IOException {
+        if (url == null) return Optional.empty();
+        String prefix = publicBaseUrl + "/";
+        if (!url.startsWith(prefix)) {
+            return StoredFiles.readLocalFile(uploadDir, url);
+        }
+        try {
+            return Optional.of(s3.getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(url.substring(prefix.length()))
+                    .build()).asByteArray());
+        } catch (NoSuchKeyException e) {
+            return Optional.empty();
+        }
     }
 
     // 이 버킷의 URL이면 객체 키만 남긴다. /uploads/... 같은 예전 값은 그대로 둔다.

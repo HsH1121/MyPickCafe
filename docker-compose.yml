@@ -210,6 +210,8 @@ services:
       # 업로드된 카페·메뉴 사진. 볼륨이 없으면 컨테이너를 다시 만들 때 사라집니다.
       # FILE_STORAGE=s3 여도 S3 전환 전에 올라온 /uploads/... 파일을 서빙하므로 남겨 둡니다.
       - web-uploads:/app/uploads
+      # 사업자 증빙 등 비공개 파일(file.private-dir, FILE_STORAGE=local 일 때). URL 로 서빙하지 않습니다.
+      - web-private:/app/private-uploads
 
   # HTTPS 리버스 프록시. 설정은 루트 Caddyfile 입니다.
   # .env 의 DOMAIN 으로 Let's Encrypt 인증서를 자동 발급·갱신합니다.
@@ -270,6 +272,7 @@ volumes:
   chroma-index:        # 애플리케이션이 쓰는 ChromaDB 인덱스
   ai-logs:             # 픽봇 로그·지역 매핑 후보
   web-uploads:         # Spring Boot 가 저장하는 업로드 파일(file.upload-dir)
+  web-private:         # 관리자만 받는 비공개 파일(file.private-dir) — 사업자 증빙
   caddy-data:          # Caddy 가 발급받은 TLS 인증서
   caddy-config:        # Caddy 자동 저장 설정
   chroma-server-data:  # chroma-server 프로필을 쓸 때만

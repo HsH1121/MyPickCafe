@@ -32,7 +32,9 @@ COPY --from=build /build/app.jar ./app.jar
 
 # 업로드 파일(file.upload-dir=./uploads)은 컨테이너 밖(볼륨)에 두는 지점입니다.
 # 작업 디렉터리가 /app 이므로 상대경로 ./uploads 는 /app/uploads 로 풀립니다.
-RUN mkdir -p /app/uploads \
+# 사업자 증빙 같은 비공개 파일(file.private-dir=./private-uploads)도 같은 방식으로 /app/private-uploads 에 둡니다.
+# 미리 만들어 appuser 소유로 두어야, 처음 붙는 이름 있는 볼륨도 appuser 가 쓸 수 있습니다.
+RUN mkdir -p /app/uploads /app/private-uploads \
     && useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
