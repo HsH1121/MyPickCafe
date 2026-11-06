@@ -61,8 +61,8 @@ class PasswordPolicyTest {
     void bcryptByteLimit() {
         ok("가나다라마바사아자차카타파하거너더러머버"); // 20자 = 60바이트
         ok(emojis(18)); // 18자 = 72바이트
-        rejected(emojis(19), "너무 깁니다"); // 19자 = 76바이트
-        rejected(emojis(17) + "가나다", "너무 깁니다"); // 20자지만 68 + 9 = 77바이트
+        rejected(emojis(19), "비밀번호가 72바이트를 넘었습니다."); // 19자 = 76바이트
+        rejected(emojis(17) + "가나다", "비밀번호가 72바이트를 넘었습니다."); // 20자지만 68 + 9 = 77바이트
     }
 
     @Test

@@ -25,7 +25,7 @@
     var len = Array.from(value).length;
     if (len < MIN) return '비밀번호는 ' + MIN + '자 이상이어야 합니다. (현재 ' + len + '자)';
     if (len > MAX) return '비밀번호는 ' + MAX + '자 이하여야 합니다.';
-    if (utf8Bytes(value) > MAX_BYTES) return '비밀번호가 너무 깁니다. 이모지 같은 일부 문자는 글자당 4바이트라, 이모지만 쓰면 18자까지 쓸 수 있습니다.';
+    if (utf8Bytes(value) > MAX_BYTES) return '비밀번호가 ' + MAX_BYTES + '바이트를 넘었습니다.';
     if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(value)) return '줄바꿈·탭 같은 제어 문자는 쓸 수 없습니다.';
     return '';
   }

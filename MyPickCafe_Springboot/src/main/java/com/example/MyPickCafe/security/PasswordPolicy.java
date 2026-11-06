@@ -76,8 +76,7 @@ public class PasswordPolicy {
             throw new IllegalArgumentException("비밀번호는 " + MAX_LENGTH + "자 이하여야 합니다.");
         }
         if (password.getBytes(StandardCharsets.UTF_8).length > MAX_BCRYPT_BYTES) {
-            throw new IllegalArgumentException(
-                    "비밀번호가 너무 깁니다. 이모지 같은 일부 문자는 글자당 4바이트라, 이모지만 쓰면 18자까지 쓸 수 있습니다.");
+            throw new IllegalArgumentException("비밀번호가 " + MAX_BCRYPT_BYTES + "바이트를 넘었습니다.");
         }
         if (password.codePoints().anyMatch(PasswordPolicy::isControl)) {
             throw new IllegalArgumentException("줄바꿈·탭 같은 제어 문자는 비밀번호에 쓸 수 없습니다.");
