@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.controller;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.MemberRepository;
@@ -33,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class FormLoginTest {
 
-    private static final String PASSWORD = "correct-password";
+    private static final String PASSWORD = TestPasswords.RAW;
 
     @Autowired private MockMvc mvc;
     @Autowired private MemberRepository memberRepository;
@@ -80,7 +81,7 @@ class FormLoginTest {
 
         mvc.perform(post("/login")
                         .param("memberEmail", "wrong@example.com")
-                        .param("memberPassword", "wrong-password"))
+                        .param("memberPassword", TestPasswords.WRONG))
                 .andExpect(redirectedUrl("/login"))
                 .andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
     }

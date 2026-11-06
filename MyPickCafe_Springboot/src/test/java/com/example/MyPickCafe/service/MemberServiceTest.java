@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.service;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.dto.MemberCreateRequest;
 import com.example.MyPickCafe.dto.MemberUpdateRequest;
@@ -38,7 +39,7 @@ class MemberServiceTest {
     @InjectMocks private MemberService memberService;
 
     private MemberCreateRequest request(String email, String nickname, String role) {
-        return new MemberCreateRequest(email, "rawPassword123", nickname, 25L, "M", role, null);
+        return new MemberCreateRequest(email, TestPasswords.RAW, nickname, 25L, "M", role, null);
     }
 
     @Test
@@ -46,7 +47,7 @@ class MemberServiceTest {
     void createMemberEncodesPassword() {
         when(repository.findByEmail(anyString())).thenReturn(Optional.empty());
         when(repository.existsByNickname(anyString())).thenReturn(false);
-        when(passwordEncoder.encode("rawPassword123")).thenReturn("$2a$10$encoded");
+        when(passwordEncoder.encode(TestPasswords.RAW)).thenReturn("$2a$10$encoded");
         when(repository.save(any(Member.class))).thenAnswer(inv -> inv.getArgument(0));
 
         memberService.createMember(request("new@example.com", "newbie", null));
@@ -57,7 +58,7 @@ class MemberServiceTest {
         assertThat(saved.getValue().getPassword())
                 .as("평문 비밀번호가 그대로 저장되면 안 된다")
                 .isEqualTo("$2a$10$encoded")
-                .isNotEqualTo("rawPassword123");
+                .isNotEqualTo(TestPasswords.RAW);
     }
 
     @Test

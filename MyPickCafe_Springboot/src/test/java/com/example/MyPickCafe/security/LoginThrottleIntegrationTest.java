@@ -1,5 +1,6 @@
 package com.example.MyPickCafe.security;
 
+import com.example.MyPickCafe.TestPasswords;
 import com.example.MyPickCafe.domain.RoleKind;
 import com.example.MyPickCafe.entity.Member;
 import com.example.MyPickCafe.repository.MemberRepository;
@@ -36,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LoginThrottleIntegrationTest {
 
     private static final String EMAIL = "throttle@example.com";
-    private static final String PASSWORD = "correct-password-123";
+    private static final String PASSWORD = TestPasswords.RAW;
 
     @Autowired private MockMvc mvc;
     @Autowired private MemberRepository memberRepository;
@@ -86,9 +87,9 @@ class LoginThrottleIntegrationTest {
     @Test
     @DisplayName("API: 없는 이메일과 틀린 비밀번호의 응답이 같다")
     void apiDoesNotRevealAccountExistence() throws Exception {
-        String unknown = mvc.perform(apiLogin("nobody@example.com", "whatever-pass", "203.0.113.11"))
+        String unknown = mvc.perform(apiLogin("nobody@example.com", TestPasswords.WRONG, "203.0.113.11"))
                 .andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
-        String wrong = mvc.perform(apiLogin(EMAIL, "whatever-pass", "203.0.113.11"))
+        String wrong = mvc.perform(apiLogin(EMAIL, TestPasswords.WRONG, "203.0.113.11"))
                 .andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
         assertThat(unknown).isEqualTo(wrong);
     }
