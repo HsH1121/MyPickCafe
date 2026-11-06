@@ -19,15 +19,13 @@ public class XssSanitizingFilter implements Filter {
      * 정리하지 않고 그대로 넘기는 비밀번호 파라미터.
      * 비밀번호는 화면에 다시 출력하지 않고 해시만 하므로 XSS 대상이 아니다. 정리하면 {@code & < >}·공백이
      * 바뀌어 사용자가 입력한 것과 다른 값이 해시되고, JSON 으로 받는 /api/auth/login 과 결과가 달라진다.
-     * (예전에 정리된 값으로 저장된 해시는 {@link LegacyFormPasswordEncoder} 가 호환한다.)
      */
     static final Set<String> RAW_PARAMETERS = Set.of(
             "password", "passwordConfirm", "memberPassword",
             "current_password", "new_password", "new_password_confirm"
     );
 
-    /** 예전 필터와 같은 정리. {@link LegacyFormPasswordEncoder} 가 호환 비교에 쓴다. */
-    static String sanitize(String input) {
+    private static String sanitize(String input) {
         if (input == null) return null;
         return Jsoup.clean(input, XssRequestWrapper.SAFE);
     }
