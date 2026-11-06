@@ -99,7 +99,7 @@ public class AuthApiController {
                     .build();
         }
 
-        boolean bumped = memberService.bumpTokenVersion(auth.getName());
+        boolean bumped = memberService.increaseTokenVersion(auth.getName());
         if (bumped) {
             return ResponseEntity.noContent()
                     .header(HttpHeaders.SET_COOKIE, del.toString())

@@ -169,6 +169,7 @@ services:
       mypickcafe-ai:
         condition: service_started
     environment:
+      SERVER_FORWARD_HEADERS_STRATEGY: native
       # 이 컨테이너는 배포용이라 기본이 prod 입니다(로컬 개발은 IDE 로 실행하며 dev 를 씁니다).
       # prod: ddl-auto=validate, Swagger 꺼짐, 에러 상세 숨김, 쿠키 Secure(HTTPS 전용)
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
@@ -261,10 +262,13 @@ services:
 networks:
   # caddy ↔ mypickcafe-web
   edge:
+    internal: false
   # mypickcafe-web ↔ mypickcafe-ai ↔ postgres ↔ ollama
   # internal: true 로 두지 않습니다. AI 서버의 원격 LLM 호출과 ollama-init 의 모델 다운로드가
   # 이 네트워크로 밖에 나가야 하기 때문입니다(들어오는 포트는 위에서 열지 않음).
+  # internal 기본값: false
   backend:
+    internal: false
 
 volumes:
   pgdata:              # 기존 볼륨 (mypickcafe_pgdata) — DB 데이터가 이미 들어 있습니다

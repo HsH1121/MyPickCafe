@@ -91,12 +91,10 @@ public class LoginAttemptService {
     public Optional<Duration> blockedFor(String email, String ip) {
         Instant now = clock.instant();
         String account = normalize(email);
-        Duration longest = Duration.ZERO;
-        longest = max(longest, remaining(accountIpKey(account, ip), now));
+        Duration longest = max(remaining(ipKey(ip), now), remaining(accountIpKey(account, ip), now));
         if (!isTrusted(account, ip, now)) {
             longest = max(longest, remaining(accountKey(account), now));
         }
-        longest = max(longest, remaining(ipKey(ip), now));
         return longest.isZero() ? Optional.empty() : Optional.of(longest);
     }
 
@@ -150,6 +148,7 @@ public class LoginAttemptService {
             this.blockedUntil = blockedUntil;
         }
 
+        /** 기존의 실패 기록 만료 체킹 */
         boolean expired(Instant now, Limit limit) {
             boolean windowOver = !now.isBefore(windowStart.plus(limit.window()));
             boolean blockOver = blockedUntil == null || !now.isBefore(blockedUntil);

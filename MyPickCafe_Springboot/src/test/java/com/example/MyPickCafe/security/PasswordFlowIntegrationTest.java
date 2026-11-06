@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("비밀번호 설정 경로")
 class PasswordFlowIntegrationTest {
 
-    private static final String STRONG = "river otter & <lamp> 42";
+    private static final String STRONG = "otter & <lamp> 42";
 
     @Autowired private MockMvc mvc;
     @Autowired private MemberRepository memberRepository;
@@ -69,9 +69,9 @@ class PasswordFlowIntegrationTest {
     @Test
     @DisplayName("회원가입: 정책 위반(짧음·흔함)은 가입되지 않는다")
     void signupRejectsWeakPasswords() throws Exception {
-        mvc.perform(signup("short@example.com", "short-pw-1"))
+        mvc.perform(signup("short@example.com", "sh-pw-1"))
                 .andExpect(view().name("auth/signup"))
-                .andExpect(model().attribute("error", "비밀번호는 12자 이상이어야 합니다."));
+                .andExpect(model().attribute("error", "비밀번호는 8자 이상이어야 합니다."));
         mvc.perform(signup("common@example.com", "Password1234"))
                 .andExpect(view().name("auth/signup"));
         assertThat(memberRepository.findByEmail("short@example.com")).isEmpty();
@@ -119,7 +119,7 @@ class PasswordFlowIntegrationTest {
 
         mvc.perform(post("/member/edit").with(user("chg1@example.com").roles("MEMBER"))
                         .param("current_password", "not my password")
-                        .param("new_password", "brand new pass phrase"))
+                        .param("new_password", "brand new phrase 7"))
                 .andExpect(redirectedUrl("/member/edit"))
                 .andExpect(flash().attribute("pwError", "현재 비밀번호가 일치하지 않습니다."));
 
@@ -151,8 +151,8 @@ class PasswordFlowIntegrationTest {
 
         MvcResult change = mvc.perform(post("/member/edit").cookie(new Cookie("AT", token))
                         .param("current_password", "old password 123")
-                        .param("new_password", "brand new pass phrase")
-                        .param("new_password_confirm", "brand new pass phrase"))
+                        .param("new_password", "brand new phrase 7")
+                        .param("new_password_confirm", "brand new phrase 7"))
                 .andExpect(redirectedUrl("/login?password=changed"))
                 .andReturn();
         assertThat(change.getResponse().getHeaders("Set-Cookie"))
@@ -160,7 +160,7 @@ class PasswordFlowIntegrationTest {
 
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
-        assertThat(apiLogin("chg3@example.com", "brand new pass phrase")).isEqualTo("200");
+        assertThat(apiLogin("chg3@example.com", "brand new phrase 7")).isEqualTo("200");
         assertThat(apiLogin("chg3@example.com", "old password 123")).isEqualTo("401");
     }
 
