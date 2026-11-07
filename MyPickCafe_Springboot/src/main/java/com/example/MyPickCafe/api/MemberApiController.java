@@ -32,39 +32,39 @@ import java.util.List;
 @Tag(name = "Member (Admin)", description = "회원 관리 — 관리자 전용")
 public class MemberApiController {
 
-    private final MemberService service;
+    private final MemberService memberService;
 
     @GetMapping
     @Operation(summary = "회원 전체 조회",
             description = "비밀번호 해시는 응답에 포함되지 않는다(MemberResponse).")
     public List<MemberResponse> getAll() {
-        return service.findAll().stream()
+        return memberService.findAll().stream()
                 .map(MemberResponse::from)
                 .toList();
     }
 
-    @GetMapping("/{id}")
-    public MemberResponse getOne(@PathVariable Long id) {
-        return MemberResponse.from(service.findById(id));
+    @GetMapping("/{memberId}")
+    public MemberResponse getOne(@PathVariable Long memberId) {
+        return MemberResponse.from(memberService.findById(memberId));
     }
 
     @PostMapping
     public ResponseEntity<MemberResponse> create(@RequestBody @Valid MemberCreateRequest body,
                                                  UriComponentsBuilder uriBuilder) {
-        Member saved = service.createMember(body);
-        URI location = uriBuilder.path("/api/members/{id}").buildAndExpand(saved.getId()).toUri();
+        Member saved = memberService.createMember(body);
+        URI location = uriBuilder.path("/api/members/{memberId}").buildAndExpand(saved.getId()).toUri();
         return ResponseEntity.created(location).body(MemberResponse.from(saved));
     }
 
-    @PutMapping("/{id}")
-    public MemberResponse update(@PathVariable Long id, @RequestBody @Valid MemberUpdateRequest body) {
-        return MemberResponse.from(service.updateMember(id, body));
+    @PutMapping("/{memberId}")
+    public MemberResponse update(@PathVariable Long memberId, @RequestBody @Valid MemberUpdateRequest body) {
+        return MemberResponse.from(memberService.updateMember(memberId, body));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{memberId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        service.delete(id);
+    public void delete(@PathVariable Long memberId) {
+        memberService.delete(memberId);
     }
 
     /** 이메일·닉네임 중복, 비밀번호 정책 위반 등 입력 오류는 500 이 아니라 400 으로 돌려준다. */

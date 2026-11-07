@@ -21,7 +21,9 @@ public interface CafeRepository extends JpaRepository<Cafe, Long> {
 
     List<Cafe> findByStatusOrderByDateDesc(CafeStatus status, Pageable pageable);
 
-    List<Cafe> findByStatusAndIdInOrderByViewsDesc(CafeStatus status, Collection<Long> ids);
+    List<Cafe> findByStatusAndIdIn(CafeStatus status, Collection<Long> cafeIds);
+
+    List<Cafe> findByStatusAndIdInOrderByViewsDesc(CafeStatus status, Collection<Long> cafeIds);
 
     List<Cafe> findByStatusAndNameContainingOrStatusAndAddressContaining(
             CafeStatus status1, String name, CafeStatus status2, String address);

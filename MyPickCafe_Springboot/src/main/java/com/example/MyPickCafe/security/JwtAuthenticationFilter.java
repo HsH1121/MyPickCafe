@@ -21,14 +21,14 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
-    private final JwtTokenProvider tokenProvider;
+    private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
     private final MemberRepository memberRepository;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider,
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
                                    UserDetailsService userDetailsService,
                                    MemberRepository memberRepository) {
-        this.tokenProvider = tokenProvider;
+        this.jwtTokenProvider = jwtTokenProvider;
         this.userDetailsService = userDetailsService;
         this.memberRepository = memberRepository;
     }
@@ -41,8 +41,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = resolveToken(req);
 
             if (StringUtils.hasText(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
-                String email = tokenProvider.extractUsername(token); // 유효하지 않으면 예외 발생 가능
-                Number verClaim = tokenProvider.extractClaim(token, c -> c.get("ver", Number.class)); // null 가능
+                String email = jwtTokenProvider.extractUsername(token); // 유효하지 않으면 예외 발생 가능
+                Number verClaim = jwtTokenProvider.extractClaim(token, c -> c.get("ver", Number.class)); // null 가능
 
                 if (email != null) {
                     var opt = memberRepository.findByEmail(email);

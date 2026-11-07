@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 카페 수정·삭제 API의 소유권 검증 회귀 테스트.
  *
- * <p>수정 전에는 {@code PUT/DELETE /api/cafes/{id}}가 역할(CAFEOWNER)만 확인해서,
+ * <p>수정 전에는 {@code PUT/DELETE /api/cafes/{cafeId}}가 역할(CAFEOWNER)만 확인해서,
  * 점주라면 누구든 다른 점주의 카페를 수정하거나 삭제할 수 있었다.
  */
 @SpringBootTest
@@ -83,7 +83,7 @@ class CafeApiOwnershipTest {
     @DisplayName("다른 점주는 카페를 수정할 수 없다")
     @WithMockUser(username = OTHER_OWNER_EMAIL, roles = "CAFEOWNER")
     void updateRejectsOtherOwner() throws Exception {
-        mvc.perform(put("/api/cafes/{id}", cafeId)
+        mvc.perform(put("/api/cafes/{cafeId}", cafeId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(UPDATE_BODY))
@@ -97,7 +97,7 @@ class CafeApiOwnershipTest {
     @DisplayName("해당 카페의 점주는 카페를 수정할 수 있다")
     @WithMockUser(username = OWNER_EMAIL, roles = "CAFEOWNER")
     void updateAllowsOwner() throws Exception {
-        mvc.perform(put("/api/cafes/{id}", cafeId)
+        mvc.perform(put("/api/cafes/{cafeId}", cafeId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(UPDATE_BODY))
@@ -111,7 +111,7 @@ class CafeApiOwnershipTest {
     @DisplayName("존재하지 않는 카페 수정은 404를 반환한다")
     @WithMockUser(username = OWNER_EMAIL, roles = "CAFEOWNER")
     void updateMissingCafeReturnsNotFound() throws Exception {
-        mvc.perform(put("/api/cafes/{id}", Long.MAX_VALUE)
+        mvc.perform(put("/api/cafes/{cafeId}", Long.MAX_VALUE)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(UPDATE_BODY))
@@ -124,7 +124,7 @@ class CafeApiOwnershipTest {
     @DisplayName("다른 점주는 카페를 삭제할 수 없다")
     @WithMockUser(username = OTHER_OWNER_EMAIL, roles = "CAFEOWNER")
     void deleteRejectsOtherOwner() throws Exception {
-        mvc.perform(delete("/api/cafes/{id}", cafeId).accept(MediaType.APPLICATION_JSON))
+        mvc.perform(delete("/api/cafes/{cafeId}", cafeId).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden());
 
         assertThat(cafeRepository.existsById(cafeId)).isTrue();
@@ -134,7 +134,7 @@ class CafeApiOwnershipTest {
     @DisplayName("해당 카페의 점주는 카페를 삭제할 수 있다")
     @WithMockUser(username = OWNER_EMAIL, roles = "CAFEOWNER")
     void deleteAllowsOwner() throws Exception {
-        mvc.perform(delete("/api/cafes/{id}", cafeId).accept(MediaType.APPLICATION_JSON))
+        mvc.perform(delete("/api/cafes/{cafeId}", cafeId).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNoContent());
 
         assertThat(cafeRepository.existsById(cafeId)).isFalse();
@@ -144,7 +144,7 @@ class CafeApiOwnershipTest {
     @DisplayName("관리자는 점주가 아니어도 카페를 삭제할 수 있다")
     @WithMockUser(username = "admin@example.com", roles = "ADMIN")
     void deleteAllowsAdmin() throws Exception {
-        mvc.perform(delete("/api/cafes/{id}", cafeId).accept(MediaType.APPLICATION_JSON))
+        mvc.perform(delete("/api/cafes/{cafeId}", cafeId).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNoContent());
 
         assertThat(cafeRepository.existsById(cafeId)).isFalse();

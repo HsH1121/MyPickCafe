@@ -37,7 +37,7 @@ public class CafeApiController {
 
     private final CafeService cafeService;
     private final MemberService memberService;
-    private final CafeOwnershipGuard ownershipGuard;
+    private final CafeOwnershipGuard cafeOwnershipGuard;
 
     @GetMapping
     @Operation(summary = "카페 전체 조회", description = "인증 없이 호출할 수 있다. 승인된 카페만 돌려준다.")
@@ -45,11 +45,11 @@ public class CafeApiController {
         return cafeService.findAllForApi();
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{cafeId}")
     @Operation(summary = "카페 단건 조회")
     @ApiResponse(responseCode = "404", description = "해당 ID의 카페가 없거나, 승인 전 카페인데 점주·관리자가 아님")
-    public CafeResponse getOne(@PathVariable Long id, Authentication auth) {
-        return cafeService.findByIdForApi(id, auth);
+    public CafeResponse getOne(@PathVariable Long cafeId, Authentication auth) {
+        return cafeService.findByIdForApi(cafeId, auth);
     }
 
     @PostMapping
@@ -61,27 +61,27 @@ public class CafeApiController {
                                                UriComponentsBuilder uriBuilder) {
         Long ownerId = memberService.findByEmail(auth.getName()).getId();
         CafeResponse saved = cafeService.createFromRequest(body, ownerId);
-        URI location = uriBuilder.path("/api/cafes/{id}").buildAndExpand(saved.id()).toUri();
+        URI location = uriBuilder.path("/api/cafes/{cafeId}").buildAndExpand(saved.id()).toUri();
         return ResponseEntity.created(location).body(saved);
     }
 
     // 역할(CAFEOWNER)만으로는 "이 카페의 점주인가"를 알 수 없어 소유권을 따로 확인한다.
-    @PutMapping("/{id}")
+    @PutMapping("/{cafeId}")
     @PreAuthorize("hasAnyRole('CAFEOWNER', 'ADMIN')")
     @ApiResponse(responseCode = "403", description = "해당 카페의 점주가 아님")
-    public CafeResponse update(@PathVariable Long id,
+    public CafeResponse update(@PathVariable Long cafeId,
                                @RequestBody @Valid CafeUpdateRequest body,
                                Authentication auth) {
-        ownershipGuard.ensureOwner(auth, cafeService.findById(id));
-        return cafeService.updateFromRequest(id, body);
+        cafeOwnershipGuard.ensureOwner(auth, cafeService.findById(cafeId));
+        return cafeService.updateFromRequest(cafeId, body);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{cafeId}")
     @PreAuthorize("hasAnyRole('CAFEOWNER', 'ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @ApiResponse(responseCode = "403", description = "해당 카페의 점주가 아님")
-    public void delete(@PathVariable Long id, Authentication auth) {
-        ownershipGuard.ensureOwner(auth, cafeService.findById(id));
-        cafeService.delete(id);
+    public void delete(@PathVariable Long cafeId, Authentication auth) {
+        cafeOwnershipGuard.ensureOwner(auth, cafeService.findById(cafeId));
+        cafeService.delete(cafeId);
     }
 }

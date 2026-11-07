@@ -29,9 +29,10 @@ public class PickBotController {
             return ResponseEntity.badRequest().build();
         }
         PickBotResponse response = pickBotClient.recommend(req.getQuery());
-        // AI 서버는 승인된 카페만 추천하도록 걸러 두었지만(카페 목록 캐시·벡터 검색 조건), 캐시가 최대 5분
-        // 늦을 수 있고 인덱스에는 승인 취소된 카페 리뷰가 남아 있을 수 있다. 응답 직전에 DB 기준으로 한 번 더 거른다.
-        Set<Long> approved = cafeService.filterApprovedIds(
+
+        /** AI 서버는 승인된 카페만 추천하도록 걸러 두었지만(카페 목록 캐시·벡터 검색 조건), 캐시가 최대 5분
+        늦을 수 있고 인덱스에는 승인 취소된 카페 리뷰가 남아 있을 수 있다. 응답 직전에 DB 기준으로 한 번 더 거른다. */
+        Set<Long> approved = cafeService.filterApprovedCafeIds(
                 response.getResults().stream().map(PickBotResult::getCafeId).toList());
         response.getResults().removeIf(r -> r.getCafeId() == null || !approved.contains(r.getCafeId()));
         List<PickBotResult> results = response.getResults();

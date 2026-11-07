@@ -35,9 +35,9 @@ public class NotificationApiController {
         return notificationService.unreadCount(email(auth));
     }
 
-    @PostMapping("/{id}/read")
-    public void read(Authentication auth, @PathVariable Long id) {
-        notificationService.markAsRead(id, email(auth));
+    @PostMapping("/{notificationId}/read")
+    public void read(Authentication auth, @PathVariable Long notificationId) {
+        notificationService.markAsRead(notificationId, email(auth));
     }
 
     @PostMapping("/read-all")

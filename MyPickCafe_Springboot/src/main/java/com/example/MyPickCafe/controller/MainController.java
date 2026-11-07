@@ -33,8 +33,8 @@ public class MainController {
     @GetMapping({"/", "/main"})
     public String home(Model model, Authentication authentication) {
         List<Cafe> cafes = cafeService.findApprovedTopByViews(8);
-        Set<Long> topIds = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
-        Map<Long, String> photoByCafeId = cafePhotoService.findMainPhotoUrls(topIds);
+        Set<Long> topCafeIds = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
+        Map<Long, String> photoByCafeId = cafePhotoService.findMainPhotoUrls(topCafeIds);
 
         final String PLACEHOLDER = "/images/placeholder-cafe.jpg";
         List<CafeCardForm> cafeCards = cafes.stream()

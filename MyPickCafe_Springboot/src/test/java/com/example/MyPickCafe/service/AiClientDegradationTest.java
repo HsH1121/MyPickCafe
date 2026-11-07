@@ -28,9 +28,9 @@ class AiClientDegradationTest {
     @Test
     @DisplayName("태그 분석 서버가 죽어 있으면 예외 대신 빈 결과를 반환한다")
     void pythonTagClientReturnsEmptyWhenServerIsDown() {
-        PythonTagClient client = new PythonTagClient(WebClient.create(DEAD_SERVER));
+        PythonTagClient pythonTagClient = new PythonTagClient(WebClient.create(DEAD_SERVER));
 
-        var result = client.analyze(
+        var result = pythonTagClient.analyze(
                 PythonTagRequest.builder().reviewId(1L).reviewText("커피가 맛있어요").build());
 
         assertThat(result)
@@ -41,9 +41,9 @@ class AiClientDegradationTest {
     @Test
     @DisplayName("비동기 색인 호출은 서버가 죽어 있어도 호출부로 예외를 던지지 않는다")
     void pickBotIndexingNeverThrowsToCaller() {
-        PickBotClient client = new PickBotClient(WebClient.create(DEAD_SERVER));
+        PickBotClient pickBotClient = new PickBotClient(WebClient.create(DEAD_SERVER));
 
-        assertThatCode(() -> client.deleteOneAsync(1L))
+        assertThatCode(() -> pickBotClient.deleteOneAsync(1L))
                 .as("fire-and-forget 색인은 호출부에 영향을 주면 안 된다")
                 .doesNotThrowAnyException();
     }

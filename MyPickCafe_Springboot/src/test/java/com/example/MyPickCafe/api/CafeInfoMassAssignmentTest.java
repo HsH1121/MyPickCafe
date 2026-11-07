@@ -133,12 +133,12 @@ class CafeInfoMassAssignmentTest {
                 .andExpect(status().isOk());
         em.flush();
         em.clear();
-        Long ownId = cafeInfoRepository.findByCafe_Id(attackerCafeId).orElseThrow().getId();
+        Long ownCafeInfoId = cafeInfoRepository.findByCafe_Id(attackerCafeId).orElseThrow().getId();
 
         mvc.perform(post("/api/cafe-infos/upsert/{cafeId}", attackerCafeId).with(attacker())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"notice\":\"바뀐 공지\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(ownId))
+                .andExpect(jsonPath("$.id").value(ownCafeInfoId))
                 .andExpect(jsonPath("$.notice").value("바뀐 공지"))
                 .andExpect(jsonPath("$.cafe").doesNotExist());
         em.flush();
@@ -151,7 +151,7 @@ class CafeInfoMassAssignmentTest {
     @Test
     @DisplayName("다른 점주의 영업정보는 PUT 으로 수정할 수 없다")
     void putOnOthersInfoIsForbidden() throws Exception {
-        mvc.perform(put("/api/cafe-infos/{id}", victimInfoId).with(attacker())
+        mvc.perform(put("/api/cafe-infos/{cafeInfoId}", victimInfoId).with(attacker())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"notice\":\"폐업했습니다\"}"))
                 .andExpect(status().isForbidden());
         em.flush();

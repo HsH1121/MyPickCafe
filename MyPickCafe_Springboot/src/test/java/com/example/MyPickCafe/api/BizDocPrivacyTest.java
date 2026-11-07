@@ -50,9 +50,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 사업자 증빙 문서(사업자등록증) 비공개 저장 회귀 테스트.
  *
- * <p>수정 전에는 증빙 파일을 공개 업로드 폴더({@code /uploads/cafes/{id}/docs/})에 저장했고,
+ * <p>수정 전에는 증빙 파일을 공개 업로드 폴더({@code /uploads/cafes/{cafeId}/docs/})에 저장했고,
  * {@code /uploads/**} 는 보안 필터를 거치지 않아 URL 만 알면 로그인 없이 받을 수 있었다.
- * 관리자 전용 {@code /admin/cafes/{id}/bizdoc} 도 그 공개 URL로 302 리다이렉트할 뿐이었다.
+ * 관리자 전용 {@code /admin/cafes/{cafeId}/bizdoc} 도 그 공개 URL로 302 리다이렉트할 뿐이었다.
  * 또 카페 등록 폼이 {@code bizDoc} 값을 그대로 받아서, 파일 없이 외부 URL이나 서버 경로를 넣으면
  * 관리자가 증빙을 열 때 외부 사이트로 이동하거나 서버의 임의 파일이 내려갔다.
  */
@@ -139,7 +139,7 @@ class BizDocPrivacyTest {
         return file;
     }
 
-    // 이 카페의 공개 업로드 폴더(uploads/cafes/{id}) 안에서 증빙과 내용이 같은 파일을 찾는다
+    // 이 카페의 공개 업로드 폴더(uploads/cafes/{cafeId}) 안에서 증빙과 내용이 같은 파일을 찾는다
     private List<Path> publicFilesWithDocContent(Long cafeId) throws IOException {
         Path cafeDir = uploads().resolve("cafes/" + cafeId);
         if (!Files.exists(cafeDir)) return List.of();
@@ -174,9 +174,9 @@ class BizDocPrivacyTest {
         mvc.perform(createForm("증빙다운로드카페")
                         .file(new MockMultipartFile("bizDocFile", "사업자등록증.pdf", "application/pdf", DOC)))
                 .andExpect(status().is3xxRedirection());
-        Long id = findByName("증빙다운로드카페").getId();
+        Long cafeId = findByName("증빙다운로드카페").getId();
 
-        mvc.perform(get("/admin/cafes/{id}/bizdoc", id).with(admin()))
+        mvc.perform(get("/admin/cafes/{cafeId}/bizdoc", cafeId).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(DOC))
                 // server.servlet.encoding.force=true 라 모든 응답에 charset 이 붙으므로 형식만 비교한다
@@ -185,10 +185,10 @@ class BizDocPrivacyTest {
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, containsString("no-store")));
 
         // /admin/** 는 화면 경로라 권한이 없으면 SecurityConfig 가 403 대신 리다이렉트한다(파일은 나가지 않음)
-        mvc.perform(get("/admin/cafes/{id}/bizdoc", id).with(ownerUser()))
+        mvc.perform(get("/admin/cafes/{cafeId}/bizdoc", cafeId).with(ownerUser()))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/"));
-        mvc.perform(get("/admin/cafes/{id}/bizdoc", id))
+        mvc.perform(get("/admin/cafes/{cafeId}/bizdoc", cafeId))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"));
     }
@@ -201,9 +201,9 @@ class BizDocPrivacyTest {
         mvc.perform(createForm("증빙SVG카페")
                         .file(new MockMultipartFile("bizDocFile", "doc.svg", "image/svg+xml", svg)))
                 .andExpect(status().is3xxRedirection());
-        Long id = findByName("증빙SVG카페").getId();
+        Long cafeId = findByName("증빙SVG카페").getId();
 
-        mvc.perform(get("/admin/cafes/{id}/bizdoc", id).with(admin()))
+        mvc.perform(get("/admin/cafes/{cafeId}/bizdoc", cafeId).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_OCTET_STREAM))
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("attachment")));
@@ -224,9 +224,9 @@ class BizDocPrivacyTest {
         assertThat(external.getBizDoc()).isNull();
         assertThat(localPath.getBizDoc()).isNull();
 
-        mvc.perform(get("/admin/cafes/{id}/bizdoc", external.getId()).with(admin()))
+        mvc.perform(get("/admin/cafes/{cafeId}/bizdoc", external.getId()).with(admin()))
                 .andExpect(status().isNotFound());
-        mvc.perform(get("/admin/cafes/{id}/bizdoc", localPath.getId()).with(admin()))
+        mvc.perform(get("/admin/cafes/{cafeId}/bizdoc", localPath.getId()).with(admin()))
                 .andExpect(status().isNotFound());
     }
 
@@ -273,7 +273,7 @@ class BizDocPrivacyTest {
         Cafe migrated = findByName("이전대상카페");
         assertThat(migrated.getBizDoc()).doesNotStartWith("/uploads");
         assertThat(legacyFile).doesNotExist();
-        mvc.perform(get("/admin/cafes/{id}/bizdoc", legacy.getId()).with(admin()))
+        mvc.perform(get("/admin/cafes/{cafeId}/bizdoc", legacy.getId()).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(content().bytes(DOC));
 

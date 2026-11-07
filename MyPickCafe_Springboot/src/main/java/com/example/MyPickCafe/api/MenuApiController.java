@@ -37,25 +37,25 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MenuApiController {
 
-    private final MenuService service;
+    private final MenuService menuService;
     private final CafeService cafeService;
-    private final FileStorageService storage;
-    private final CafeOwnershipGuard ownershipGuard;
+    private final FileStorageService fileStorageService;
+    private final CafeOwnershipGuard cafeOwnershipGuard;
 
     // 조회도 카페 승인 상태를 따른다. 승인 전 카페의 메뉴는 점주·관리자만(아니면 404).
-    @GetMapping("/{id}")
-    public MenuResponse getOne(@PathVariable Long id, Authentication auth) {
-        Menu menu = service.findById(id);
-        if (!ownershipGuard.canView(auth, menu.getCafe())) {
-            throw new NotFoundException("메뉴를 찾을 수 없습니다: " + id);
+    @GetMapping("/{menuId}")
+    public MenuResponse getOne(@PathVariable Long menuId, Authentication auth) {
+        Menu menu = menuService.findById(menuId);
+        if (!cafeOwnershipGuard.canView(auth, menu.getCafe())) {
+            throw new NotFoundException("메뉴를 찾을 수 없습니다: " + menuId);
         }
-        return service.findByIdForApi(id);
+        return menuService.findByIdForApi(menuId);
     }
 
     @GetMapping("/by-cafe/{cafeId}")
     public List<MenuResponse> listByCafe(@PathVariable Long cafeId, Authentication auth) {
         cafeService.findVisibleById(cafeId, auth);
-        return service.findByCafeIdForApi(cafeId);
+        return menuService.findByCafeIdForApi(cafeId);
     }
 
     /**
@@ -75,44 +75,44 @@ public class MenuApiController {
                                                Authentication auth,
                                                UriComponentsBuilder uriBuilder) throws Exception {
         Cafe cafe = cafeService.findById(cafeId);
-        ownershipGuard.ensureOwner(auth, cafe);
+        cafeOwnershipGuard.ensureOwner(auth, cafe);
 
         String photoUrl = null;
         if (file != null && !file.isEmpty()) {
-            photoUrl = storage.save(file, "menus/" + cafeId);
+            photoUrl = fileStorageService.save(file, "menus/" + cafeId);
         }
 
-        MenuResponse saved = service.createMenu(cafe, name, price, isNew, isRecommended, photoUrl);
-        URI location = uriBuilder.path("/api/menus/{id}").buildAndExpand(saved.id()).toUri();
+        MenuResponse saved = menuService.createMenu(cafe, name, price, isNew, isRecommended, photoUrl);
+        URI location = uriBuilder.path("/api/menus/{menuId}").buildAndExpand(saved.id()).toUri();
         return ResponseEntity.created(location).body(saved);
     }
 
-    @PutMapping("/{id}")
-    public MenuResponse update(@PathVariable Long id,
+    @PutMapping("/{menuId}")
+    public MenuResponse update(@PathVariable Long menuId,
                                @RequestBody @Valid MenuUpdateRequest body,
                                Authentication auth) {
-        Menu menu = service.findById(id);
-        ownershipGuard.ensureOwner(auth, menu.getCafe());
-        return service.updateMenu(id, body);
+        Menu menu = menuService.findById(menuId);
+        cafeOwnershipGuard.ensureOwner(auth, menu.getCafe());
+        return menuService.updateMenu(menuId, body);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{menuId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id, Authentication auth) {
-        Menu menu = service.findById(id);
-        ownershipGuard.ensureOwner(auth, menu.getCafe());
-        service.delete(id);
+    public void delete(@PathVariable Long menuId, Authentication auth) {
+        Menu menu = menuService.findById(menuId);
+        cafeOwnershipGuard.ensureOwner(auth, menu.getCafe());
+        menuService.delete(menuId);
     }
 
     @PostMapping(value = "/{menuId}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, String> uploadPhoto(@PathVariable Long menuId,
                                            @RequestParam("file") MultipartFile file,
                                            Authentication auth) throws Exception {
-        Menu menu = service.findById(menuId);
-        ownershipGuard.ensureOwner(auth, menu.getCafe());
+        Menu menu = menuService.findById(menuId);
+        cafeOwnershipGuard.ensureOwner(auth, menu.getCafe());
 
-        String url = storage.save(file, "menus/" + menu.getCafe().getId() + "/" + menuId);
-        service.updatePhoto(menuId, url);
+        String url = fileStorageService.save(file, "menus/" + menu.getCafe().getId() + "/" + menuId);
+        menuService.updatePhoto(menuId, url);
         return Map.of("url", url);
     }
 }

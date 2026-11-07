@@ -31,7 +31,7 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     /**
-     * 예전에 공개 폴더(cafes/{id}/docs/)에 저장된 사업자 증빙은 /uploads 로 내려주지 않는다.
+     * 예전에 공개 폴더(cafes/{cafeId}/docs/)에 저장된 사업자 증빙은 /uploads 로 내려주지 않는다.
      * 새 증빙은 비공개 저장소(file.private-dir)에 두지만, 배포 후 이전 작업
      * (POST /admin/cafes/bizdocs/migrate) 전까지 남아 있는 파일을 막는다.
      * 요청 경로가 아니라 디스크의 실제 경로로 판단해서 대소문자(Windows)·심볼릭 링크 같은 변형도 막는다.

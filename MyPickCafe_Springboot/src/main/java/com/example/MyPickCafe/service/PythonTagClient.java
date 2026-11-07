@@ -20,10 +20,10 @@ import java.util.Optional;
 @Service
 public class PythonTagClient {
 
-    private final WebClient webClient;
+    private final WebClient pythonTagWebClient;
 
-    public PythonTagClient(@Qualifier("pythonTagWebClient") WebClient webClient) {
-        this.webClient = webClient;
+    public PythonTagClient(@Qualifier("pythonTagWebClient") WebClient pythonTagWebClient) {
+        this.pythonTagWebClient = pythonTagWebClient;
     }
 
     /**
@@ -34,7 +34,7 @@ public class PythonTagClient {
      */
     public Optional<PythonTagResponse> analyze(PythonTagRequest req) {
         try {
-            PythonTagResponse res = webClient.post()
+            PythonTagResponse res = pythonTagWebClient.post()
                     .uri("/review/analyze")
                     .bodyValue(req)
                     .retrieve()

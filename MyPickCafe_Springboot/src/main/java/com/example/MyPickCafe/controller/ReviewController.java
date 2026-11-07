@@ -79,8 +79,8 @@ public class ReviewController {
         return "redirect:/cafes/" + form.getCafeId();
     }
 
-    @PostMapping("/{id}/edit")
-    public String edit(@PathVariable Long id,
+    @PostMapping("/{reviewId}/edit")
+    public String edit(@PathVariable Long reviewId,
                        @ModelAttribute ReviewForm form,
                        RedirectAttributes ra,
                        Authentication authentication) {
@@ -90,16 +90,16 @@ public class ReviewController {
             return "redirect:/login";
         }
 
-        Review review = reviewService.findById(id);
+        Review review = reviewService.findById(reviewId);
         if (!review.getCafe().isApproved()) {
-            throw new NotFoundException("리뷰를 찾을 수 없습니다: " + id);
+            throw new NotFoundException("리뷰를 찾을 수 없습니다: " + reviewId);
         }
         if (!review.getMember().getEmail().equals(authentication.getName())) {
             ra.addFlashAttribute("message", "본인의 리뷰만 수정할 수 있습니다.");
             return "redirect:/cafes/" + form.getCafeId();
         }
 
-        reviewService.updateWithTags(id, form);
+        reviewService.updateWithTags(reviewId, form);
 
         ra.addFlashAttribute("message", "리뷰가 수정되었습니다.");
         return "redirect:/cafes/" + form.getCafeId();

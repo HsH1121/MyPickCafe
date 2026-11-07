@@ -57,9 +57,9 @@ public class CafeService {
     }
 
     @Transactional(readOnly = true)
-    public Cafe findById(Long id) {
-        return cafeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("카페를 찾을 수 없습니다: " + id));
+    public Cafe findById(Long cafeId) {
+        return cafeRepository.findById(cafeId)
+                .orElseThrow(() -> new NotFoundException("카페를 찾을 수 없습니다: " + cafeId));
     }
 
     /**
@@ -67,21 +67,12 @@ public class CafeService {
      * 볼 수 없으면 "없는 카페"와 똑같은 {@link NotFoundException} 을 던져 존재 여부도 드러내지 않는다.
      */
     @Transactional(readOnly = true)
-    public Cafe findVisibleById(Long id, Authentication auth) {
-        Cafe cafe = findById(id);
+    public Cafe findVisibleById(Long cafeId, Authentication auth) {
+        Cafe cafe = findById(cafeId);
         if (!cafeOwnershipGuard.canView(auth, cafe)) {
-            throw new NotFoundException("카페를 찾을 수 없습니다: " + id);
+            throw new NotFoundException("카페를 찾을 수 없습니다: " + cafeId);
         }
         return cafe;
-    }
-
-    /** 주어진 ID 중 승인된 카페의 ID 만. 픽봇 등 외부에서 받은 추천 결과를 마지막에 거를 때 쓴다. */
-    @Transactional(readOnly = true)
-    public Set<Long> filterApprovedIds(Collection<Long> ids) {
-        if (ids == null || ids.isEmpty()) return Set.of();
-        return cafeRepository.findByStatusAndIdInOrderByViewsDesc(CafeStatus.APPROVED, ids).stream()
-                .map(Cafe::getId)
-                .collect(Collectors.toSet());
     }
 
     @Transactional(readOnly = true)
@@ -89,7 +80,7 @@ public class CafeService {
         return cafeRepository.findByStatus(status);
     }
 
-    // ===== REST API용 조회 (엔티티 대신 DTO 반환) =====
+    // ===== REST API용 조회 =====
     // 매핑을 트랜잭션 안에서 끝내므로 open-in-view에 의존하지 않는다.
 
     /** 공개 목록 — 승인된 카페만. 승인 대기 목록은 관리자 API(/admin/cafes/pending)가 따로 준다. */
@@ -99,8 +90,8 @@ public class CafeService {
     }
 
     @Transactional(readOnly = true)
-    public CafeResponse findByIdForApi(Long id, Authentication auth) {
-        return CafeResponse.from(findVisibleById(id, auth));
+    public CafeResponse findByIdForApi(Long cafeId, Authentication auth) {
+        return CafeResponse.from(findVisibleById(cafeId, auth));
     }
 
     @Transactional(readOnly = true)
@@ -139,9 +130,9 @@ public class CafeService {
     }
 
     @Transactional
-    public CafeResponse updateFromRequest(Long id, CafeUpdateRequest req) {
-        Cafe cafe = cafeRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("카페를 찾을 수 없습니다: " + id));
+    public CafeResponse updateFromRequest(Long cafeId, CafeUpdateRequest req) {
+        Cafe cafe = cafeRepository.findById(cafeId)
+                .orElseThrow(() -> new NotFoundException("카페를 찾을 수 없습니다: " + cafeId));
 
         if (req.name() != null && !req.name().isBlank())       cafe.setName(req.name());
         if (req.address() != null && !req.address().isBlank()) cafe.setAddress(req.address());
@@ -154,9 +145,9 @@ public class CafeService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        if (!cafeRepository.existsById(id)) throw new NotFoundException("카페를 찾을 수 없습니다: " + id);
-        cafeRepository.deleteById(id);
+    public void delete(Long cafeId) {
+        if (!cafeRepository.existsById(cafeId)) throw new NotFoundException("카페를 찾을 수 없습니다: " + cafeId);
+        cafeRepository.deleteById(cafeId);
         // 파일 스토리지 정리 필요시 fileStorageService.delete(...) 추가
     }
 
@@ -299,9 +290,9 @@ public class CafeService {
         List<Cafe> cafes;
         if ("likes".equals(sort)) {
             List<Cafe> all = cafeRepository.findByStatus(CafeStatus.APPROVED);
-            Set<Long> ids = all.stream().map(Cafe::getId).collect(Collectors.toSet());
+            Set<Long> cafeIds = all.stream().map(Cafe::getId).collect(Collectors.toSet());
             Map<Long, Double> ratioMap = new HashMap<>();
-            for (Object[] row : reviewRepository.findSentimentCountsForCafeIds(ids)) {
+            for (Object[] row : reviewRepository.findSentimentCountsForCafeIds(cafeIds)) {
                 long cafeId = ((Number) row[0]).longValue();
                 long good   = ((Number) row[1]).longValue();
                 long total  = ((Number) row[2]).longValue();
@@ -323,40 +314,49 @@ public class CafeService {
     @Transactional(readOnly = true)
     public List<CafeCardForm> findApprovedCardsByTags(Set<String> tags, int limit) {
         if (tags.isEmpty()) return findApprovedCardsSorted("views", limit);
-        Set<Long> matchingIds = null;
+        Set<Long> matchingCafeIds = null;
         for (String tag : tags) {
             String[] parts = tag.split(":", 2);
             if (parts.length != 2) return List.of();
-            List<Long> ids = cafeTagRepository.findCafeIdsForTag(parts[0], parts[1]);
-            if (matchingIds == null) matchingIds = new HashSet<>(ids);
-            else matchingIds.retainAll(ids);
-            if (matchingIds.isEmpty()) return List.of();
+            List<Long> cafeIds = cafeTagRepository.findCafeIdsForTag(parts[0], parts[1]);
+            if (matchingCafeIds == null) matchingCafeIds = new HashSet<>(cafeIds);
+            else matchingCafeIds.retainAll(cafeIds);
+            if (matchingCafeIds.isEmpty()) return List.of();
         }
         // 모든 선택 태그의 교집합을 구한 뒤 승인 상태와 결과 개수 제한을 적용한다.
         return enrichWithPhotos(cafeRepository.findByStatusAndIdInOrderByViewsDesc(
-                        CafeStatus.APPROVED, matchingIds).stream()
+                        CafeStatus.APPROVED, matchingCafeIds).stream()
                 .limit(limit).collect(Collectors.toList()));
     }
 
     @Transactional(readOnly = true)
     public List<CafeCardForm> findApprovedCardsByTag(String category, String code, int limit) {
-        List<Long> ids = cafeTagRepository.findCafeIdsForTag(category, code);
-        if (ids.isEmpty()) return List.of();
+        List<Long> cafeIds = cafeTagRepository.findCafeIdsForTag(category, code);
+        if (cafeIds.isEmpty()) return List.of();
         return enrichWithPhotos(
-                cafeRepository.findByStatusAndIdInOrderByViewsDesc(CafeStatus.APPROVED, ids)
+                cafeRepository.findByStatusAndIdInOrderByViewsDesc(CafeStatus.APPROVED, cafeIds)
                         .stream().limit(limit).collect(Collectors.toList()));
     }
 
     private List<CafeCardForm> enrichWithPhotos(List<Cafe> cafes) {
         if (cafes.isEmpty()) return List.of();
-        Set<Long> ids = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
-        Map<Long, String> photoMap = cafePhotoService.findMainPhotoUrls(ids);
+        Set<Long> cafeIds = cafes.stream().map(Cafe::getId).collect(Collectors.toSet());
+        Map<Long, String> photoMap = cafePhotoService.findMainPhotoUrls(cafeIds);
         return cafes.stream()
                 .map(c -> new CafeCardForm(
                         c.getId(), c.getName(), c.getAddress(),
                         c.getNumber(), c.getCode(), c.getViews(),
                         photoMap.getOrDefault(c.getId(), PLACEHOLDER)))
                 .collect(Collectors.toList());
+    }
+
+    // 주어진 ID 중 승인된 카페의 ID 만 필터링. 픽봇 등 외부에서 받은 추천 결과를 마지막에 거를 때 쓴다.
+    @Transactional(readOnly = true)
+    public Set<Long> filterApprovedCafeIds(Collection<Long> cafeIds) {
+        if (cafeIds == null || cafeIds.isEmpty()) return Set.of();
+        return cafeRepository.findByStatusAndIdIn(CafeStatus.APPROVED, cafeIds).stream()
+                .map(Cafe::getId)
+                .collect(Collectors.toSet());
     }
 }
 

@@ -29,14 +29,14 @@ class LoginAttemptServiceTest {
     }
 
     private MutableClock clock;
-    private LoginAttemptService svc;
+    private LoginAttemptService loginAttemptService;
 
     private static final String VICTIM = "victim@example.com";
 
     @BeforeEach
     void setUp() {
         clock = new MutableClock();
-        svc = new LoginAttemptService(clock,
+        loginAttemptService = new LoginAttemptService(clock,
                 new LoginAttemptService.Limit(5, Duration.ofMinutes(5), Duration.ofMinutes(5)),
                 new LoginAttemptService.Limit(20, Duration.ofMinutes(15), Duration.ofMinutes(15)),
                 new LoginAttemptService.Limit(50, Duration.ofMinutes(15), Duration.ofMinutes(15)),
@@ -44,20 +44,20 @@ class LoginAttemptServiceTest {
     }
 
     private void fail(String email, String ip, int times) {
-        for (int i = 0; i < times; i++) svc.recordFailure(email, ip);
+        for (int i = 0; i < times; i++) loginAttemptService.recordFailure(email, ip);
     }
 
     @Test
     @DisplayName("같은 계정·IP 에서 5분 안에 5번 실패하면 막히고, 5분 뒤 풀린다")
     void blocksAfterFiveFailuresAndExpires() {
         fail(VICTIM, "1.1.1.1", 4);
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
 
-        svc.recordFailure(VICTIM, "1.1.1.1");
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isPresent();
+        loginAttemptService.recordFailure(VICTIM, "1.1.1.1");
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isPresent();
 
         clock.advance(Duration.ofMinutes(5).plusSeconds(1));
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
     }
 
     @Test
@@ -66,7 +66,7 @@ class LoginAttemptServiceTest {
         fail(VICTIM, "1.1.1.1", 4);
         clock.advance(Duration.ofMinutes(6));
         fail(VICTIM, "1.1.1.1", 4);
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
     }
 
     @Test
@@ -74,47 +74,47 @@ class LoginAttemptServiceTest {
     void normalizesEmail() {
         fail("Victim@Example.com", "1.1.1.1", 3);
         fail(" victim@example.com ", "1.1.1.1", 2);
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isPresent();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isPresent();
     }
 
     @Test
     @DisplayName("한 IP 에서 막혀도 다른 IP 의 실제 사용자는 로그인할 수 있다")
     void accountIpBlockDoesNotAffectOtherIps() {
         fail(VICTIM, "6.6.6.6", 5);
-        assertThat(svc.blockedFor(VICTIM, "6.6.6.6")).isPresent();
-        assertThat(svc.blockedFor(VICTIM, "2.2.2.2")).isEmpty();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "6.6.6.6")).isPresent();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "2.2.2.2")).isEmpty();
     }
 
     @Test
     @DisplayName("여러 IP 로 나눠 한 계정에 20번 실패하면 계정 전체가 막힌다")
     void distributedAttackBlocksAccount() {
-        for (int i = 0; i < 20; i++) svc.recordFailure(VICTIM, "10.0.0." + i);
-        assertThat(svc.blockedFor(VICTIM, "9.9.9.9")).isPresent();
+        for (int i = 0; i < 20; i++) loginAttemptService.recordFailure(VICTIM, "10.0.0." + i);
+        assertThat(loginAttemptService.blockedFor(VICTIM, "9.9.9.9")).isPresent();
     }
 
     @Test
     @DisplayName("계정 전체 차단 중에도 최근 로그인에 성공한 IP 는 막히지 않는다(제삼자 잠금 완화)")
     void trustedIpBypassesAccountWideBlock() {
-        svc.recordSuccess(VICTIM, "2.2.2.2");
-        for (int i = 0; i < 20; i++) svc.recordFailure(VICTIM, "10.0.0." + i);
+        loginAttemptService.recordSuccess(VICTIM, "2.2.2.2");
+        for (int i = 0; i < 20; i++) loginAttemptService.recordFailure(VICTIM, "10.0.0." + i);
 
-        assertThat(svc.blockedFor(VICTIM, "9.9.9.9")).as("처음 보는 IP").isPresent();
-        assertThat(svc.blockedFor(VICTIM, "2.2.2.2")).as("로그인 이력이 있는 IP").isEmpty();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "9.9.9.9")).as("처음 보는 IP").isPresent();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "2.2.2.2")).as("로그인 이력이 있는 IP").isEmpty();
     }
 
     @Test
     @DisplayName("한 IP 에서 여러 계정을 돌아가며 50번 실패하면 IP 가 막힌다")
     void credentialStuffingBlocksIp() {
-        for (int i = 0; i < 50; i++) svc.recordFailure("user" + i + "@example.com", "7.7.7.7");
-        assertThat(svc.blockedFor("someone-else@example.com", "7.7.7.7")).isPresent();
-        assertThat(svc.blockedFor("someone-else@example.com", "8.8.8.8")).isEmpty();
+        for (int i = 0; i < 50; i++) loginAttemptService.recordFailure("user" + i + "@example.com", "7.7.7.7");
+        assertThat(loginAttemptService.blockedFor("someone-else@example.com", "7.7.7.7")).isPresent();
+        assertThat(loginAttemptService.blockedFor("someone-else@example.com", "8.8.8.8")).isEmpty();
     }
 
     @Test
     @DisplayName("NAT 뒤 여러 사용자가 몇 번씩 틀리는 정도로는 IP 가 막히지 않는다")
     void sharedIpWithOccasionalTyposIsNotBlocked() {
         for (int u = 0; u < 15; u++) fail("user" + u + "@example.com", "100.64.0.1", 2); // 30회
-        assertThat(svc.blockedFor("newcomer@example.com", "100.64.0.1")).isEmpty();
+        assertThat(loginAttemptService.blockedFor("newcomer@example.com", "100.64.0.1")).isEmpty();
     }
 
     @Test
@@ -124,16 +124,16 @@ class LoginAttemptServiceTest {
         clock.advance(Duration.ofMinutes(4));
         fail(VICTIM, "1.1.1.1", 10);
         clock.advance(Duration.ofMinutes(1).plusSeconds(1));
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
     }
 
     @Test
     @DisplayName("성공하면 그 계정·IP 의 실패 기록이 지워진다")
     void successResetsAccountIpCounter() {
         fail(VICTIM, "1.1.1.1", 4);
-        svc.recordSuccess(VICTIM, "1.1.1.1");
+        loginAttemptService.recordSuccess(VICTIM, "1.1.1.1");
         fail(VICTIM, "1.1.1.1", 4);
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isEmpty();
     }
 
     @Test
@@ -142,12 +142,12 @@ class LoginAttemptServiceTest {
         ExecutorService pool = Executors.newFixedThreadPool(8);
         CountDownLatch start = new CountDownLatch(1);
         for (int i = 0; i < 5; i++) {
-            pool.submit(() -> { start.await(); svc.recordFailure(VICTIM, "1.1.1.1"); return null; });
+            pool.submit(() -> { start.await(); loginAttemptService.recordFailure(VICTIM, "1.1.1.1"); return null; });
         }
         start.countDown();
         pool.shutdown();
         assertThat(pool.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
-        assertThat(svc.blockedFor(VICTIM, "1.1.1.1")).isPresent();
+        assertThat(loginAttemptService.blockedFor(VICTIM, "1.1.1.1")).isPresent();
     }
 
     @Test

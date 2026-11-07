@@ -21,7 +21,7 @@ public class LoginService {
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
-    private final LoginAttemptService attempts;
+    private final LoginAttemptService loginAttemptService;
 
     /**
      * 없는 이메일일 때도 BCrypt 비교를 한 번 해서 응답 시간을 맞춘다.
@@ -31,10 +31,10 @@ public class LoginService {
 
     public LoginService(MemberRepository memberRepository,
                         PasswordEncoder passwordEncoder,
-                        LoginAttemptService attempts) {
+                        LoginAttemptService loginAttemptService) {
         this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
-        this.attempts = attempts;
+        this.loginAttemptService = loginAttemptService;
         this.dummyHash = passwordEncoder.encode("timing-equalizer-not-a-real-password");
     }
 
@@ -57,7 +57,7 @@ public class LoginService {
         String ip = clientIp == null ? "" : clientIp;
 
         // 차단 중이면 비밀번호를 확인하지 않는다(차단 중에도 맞는 비밀번호를 알아낼 수 있으면 의미가 없다).
-        Optional<Duration> blocked = attempts.blockedFor(email, ip);
+        Optional<Duration> blocked = loginAttemptService.blockedFor(email, ip);
         if (blocked.isPresent()) {
             return new Result(Status.BLOCKED, null, blocked.get());
         }
@@ -82,10 +82,10 @@ public class LoginService {
         }
 
         if (!matches) {
-            attempts.recordFailure(email, ip);
+            loginAttemptService.recordFailure(email, ip);
             return new Result(Status.INVALID_CREDENTIALS, null, null);
         }
-        attempts.recordSuccess(email, ip);
+        loginAttemptService.recordSuccess(email, ip);
         return new Result(Status.SUCCESS, memberOpt.get(), null);
     }
 

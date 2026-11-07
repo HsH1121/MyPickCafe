@@ -16,30 +16,30 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MenuService {
 
-    private final MenuRepository repository;
+    private final MenuRepository menuRepository;
 
     @Transactional(readOnly = true)
     public List<Menu> findAll() {
-        return repository.findAll();
+        return menuRepository.findAll();
     }
 
     @Transactional(readOnly = true)
-    public Menu findById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new NotFoundException("메뉴를 찾을 수 없습니다: " + id));
+    public Menu findById(Long menuId) {
+        return menuRepository.findById(menuId)
+                .orElseThrow(() -> new NotFoundException("메뉴를 찾을 수 없습니다: " + menuId));
     }
 
     // ===== REST API용 (엔티티 대신 DTO 반환) =====
     // 매핑을 트랜잭션 안에서 끝내 open-in-view에 의존하지 않는다.
 
     @Transactional(readOnly = true)
-    public MenuResponse findByIdForApi(Long id) {
-        return MenuResponse.from(findById(id));
+    public MenuResponse findByIdForApi(Long menuId) {
+        return MenuResponse.from(findById(menuId));
     }
 
     @Transactional(readOnly = true)
     public List<MenuResponse> findByCafeIdForApi(Long cafeId) {
-        return repository.findByCafe_Id(cafeId).stream().map(MenuResponse::from).toList();
+        return menuRepository.findByCafe_Id(cafeId).stream().map(MenuResponse::from).toList();
     }
 
     @Transactional
@@ -52,13 +52,13 @@ public class MenuService {
         m.setNew(isNew);
         m.setRecommended(isRecommended);
         m.setPhoto(photoUrl);
-        return MenuResponse.from(repository.save(m));
+        return MenuResponse.from(menuRepository.save(m));
     }
 
     /** 더티 체킹으로 변경분만 반영. 소속 카페는 변경 대상이 아니다. */
     @Transactional
-    public MenuResponse updateMenu(Long id, MenuUpdateRequest req) {
-        Menu m = findById(id);
+    public MenuResponse updateMenu(Long menuId, MenuUpdateRequest req) {
+        Menu m = findById(menuId);
         if (req.name() != null && !req.name().isBlank()) m.setName(req.name());
         if (req.price() != null)           m.setPrice(req.price());
         if (req.isNew() != null)           m.setNew(req.isNew());
@@ -67,19 +67,19 @@ public class MenuService {
     }
 
     @Transactional
-    public void updatePhoto(Long id, String photoUrl) {
-        findById(id).setPhoto(photoUrl);
+    public void updatePhoto(Long menuId, String photoUrl) {
+        findById(menuId).setPhoto(photoUrl);
     }
 
     @Transactional
-    public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("메뉴를 찾을 수 없습니다: " + id);
+    public void delete(Long menuId) {
+        if (!menuRepository.existsById(menuId)) {
+            throw new NotFoundException("메뉴를 찾을 수 없습니다: " + menuId);
         }
-        repository.deleteById(id);
+        menuRepository.deleteById(menuId);
     }
     @Transactional(readOnly = true)
     public List<Menu> findByCafeId(Long cafeId) {
-        return repository.findByCafe_Id(cafeId);
+        return menuRepository.findByCafe_Id(cafeId);
     }
 }

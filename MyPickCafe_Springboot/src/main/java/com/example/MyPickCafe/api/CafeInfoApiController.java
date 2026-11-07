@@ -21,14 +21,14 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/cafe-infos")
 public class CafeInfoApiController {
 
-    private final CafeInfoService service;
+    private final CafeInfoService cafeInfoService;
     private final CafeService cafeService;
     private final MemberService memberService;
 
     @GetMapping("/by-cafe/{cafeId}")
     public ResponseEntity<CafeInfoResponse> byCafe(@PathVariable Long cafeId, Authentication auth) {
         cafeService.findVisibleById(cafeId, auth); // 승인 전 카페는 점주·관리자만(아니면 404)
-        return service.findByCafeId(cafeId)
+        return cafeInfoService.findByCafeId(cafeId)
                 .map(CafeInfoResponse::from)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
@@ -42,25 +42,25 @@ public class CafeInfoApiController {
                                    Authentication auth) {
         Cafe cafe = cafeService.findById(cafeId);
         ensureOwner(auth, cafe);
-        return CafeInfoResponse.from(service.upsertByCafe(cafe, body));
+        return CafeInfoResponse.from(cafeInfoService.upsertByCafe(cafe, body));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{cafeInfoId}")
     @PreAuthorize("isAuthenticated()")
-    public CafeInfoResponse update(@PathVariable Long id,
+    public CafeInfoResponse update(@PathVariable Long cafeInfoId,
                                    @RequestBody @Valid CafeInfoRequest body,
                                    Authentication auth) {
-        CafeInfo cur = service.findById(id);
+        CafeInfo cur = cafeInfoService.findById(cafeInfoId);
         ensureOwner(auth, cur.getCafe());
-        return CafeInfoResponse.from(service.update(id, body));
+        return CafeInfoResponse.from(cafeInfoService.update(cafeInfoId, body));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{cafeInfoId}")
     @PreAuthorize("isAuthenticated()")
-    public void delete(@PathVariable Long id, Authentication auth) {
-        CafeInfo cur = service.findById(id);
+    public void delete(@PathVariable Long cafeInfoId, Authentication auth) {
+        CafeInfo cur = cafeInfoService.findById(cafeInfoId);
         ensureOwner(auth, cur.getCafe());
-        service.delete(id);
+        cafeInfoService.delete(cafeInfoId);
     }
 
     private void ensureOwner(Authentication auth, Cafe cafe) {

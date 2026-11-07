@@ -29,9 +29,9 @@ public class MemberService {
     }
 
     @Transactional(readOnly = true)
-    public Member findById(Long id) {
-        return memberRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("회원을 찾을 수 없습니다: " + id));
+    public Member findById(Long memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new NotFoundException("회원을 찾을 수 없습니다: " + memberId));
     }
 
     /**
@@ -67,8 +67,8 @@ public class MemberService {
      * null로 덮어써질 위험이 없다.
      */
     @Transactional
-    public Member updateMember(Long id, MemberUpdateRequest req) {
-        Member m = findById(id);
+    public Member updateMember(Long memberId, MemberUpdateRequest req) {
+        Member m = findById(memberId);
 
         if (req.nickname() != null && !req.nickname().isBlank()
                 && !req.nickname().equals(m.getNickname())) {
@@ -95,11 +95,11 @@ public class MemberService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        if (!memberRepository.existsById(id)) {
-            throw new NotFoundException("회원을 찾을 수 없습니다: " + id);
+    public void delete(Long memberId) {
+        if (!memberRepository.existsById(memberId)) {
+            throw new NotFoundException("회원을 찾을 수 없습니다: " + memberId);
         }
-        memberRepository.deleteById(id);
+        memberRepository.deleteById(memberId);
     }
 
     @Transactional(readOnly = true)

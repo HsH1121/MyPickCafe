@@ -42,11 +42,11 @@ class LoginThrottleIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private MemberRepository memberRepository;
     @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private LoginAttemptService attempts;
+    @Autowired private LoginAttemptService loginAttemptService;
 
     @BeforeEach
     void setUp() {
-        attempts.clear();
+        loginAttemptService.clear();
         Member m = new Member();
         m.setEmail(EMAIL);
         m.setPassword(passwordEncoder.encode(PASSWORD));

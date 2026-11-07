@@ -36,9 +36,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("카페 상세 페이지 영업 정보 렌더링")
 class CafeDetailRenderingTest {
     @Autowired MockMvc mvc;
-    @Autowired MemberRepository members;
-    @Autowired CafeRepository cafes;
-    @Autowired CafeInfoRepository infos;
+    @Autowired MemberRepository memberRepository;
+    @Autowired CafeRepository cafeRepository;
+    @Autowired CafeInfoRepository cafeInfoRepository;
     private Cafe cafe;
 
     @BeforeEach
@@ -48,7 +48,7 @@ class CafeDetailRenderingTest {
         owner.setPassword(TestPasswords.HASH);
         owner.setNickname("detail-test-owner");
         owner.setRoleKind(RoleKind.CAFEOWNER);
-        members.save(owner);
+        memberRepository.save(owner);
         cafe = new Cafe();
         cafe.setOwner(owner);
         cafe.setName("Detail test cafe");
@@ -58,7 +58,7 @@ class CafeDetailRenderingTest {
         cafe.setDate(LocalDateTime.now());
         cafe.setViews(0L);
         cafe.setStatus(CafeStatus.APPROVED);
-        cafes.save(cafe);
+        cafeRepository.save(cafe);
     }
 
     @Test
@@ -67,9 +67,9 @@ class CafeDetailRenderingTest {
         CafeInfo info = new CafeInfo();
         info.setCafe(cafe);
         info.setOpenTime("09:00");
-        infos.save(info);
+        cafeInfoRepository.save(info);
 
-        mvc.perform(get("/cafes/{id}", cafe.getId()))
+        mvc.perform(get("/cafes/{cafeId}", cafe.getId()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("cafeCloseTime", ""))
                 .andExpect(model().attribute("cafeHoliday", ""))
@@ -82,9 +82,9 @@ class CafeDetailRenderingTest {
     void rendersWithAllInfoFieldsNull() throws Exception {
         CafeInfo info = new CafeInfo();
         info.setCafe(cafe);
-        infos.save(info);
+        cafeInfoRepository.save(info);
 
-        mvc.perform(get("/cafes/{id}", cafe.getId()))
+        mvc.perform(get("/cafes/{cafeId}", cafe.getId()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("소개/공지 정보가 아직 없어요.")));
     }
