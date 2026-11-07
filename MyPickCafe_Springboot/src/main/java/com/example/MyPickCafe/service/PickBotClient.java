@@ -14,6 +14,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -40,15 +41,17 @@ public class PickBotClient {
      *
      * <p>화면에 따로 안내할 내용(결과가 빈 이유, 서울 밖 지역 등)은 {@link PickBotResponse#getNotice()} 에 담긴다.
      *
+     * @param approvedCafeIds 호출 시점의 승인된 카페 ID 전체. 픽봇은 이 카페의 리뷰만 벡터 검색한다
+     *                        (ChromaDB where 조건). 그래서 추천 결과를 다시 거르지 않는다.
      * @throws PickBotUnavailableException 픽봇 서버에서 추천 결과를 받지 못한 경우
      */
-    public PickBotResponse recommend(String query) {
+    public PickBotResponse recommend(String query, Collection<Long> approvedCafeIds) {
         long startedAt = System.currentTimeMillis();
         PickBotResponse res;
         try {
             res = pickBotWebClient.post()
                     .uri("/pickbot/recommend")
-                    .bodyValue(Map.of("query", query))
+                    .bodyValue(Map.of("query", query, "approvedCafeIds", approvedCafeIds))
                     .retrieve()
                     .bodyToMono(PickBotResponse.class)
                     .block();

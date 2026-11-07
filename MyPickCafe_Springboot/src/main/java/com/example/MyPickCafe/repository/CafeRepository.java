@@ -4,6 +4,8 @@ import com.example.MyPickCafe.domain.CafeStatus;
 import com.example.MyPickCafe.entity.Cafe;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -21,7 +23,9 @@ public interface CafeRepository extends JpaRepository<Cafe, Long> {
 
     List<Cafe> findByStatusOrderByDateDesc(CafeStatus status, Pageable pageable);
 
-    List<Cafe> findByStatusAndIdIn(CafeStatus status, Collection<Long> cafeIds);
+    /** 상태가 같은 카페의 ID 만. 엔티티를 읽지 않으므로 픽봇 호출마다 불러도 가볍다. */
+    @Query("select c.id from Cafe c where c.status = :status")
+    List<Long> findCafeIdsByStatus(@Param("status") CafeStatus status);
 
     List<Cafe> findByStatusAndIdInOrderByViewsDesc(CafeStatus status, Collection<Long> cafeIds);
 

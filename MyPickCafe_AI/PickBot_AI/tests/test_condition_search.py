@@ -221,7 +221,7 @@ def main() -> int:
     rag._directory = [{"cafe_id": i, "cafe_name": f"카페{i}", "address": f"서울시 용산구 {i}", "review_count": 1,
                        "good_count": 1} for i in range(1, 6)]
     rag._directory_loaded_at = 1e18
-    asyncio.run(rag.recommend("와이파이 빠르고 주차 편하고 디저트 맛있는 카페"))
+    asyncio.run(rag.recommend("와이파이 빠르고 주차 편하고 디저트 맛있는 카페", [1, 2, 3, 4, 5]))
     expect("조건 3개여도 LLM 호출 2번, 임베딩 1번, 조회 1번", len(calls) == 2 and len(rag._emb_fn.calls) == 1
            and len(rag._col.calls) == 1, (len(calls), rag._emb_fn.calls, len(rag._col.calls)))
 

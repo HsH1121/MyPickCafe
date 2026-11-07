@@ -19,6 +19,7 @@ import com.example.MyPickCafe.repository.MenuRepository;
 import com.example.MyPickCafe.repository.ReviewRepository;
 import com.example.MyPickCafe.service.PickBotClient;
 import org.junit.jupiter.api.BeforeEach;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,12 +34,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -253,25 +258,21 @@ class PendingCafeVisibilityTest {
     // ── 추천 ───────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("픽봇: AI 서버가 승인 전·반려 카페를 돌려줘도 응답에서 뺀다")
-    void pickBotFiltersUnapprovedAtTheEnd() throws Exception {
+    @DisplayName("픽봇: 호출할 때 승인된 카페 ID 만 넘긴다(승인 전·반려 카페는 검색 대상에서 빠짐)")
+    @SuppressWarnings("unchecked")
+    void pickBotReceivesOnlyApprovedCafeIds() throws Exception {
         PickBotResponse fromAi = new PickBotResponse();
-        List<PickBotResult> results = new ArrayList<>();
-        for (Long cafeId : List.of(pendingCafeId, approvedCafeId, rejectedCafeId)) {
-            PickBotResult r = new PickBotResult();
-            r.setCafeId(cafeId);
-            r.setCafeName("cafe-" + cafeId);
-            results.add(r);
-        }
-        fromAi.setResults(results);
-        when(pickBotClient.recommend(anyString())).thenReturn(fromAi);
+        fromAi.setResults(new ArrayList<>());
+        when(pickBotClient.recommend(anyString(), anyCollection())).thenReturn(fromAi);
 
         mvc.perform(post("/api/pickbot/recommend")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"조용한 카페\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.results.length()").value(1))
-                .andExpect(jsonPath("$.results[0].cafeId").value(approvedCafeId));
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Collection<Long>> cafeIds = ArgumentCaptor.forClass(Collection.class);
+        verify(pickBotClient).recommend(eq("조용한 카페"), cafeIds.capture());
+        assertThat(cafeIds.getValue()).contains(approvedCafeId).doesNotContain(pendingCafeId, rejectedCafeId);
     }
 
     @Test

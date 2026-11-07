@@ -10,6 +10,9 @@ QUERY_MAX_LENGTH = 60
 
 class PickBotRequest(BaseModel):
     query: str = Field(max_length=QUERY_MAX_LENGTH)
+    # Spring 이 호출 시점에 DB 에서 읽은 승인된 카페 ID 전체. 이 카페의 리뷰만 검색한다.
+    # 기본값을 두지 않는다 — 빠뜨린 요청이 인덱스 전체(승인 취소 카페 포함)로 검색되지 않게 422 로 거절한다.
+    approvedCafeIds: list[int]
 
 
 class PickBotResult(BaseModel):

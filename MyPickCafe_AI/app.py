@@ -126,7 +126,7 @@ _VALID_SENTIMENTS: frozenset[str] = frozenset({"GOOD", "BAD"})
 async def pickbot_recommend(request: PickBotRequest) -> PickBotResponse:
     if cafe_rag is None:
         raise HTTPException(status_code=503, detail="RAG 모듈이 초기화되지 않았습니다.")
-    return PickBotResponse(**await cafe_rag.recommend(request.query))
+    return PickBotResponse(**await cafe_rag.recommend(request.query, request.approvedCafeIds))
 
 
 @app.post("/pickbot/index-one", summary="단일 리뷰 ChromaDB upsert")
