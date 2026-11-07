@@ -75,21 +75,12 @@ public class CafeService {
         return cafe;
     }
 
-    /** 주어진 ID 중 승인된 카페의 ID 만. 픽봇 등 외부에서 받은 추천 결과를 마지막에 거를 때 쓴다. */
-    @Transactional(readOnly = true)
-    public Set<Long> filterApprovedCafeIds(Collection<Long> cafeIds) {
-        if (cafeIds == null || cafeIds.isEmpty()) return Set.of();
-        return cafeRepository.findByStatusAndIdInOrderByViewsDesc(CafeStatus.APPROVED, cafeIds).stream()
-                .map(Cafe::getId)
-                .collect(Collectors.toSet());
-    }
-
     @Transactional(readOnly = true)
     public List<Cafe> findByStatus(CafeStatus status) {
         return cafeRepository.findByStatus(status);
     }
 
-    // ===== REST API용 조회 (엔티티 대신 DTO 반환) =====
+    // ===== REST API용 조회 =====
     // 매핑을 트랜잭션 안에서 끝내므로 open-in-view에 의존하지 않는다.
 
     /** 공개 목록 — 승인된 카페만. 승인 대기 목록은 관리자 API(/admin/cafes/pending)가 따로 준다. */
@@ -357,6 +348,15 @@ public class CafeService {
                         c.getNumber(), c.getCode(), c.getViews(),
                         photoMap.getOrDefault(c.getId(), PLACEHOLDER)))
                 .collect(Collectors.toList());
+    }
+
+    // 주어진 ID 중 승인된 카페의 ID 만 필터링. 픽봇 등 외부에서 받은 추천 결과를 마지막에 거를 때 쓴다.
+    @Transactional(readOnly = true)
+    public Set<Long> filterApprovedCafeIds(Collection<Long> cafeIds) {
+        if (cafeIds == null || cafeIds.isEmpty()) return Set.of();
+        return cafeRepository.findByStatusAndIdIn(CafeStatus.APPROVED, cafeIds).stream()
+                .map(Cafe::getId)
+                .collect(Collectors.toSet());
     }
 }
 
