@@ -73,7 +73,7 @@ def make_rag(parsed: ParsedQuery, calls: list) -> pickbot_rag.CafeRAG:
     rag.settings = SimpleNamespace(pickbot_trace=False)
     rag._col = _FakeCollection()
 
-    async def directory():
+    async def directory(refresh=False):
         return DIRECTORY
 
     async def rag_cafes(conditions, candidate_ids, trace=None):
@@ -103,7 +103,7 @@ def main() -> int:
     failures = 0
     for name, parsed, (kind, expected_ids), expected_notice in CASES:
         calls: list = []
-        result = asyncio.run(make_rag(parsed, calls).recommend("질문"))
+        result = asyncio.run(make_rag(parsed, calls).recommend("질문", [1, 2, 3]))
         got_kind, got_ids = calls[0] if calls else ("none", None)
         if got_ids is not None:
             got_ids = sorted(got_ids)

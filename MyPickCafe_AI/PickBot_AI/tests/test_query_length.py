@@ -56,12 +56,12 @@ def main() -> int:
         assert len(query) == expected_len, f"테스트 데이터 길이 오류: {name} ({len(query)})"
 
         try:
-            PickBotRequest(query=query)
+            PickBotRequest(query=query, approvedCafeIds=[1])
             model_ok = True
         except ValidationError:
             model_ok = False
 
-        status = client.post("/pickbot/recommend", json={"query": query}).status_code
+        status = client.post("/pickbot/recommend", json={"query": query, "approvedCafeIds": [1]}).status_code
         http_ok = status == 200
 
         ok = model_ok == should_pass and http_ok == should_pass and status in (200, 422)

@@ -131,6 +131,7 @@ _PICK_MAX_TOKENS = 3000
 # Ollama qwen2.5 같은 비추론 모델은 값을 보내면 400("does not support thinking")이므로 그때는 비워 둔다.
 
 # 카페 목록(주소·리뷰 수) 캐시 유지 시간. 요청마다 DB 를 조회하지 않기 위함.
+# 어떤 카페를 검색할지는 캐시가 아니라 요청의 approvedCafeIds 로 정하므로, 캐시가 늦어도 승인 여부는 정확하다.
 _DIRECTORY_TTL_SEC = 300
 
 _SYSTEM_PROMPT = """당신은 카페 리뷰가 사용자 요구사항을 충족하는지 판정하는 AI입니다.
@@ -250,15 +251,18 @@ class CafeRAG:
     # ------------------------------------------------------------------
     # 추천
     # ------------------------------------------------------------------
-    async def recommend(self, query: str, top_n: int = 5) -> dict:
+    async def recommend(self, query: str, approved_cafe_ids: list[int], top_n: int = 5) -> dict:
         """질문 → 지역·조건 분해(LLM 1차) → 주소 필터 → 리뷰 유사도 검색 → LLM 2차 추천.
+
+        approved_cafe_ids: Spring 이 호출 시점에 DB 에서 읽은 승인된 카페 ID. 지역 필터·벡터 검색·순위 모두
+        이 카페만 대상으로 한다(검색 전에 거르므로 추천 뒤에 다시 거르지 않는다).
 
         반환: {"results": [PickBotResult dict, ...], "notice": None | NOTICE_*}
         PICKBOT_TRACE=true(개발 환경)면 단계별 시간·결과를 logs/pickbot_trace.log 와 콘솔에 남긴다.
         """
         trace = PickTrace(query, self.settings.pickbot_trace)
         try:
-            result = await self._recommend(query, top_n, trace)
+            result = await self._recommend(query, approved_cafe_ids, top_n, trace)
         except BaseException as e:
             trace.finish(f"오류 {type(e).__name__}: {e}")
             raise
@@ -266,21 +270,26 @@ class CafeRAG:
         trace.finish(f"{len(result['results'])}곳 반환{notice}")
         return result
 
-    async def _recommend(self, query: str, top_n: int, trace: PickTrace) -> dict:
+    async def _recommend(self, query: str, approved_cafe_ids: list[int], top_n: int, trace: PickTrace) -> dict:
         if self._col.count() == 0:
             logger.warning("ChromaDB가 비어 있습니다. 먼저 /pickbot/reindex를 호출하세요.")
             trace.step("인덱스", None, "ChromaDB 가 비어 있음")
             return {"results": [], "notice": None}
 
-        # 1. 질문 분해 — 지역은 카페 주소에 실제로 있는 구·동 이름으로 받는다
+        # 1. 승인된 카페 목록 — Spring 이 보낸 ID 로 거른다. 이후 모든 단계는 이 목록 안에서만 찾는다.
         started = trace.now()
-        directory = await self._cafe_directory()
+        directory = await self._approved_directory(approved_cafe_ids)
         allowed = sorted({t for c in directory for t in _region_tokens(c["address"])})
-        trace.step("카페 목록", started, f"{len(directory)}곳, 허용 지역 {len(allowed)}개")
+        trace.step("카페 목록", started,
+                   f"승인 {len(approved_cafe_ids)}곳 중 {len(directory)}곳, 허용 지역 {len(allowed)}개")
+        if not directory:
+            return {"results": [], "notice": None}
+
+        # 2. 질문 분해 — 지역은 승인된 카페 주소에 실제로 있는 구·동 이름으로 받는다
         parsed = await parse_query(query, allowed, self.settings, trace)
         _rag_logger.debug(f"[질문 분해] 쿼리: {query!r}\n  {parsed}\n" + "=" * 70)
 
-        # 2. 주소 필터 — 포함 지역 중 하나라도 주소에 있고(OR), 제외 지역은 하나도 없는 카페
+        # 3. 주소 필터 — 포함 지역 중 하나라도 주소에 있고(OR), 제외 지역은 하나도 없는 카페
         # 허용 목록 밖의 지역(unmatched_regions)은 거르지 않고 무시한다. 모든 카페가 서울에 있어
         # 모델이 "서울"이나 "제주 말차"의 제주를 지역으로 잘못 뽑아도 추천이 막히지 않게 하기 위함이다.
         started = trace.now()
@@ -299,17 +308,16 @@ class CafeRAG:
         if region_filtered and not candidates:
             return {"results": [], "notice": NOTICE_REGION_NOT_FOUND}
 
-        # 3-a. 지역 말고 다른 조건이 없으면 벡터 검색 없이 긍정 리뷰 수로 순위를 매긴다
+        # 4-a. 지역 말고 다른 조건이 없으면 벡터 검색 없이 긍정 리뷰 수로 순위를 매긴다
         conditions = parsed.condition_list()
         if not conditions:
             trace.step("④ 벡터 검색", None, "건너뜀 (조건 문장 없음)")
             trace.step("⑤ 판정 LLM", None, "건너뜀 → 긍정 리뷰 수 순위")
             return {"results": await self._rank_with_only_region(candidates, top_n, trace), "notice": notice}
 
-        # 3-b. 조건별 리뷰 벡터 검색 → 카페별 조건 커버리지 순위
-        # 지역 조건이 없어도 항상 후보(=승인된 카페 목록)로 제한한다. 인덱스에는 승인 취소된 카페나
-        # 승인 전에 index-one 으로 들어간 리뷰가 남아 있을 수 있어서, 목록에 없는 카페는 검색에서 뺀다.
-        # (목록은 최대 _DIRECTORY_TTL_SEC 늦을 수 있어 Spring 이 응답 직전에 DB 기준으로 한 번 더 거른다.)
+        # 4-b. 조건별 리뷰 벡터 검색 → 카페별 조건 커버리지 순위
+        # 지역 조건이 없어도 항상 후보(=승인된 카페)로 ChromaDB where 를 건다. 인덱스에는 승인 취소된 카페의
+        # 리뷰가 남아 있을 수 있어서, 승인 카페가 아닌 리뷰는 유사도 계산 대상에서부터 뺀다.
         candidate_ids = [str(c["cafe_id"]) for c in candidates]
         if not candidate_ids:
             return {"results": [], "notice": notice}
@@ -318,13 +326,27 @@ class CafeRAG:
             trace.step("⑤ 판정 LLM", None, "건너뜀 (검색 결과 없음)")
             return {"results": [], "notice": notice}
 
-        # 4. LLM 2차 호출 — 지역은 필터로 이미 반영했으므로 조건 목록을 요구사항으로 그대로 넘긴다
+        # 5. LLM 2차 호출 — 지역은 필터로 이미 반영했으므로 조건 목록을 요구사항으로 그대로 넘긴다
         return {"results": await self._pick_with_llm(conditions, top_cafes, trace), "notice": notice}
 
-    async def _cafe_directory(self) -> list[dict]:
+    async def _approved_directory(self, approved_cafe_ids: list[int]) -> list[dict]:
+        """카페 목록 중 Spring 이 보낸 승인 카페만. 캐시 이후 새로 승인된 카페가 있으면 목록을 바로 다시 읽는다.
+
+        캐시에 남은 승인 취소 카페는 여기서 빠지므로 캐시가 늦어도 검색 대상에 들어가지 않는다.
+        """
+        approved = set(approved_cafe_ids)
+        if not approved:
+            return []
+        directory = await self._cafe_directory()
+        if not approved <= {c["cafe_id"] for c in directory}:
+            directory = await self._cafe_directory(refresh=True)
+        return [c for c in directory if c["cafe_id"] in approved]
+
+    async def _cafe_directory(self, refresh: bool = False) -> list[dict]:
         """승인된 카페의 주소·리뷰 수 목록 (TTL 캐시). 조회에 실패하면 이전 캐시라도 쓴다."""
         now = time.monotonic()
-        if self._directory_loaded_at is None or now - self._directory_loaded_at > _DIRECTORY_TTL_SEC:
+        if (refresh or self._directory_loaded_at is None
+                or now - self._directory_loaded_at > _DIRECTORY_TTL_SEC):
             try:
                 self._directory = await asyncio.to_thread(fetch_cafe_directory, self.settings)
                 self._directory_loaded_at = now

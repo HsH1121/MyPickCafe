@@ -117,7 +117,7 @@ def run(llm: FakeLLM, enabled: bool, query: str, capture: Capture, tmp: Path) ->
     settings = Settings(pickbot_trace=enabled, region_candidates_path=str(tmp / "candidates.json"),
                         llm_reasoning_effort="")
     before = len(capture.messages)
-    result = asyncio.run(make_rag(settings).recommend(query))
+    result = asyncio.run(make_rag(settings).recommend(query, [c["cafe_id"] for c in DIRECTORY]))
     return result, "\n".join(capture.messages[before:])
 
 

@@ -350,13 +350,10 @@ public class CafeService {
                 .collect(Collectors.toList());
     }
 
-    // 주어진 ID 중 승인된 카페의 ID 만 필터링. 픽봇 등 외부에서 받은 추천 결과를 마지막에 거를 때 쓴다.
+    /** 승인된 카페 전체의 ID. 픽봇이 이 카페의 리뷰만 검색하도록 호출할 때 넘긴다. */
     @Transactional(readOnly = true)
-    public Set<Long> filterApprovedCafeIds(Collection<Long> cafeIds) {
-        if (cafeIds == null || cafeIds.isEmpty()) return Set.of();
-        return cafeRepository.findByStatusAndIdIn(CafeStatus.APPROVED, cafeIds).stream()
-                .map(Cafe::getId)
-                .collect(Collectors.toSet());
+    public List<Long> findApprovedCafeIds() {
+        return cafeRepository.findCafeIdsByStatus(CafeStatus.APPROVED);
     }
 }
 
