@@ -14,19 +14,19 @@ import jakarta.persistence.Converter;
 @Converter
 public class StoredFileUrlConverter implements AttributeConverter<String, String> {
 
-    private final FileStorageService storage;
+    private final FileStorageService fileStorageService;
 
-    public StoredFileUrlConverter(FileStorageService storage) {
-        this.storage = storage;
+    public StoredFileUrlConverter(FileStorageService fileStorageService) {
+        this.fileStorageService = fileStorageService;
     }
 
     @Override
     public String convertToDatabaseColumn(String url) {
-        return storage.toStoredValue(url);
+        return fileStorageService.toStoredValue(url);
     }
 
     @Override
     public String convertToEntityAttribute(String storedValue) {
-        return storage.toUrl(storedValue);
+        return fileStorageService.toUrl(storedValue);
     }
 }

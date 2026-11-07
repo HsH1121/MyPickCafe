@@ -29,33 +29,33 @@ class PrivateFileStorageTest {
 
     @Test
     void local_putGetDeleteRoundTrip() throws Exception {
-        var storage = new LocalPrivateFileStorage(dir.toString());
+        var privateFileStorage = new LocalPrivateFileStorage(dir.toString());
 
-        storage.put("bizdocs/7/a.pdf", new byte[]{1, 2, 3}, "application/pdf");
+        privateFileStorage.put("bizdocs/7/a.pdf", new byte[]{1, 2, 3}, "application/pdf");
 
         assertThat(dir.resolve("bizdocs/7/a.pdf")).exists();
-        assertThat(storage.get("bizdocs/7/a.pdf")).contains(new byte[]{1, 2, 3});
-        storage.delete("bizdocs/7/a.pdf");
-        assertThat(storage.get("bizdocs/7/a.pdf")).isEmpty();
+        assertThat(privateFileStorage.get("bizdocs/7/a.pdf")).contains(new byte[]{1, 2, 3});
+        privateFileStorage.delete("bizdocs/7/a.pdf");
+        assertThat(privateFileStorage.get("bizdocs/7/a.pdf")).isEmpty();
     }
 
     @Test
     void local_rejectsKeysOutsideRoot() throws Exception {
-        var storage = new LocalPrivateFileStorage(dir.resolve("private").toString());
+        var privateFileStorage = new LocalPrivateFileStorage(dir.resolve("private").toString());
         Path outside = Files.writeString(dir.resolve("secret.txt"), "secret");
 
-        assertThatThrownBy(() -> storage.get("../secret.txt")).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> storage.get(outside.toAbsolutePath().toString()))
+        assertThatThrownBy(() -> privateFileStorage.get("../secret.txt")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> privateFileStorage.get(outside.toAbsolutePath().toString()))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> storage.put("", new byte[]{1}, null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> privateFileStorage.put("", new byte[]{1}, null)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void s3_writesUnderPrivatePrefixWithoutPublicCache() {
         S3Client s3 = mock(S3Client.class);
-        var storage = new S3PrivateFileStorage(s3, "mpc-bucket");
+        var privateFileStorage = new S3PrivateFileStorage(s3, "mpc-bucket");
 
-        storage.put("bizdocs/7/a.pdf", new byte[]{1}, "application/pdf");
+        privateFileStorage.put("bizdocs/7/a.pdf", new byte[]{1}, "application/pdf");
 
         var req = ArgumentCaptor.forClass(PutObjectRequest.class);
         verify(s3).putObject(req.capture(), any(RequestBody.class));
@@ -67,14 +67,14 @@ class PrivateFileStorageTest {
     @Test
     void s3_getReadsPrivateKeyAndMissingIsEmpty() {
         S3Client s3 = mock(S3Client.class);
-        var storage = new S3PrivateFileStorage(s3, "mpc-bucket");
+        var privateFileStorage = new S3PrivateFileStorage(s3, "mpc-bucket");
         when(s3.getObjectAsBytes(GetObjectRequest.builder().bucket("mpc-bucket").key("private/bizdocs/7/a.pdf").build()))
                 .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), new byte[]{5}));
         when(s3.getObjectAsBytes(GetObjectRequest.builder().bucket("mpc-bucket").key("private/bizdocs/7/none.pdf").build()))
                 .thenThrow(NoSuchKeyException.builder().build());
 
-        assertThat(storage.get("bizdocs/7/a.pdf")).contains(new byte[]{5});
-        assertThat(storage.get("bizdocs/7/none.pdf")).isEmpty();
+        assertThat(privateFileStorage.get("bizdocs/7/a.pdf")).contains(new byte[]{5});
+        assertThat(privateFileStorage.get("bizdocs/7/none.pdf")).isEmpty();
     }
 
     @Test

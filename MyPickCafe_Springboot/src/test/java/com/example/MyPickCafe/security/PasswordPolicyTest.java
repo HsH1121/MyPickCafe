@@ -18,15 +18,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DisplayName("비밀번호 정책")
 class PasswordPolicyTest {
 
-    private final PasswordPolicy policy = new PasswordPolicy();
+    private final PasswordPolicy passwordPolicy = new PasswordPolicy();
 
     private void ok(String pw) {
-        assertThatCode(() -> policy.validate(pw, "someone@example.com", "nick"))
+        assertThatCode(() -> passwordPolicy.validate(pw, "someone@example.com", "nick"))
                 .as("통과해야 함: [%s]", pw).doesNotThrowAnyException();
     }
 
     private void rejected(String pw, String messagePart) {
-        assertThatThrownBy(() -> policy.validate(pw, "someone@example.com", "nick"))
+        assertThatThrownBy(() -> passwordPolicy.validate(pw, "someone@example.com", "nick"))
                 .as("거절해야 함: [%s]", pw)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(messagePart)
@@ -84,9 +84,9 @@ class PasswordPolicyTest {
     @DisplayName("빈 값은 '입력해주세요', 공백만 입력하면 길이와 상관없이 공백 금지로 거절")
     void emptyAndBlank() {
         // 빈 문자열은 어떤 메시지에도 '포함'되므로 rejected() 의 원문 미포함 검사를 쓰지 않는다
-        assertThatThrownBy(() -> policy.validate("", "someone@example.com", "nick"))
+        assertThatThrownBy(() -> passwordPolicy.validate("", "someone@example.com", "nick"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("비밀번호를 입력해주세요.");
-        assertThatThrownBy(() -> policy.validate(null, "someone@example.com", "nick"))
+        assertThatThrownBy(() -> passwordPolicy.validate(null, "someone@example.com", "nick"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("비밀번호를 입력해주세요.");
         rejected("              ", "공백을 쓸 수 없습니다"); // 14칸
         rejected("   ", "공백을 쓸 수 없습니다"); // 3칸 — 길이(8자) 메시지가 아니다
@@ -167,12 +167,12 @@ class PasswordPolicyTest {
     @Test
     @DisplayName("이메일 아이디·닉네임이 들어간 비밀번호 거절")
     void personalInfo() {
-        assertThatThrownBy(() -> policy.validate("johnsmith-coffee", "JohnSmith@example.com", "barista"))
+        assertThatThrownBy(() -> passwordPolicy.validate("johnsmith-coffee", "JohnSmith@example.com", "barista"))
                 .hasMessageContaining("이메일 아이디나 닉네임");
-        assertThatThrownBy(() -> policy.validate("my-barista-life-77", "a@example.com", "Barista"))
+        assertThatThrownBy(() -> passwordPolicy.validate("my-barista-life-77", "a@example.com", "Barista"))
                 .hasMessageContaining("이메일 아이디나 닉네임");
         // 3자 이하 아이디는 우연히 겹치기 쉬워 비교하지 않는다
-        assertThatCode(() -> policy.validate("bob-is-a-builder-77", "bob@example.com", "xyz"))
+        assertThatCode(() -> passwordPolicy.validate("bob-is-a-builder-77", "bob@example.com", "xyz"))
                 .doesNotThrowAnyException();
     }
 
@@ -200,7 +200,7 @@ class PasswordPolicyTest {
     @MethodSource("ruleViolations")
     @DisplayName("규칙별 위반 상수는 해당 규칙의 메시지로 거절되고, 메시지에 원문이 없다")
     void eachRuleRejectsItsConstant(String name, String pw, String messagePart) {
-        assertThatThrownBy(() -> policy.validate(pw, TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME))
+        assertThatThrownBy(() -> passwordPolicy.validate(pw, TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(messagePart)
                 .satisfies(e -> {
@@ -237,9 +237,9 @@ class PasswordPolicyTest {
     @Test
     @DisplayName("이메일 아이디·닉네임 상수는 해당 회원 정보가 없으면 통과한다(그 규칙 하나만 어긴다)")
     void personalInfoConstantsOnlyBreakPersonalInfoRule() {
-        assertThatCode(() -> policy.validate(TestPasswords.CONTAINS_EMAIL_ID, "someone@example.com", "nick"))
+        assertThatCode(() -> passwordPolicy.validate(TestPasswords.CONTAINS_EMAIL_ID, "someone@example.com", "nick"))
                 .doesNotThrowAnyException();
-        assertThatCode(() -> policy.validate(TestPasswords.CONTAINS_NICKNAME, "someone@example.com", "nick"))
+        assertThatCode(() -> passwordPolicy.validate(TestPasswords.CONTAINS_NICKNAME, "someone@example.com", "nick"))
                 .doesNotThrowAnyException();
     }
 
@@ -247,7 +247,7 @@ class PasswordPolicyTest {
     @ValueSource(strings = {TestPasswords.RAW, TestPasswords.VALID_NEW, TestPasswords.WRONG, TestPasswords.XSS})
     @DisplayName("정상 상수(RAW·VALID_NEW·WRONG·XSS)는 정책 검사 회원 정보로도 통과한다")
     void validConstantsPass(String pw) {
-        assertThatCode(() -> policy.validate(pw, TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME))
+        assertThatCode(() -> passwordPolicy.validate(pw, TestPasswords.POLICY_EMAIL, TestPasswords.POLICY_NICKNAME))
                 .doesNotThrowAnyException();
     }
 

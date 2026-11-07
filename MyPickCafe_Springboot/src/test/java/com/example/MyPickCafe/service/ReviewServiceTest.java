@@ -46,18 +46,18 @@ class ReviewServiceTest {
 
     @InjectMocks private ReviewService reviewService;
 
-    private static Cafe cafe(long id, String name) {
+    private static Cafe cafe(long cafeId, String name) {
         Cafe c = new Cafe();
-        c.setId(id);
+        c.setId(cafeId);
         c.setName(name);
         return c;
     }
 
-    private static Review review(long id, Cafe cafe) {
+    private static Review review(long reviewId, Cafe cafe) {
         Review r = new Review();
-        r.setId(id);
+        r.setId(reviewId);
         r.setCafe(cafe);
-        r.setContent("리뷰 " + id);
+        r.setContent("리뷰 " + reviewId);
         return r;
     }
 

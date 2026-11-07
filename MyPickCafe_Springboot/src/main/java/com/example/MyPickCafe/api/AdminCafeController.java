@@ -39,20 +39,20 @@ public class AdminCafeController {
         return cafeService.findByStatusForApi(CafeStatus.PENDING);
     }
 
-    @PostMapping("/{id}/approve")
-    public void approve(@PathVariable Long id) { cafeService.approve(id); }
+    @PostMapping("/{cafeId}/approve")
+    public void approve(@PathVariable Long cafeId) { cafeService.approve(cafeId); }
 
-    @PostMapping("/{id}/reject")
-    public void reject(@PathVariable Long id) { cafeService.reject(id); }
+    @PostMapping("/{cafeId}/reject")
+    public void reject(@PathVariable Long cafeId) { cafeService.reject(cafeId); }
 
     /**
      * 사업자 증빙 문서를 비공개 저장소에서 읽어 직접 내려준다.
      * 공개 URL 로 리다이렉트하지 않으므로 이 엔드포인트(관리자 권한)를 거치지 않고는 받을 수 없다.
      * 브라우저·프록시에 남지 않게 캐시를 막는다.
      */
-    @GetMapping("/{id}/bizdoc")
-    public ResponseEntity<byte[]> bizdoc(@PathVariable Long id) throws IOException {
-        return bizDocService.load(cafeService.findById(id))
+    @GetMapping("/{cafeId}/bizdoc")
+    public ResponseEntity<byte[]> bizdoc(@PathVariable Long cafeId) throws IOException {
+        return bizDocService.load(cafeService.findById(cafeId))
                 .map(doc -> ResponseEntity.ok()
                         .contentType(doc.mediaType())
                         .header(HttpHeaders.CONTENT_DISPOSITION,

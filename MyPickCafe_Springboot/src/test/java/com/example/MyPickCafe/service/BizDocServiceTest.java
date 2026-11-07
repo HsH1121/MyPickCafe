@@ -27,11 +27,11 @@ class BizDocServiceTest {
     private final PrivateFileStorage privateStorage = mock(PrivateFileStorage.class);
     private final FileStorageService publicStorage = mock(FileStorageService.class);
     private final CafeRepository cafeRepository = mock(CafeRepository.class);
-    private final BizDocService service = new BizDocService(privateStorage, publicStorage, cafeRepository);
+    private final BizDocService bizDocService = new BizDocService(privateStorage, publicStorage, cafeRepository);
 
-    private static Cafe cafe(long id, String bizDoc) {
+    private static Cafe cafe(long cafeId, String bizDoc) {
         Cafe c = new Cafe();
-        c.setId(id);
+        c.setId(cafeId);
         c.setBizDoc(bizDoc);
         return c;
     }
@@ -43,7 +43,7 @@ class BizDocServiceTest {
         when(publicStorage.toUrl("cafes/7/docs/abc.PDF")).thenReturn(S3_URL + "cafes/7/docs/abc.PDF");
         when(publicStorage.read(S3_URL + "cafes/7/docs/abc.PDF")).thenReturn(Optional.of(new byte[]{1, 2}));
 
-        var result = service.migrateLegacy();
+        var result = bizDocService.migrateLegacy();
 
         assertThat(result).isEqualTo(new BizDocService.MigrationResult(1, 0, 0));
         assertThat(cafe.getBizDoc()).matches("bizdocs/7/[0-9a-f]{32}\\.pdf");
@@ -62,7 +62,7 @@ class BizDocServiceTest {
                 cafe(7, "bizdocs/8/" + HEX + ".pdf")          // 다른 카페의 비공개 키
         ));
 
-        var result = service.migrateLegacy();
+        var result = bizDocService.migrateLegacy();
 
         assertThat(result).isEqualTo(new BizDocService.MigrationResult(0, 6, 0));
         verifyNoInteractions(privateStorage);
@@ -75,20 +75,20 @@ class BizDocServiceTest {
         Cafe cafe = cafe(7, "bizdocs/7/" + HEX + ".pdf");
         when(cafeRepository.findByBizDocIsNotNull()).thenReturn(List.of(cafe));
 
-        assertThat(service.migrateLegacy()).isEqualTo(new BizDocService.MigrationResult(0, 0, 0));
+        assertThat(bizDocService.migrateLegacy()).isEqualTo(new BizDocService.MigrationResult(0, 0, 0));
         assertThat(cafe.getBizDoc()).isEqualTo("bizdocs/7/" + HEX + ".pdf");
         verifyNoInteractions(privateStorage);
     }
 
     @Test
     void load_readsOnlyThisCafesPrivateKey() throws Exception {
-        assertThat(service.load(cafe(7, "bizdocs/8/" + HEX + ".pdf"))).isEmpty();
-        assertThat(service.load(cafe(7, "/uploads/cafes/7/docs/a.pdf"))).isEmpty();
-        assertThat(service.load(cafe(7, null))).isEmpty();
+        assertThat(bizDocService.load(cafe(7, "bizdocs/8/" + HEX + ".pdf"))).isEmpty();
+        assertThat(bizDocService.load(cafe(7, "/uploads/cafes/7/docs/a.pdf"))).isEmpty();
+        assertThat(bizDocService.load(cafe(7, null))).isEmpty();
         verifyNoInteractions(privateStorage);
 
         when(privateStorage.get("bizdocs/7/" + HEX + ".png")).thenReturn(Optional.of(new byte[]{3}));
-        var doc = service.load(cafe(7, "bizdocs/7/" + HEX + ".png")).orElseThrow();
+        var doc = bizDocService.load(cafe(7, "bizdocs/7/" + HEX + ".png")).orElseThrow();
         assertThat(doc.content()).containsExactly(3);
         assertThat(doc.mediaType()).isEqualTo(MediaType.IMAGE_PNG);
         assertThat(doc.inline()).isTrue();

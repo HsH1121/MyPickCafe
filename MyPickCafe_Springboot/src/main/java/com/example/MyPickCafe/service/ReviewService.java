@@ -57,9 +57,9 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public Review findById(Long id) {
-        return reviewRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("리뷰를 찾을 수 없습니다: " + id));
+    public Review findById(Long reviewId) {
+        return reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new NotFoundException("리뷰를 찾을 수 없습니다: " + reviewId));
     }
 
     // 카페 상세에서 사용할 리뷰 목록(최신순)

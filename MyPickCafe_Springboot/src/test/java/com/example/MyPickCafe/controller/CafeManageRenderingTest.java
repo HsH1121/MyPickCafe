@@ -32,9 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WithMockUser(username = "manage-test@example.com", roles = "CAFEOWNER")
 class CafeManageRenderingTest {
     @Autowired MockMvc mvc;
-    @Autowired MemberRepository members;
-    @Autowired CafeRepository cafes;
-    @Autowired CafeInfoRepository infos;
+    @Autowired MemberRepository memberRepository;
+    @Autowired CafeRepository cafeRepository;
+    @Autowired CafeInfoRepository cafeInfoRepository;
     private Cafe cafe;
 
     @BeforeEach
@@ -44,7 +44,7 @@ class CafeManageRenderingTest {
         owner.setPassword(TestPasswords.HASH);
         owner.setNickname("manage-test-owner");
         owner.setRoleKind(RoleKind.CAFEOWNER);
-        members.save(owner);
+        memberRepository.save(owner);
         cafe = new Cafe();
         cafe.setOwner(owner);
         cafe.setName("Manage test cafe");
@@ -54,12 +54,12 @@ class CafeManageRenderingTest {
         cafe.setDate(LocalDateTime.now());
         cafe.setViews(0L);
         cafe.setStatus(CafeStatus.APPROVED);
-        cafes.save(cafe);
+        cafeRepository.save(cafe);
     }
 
     @Test
     void rendersEmptyFieldsWithoutCafeInfo() throws Exception {
-        mvc.perform(get("/cafes/{id}/manage", cafe.getId()))
+        mvc.perform(get("/cafes/{cafeId}/manage", cafe.getId()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("infoOpenTime", ""))
                 .andExpect(model().attribute("infoCloseTime", ""))
@@ -75,8 +75,8 @@ class CafeManageRenderingTest {
         info.setCafe(cafe);
         info.setOpenTime("09:00");
         info.setNotice("Welcome");
-        infos.save(info);
-        mvc.perform(get("/cafes/{id}/manage", cafe.getId()))
+        cafeInfoRepository.save(info);
+        mvc.perform(get("/cafes/{cafeId}/manage", cafe.getId()))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("infoOpenTime", "09:00"))
                 .andExpect(model().attribute("infoNotice", "Welcome"))

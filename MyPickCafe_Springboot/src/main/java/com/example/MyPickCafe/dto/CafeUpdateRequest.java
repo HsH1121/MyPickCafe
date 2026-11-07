@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
  * 카페 수정 요청 DTO. null 필드는 "변경하지 않음"을 의미한다.
  *
  * <p>승인 상태 변경은 관리자 전용 엔드포인트
- * ({@code POST /admin/cafes/{id}/approve|reject})로만 가능하다.
+ * ({@code POST /admin/cafes/{cafeId}/approve|reject})로만 가능하다.
  */
 public record CafeUpdateRequest(
         @Size(max = 30)

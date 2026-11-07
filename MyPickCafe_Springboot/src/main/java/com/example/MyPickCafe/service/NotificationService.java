@@ -71,8 +71,8 @@ public class NotificationService {
     }
 
     @Transactional
-    public void markAsRead(Long id, String email) {
-        Notification n = notificationRepository.findById(id).orElseThrow();
+    public void markAsRead(Long notificationId, String email) {
+        Notification n = notificationRepository.findById(notificationId).orElseThrow();
         if (!n.getRecipient().getEmail().equals(email)) {
             throw new AccessDeniedException("권한이 없습니다.");
         }

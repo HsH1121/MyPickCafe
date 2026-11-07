@@ -51,7 +51,7 @@ class PickBotClientRecommendTest {
     void emptyResultIsNotAFailure() {
         respond(200, "{\"results\":[],\"notice\":null}", 0);
 
-        PickBotResponse response = client(Duration.ofSeconds(5)).recommend(QUERY);
+        PickBotResponse response = pickBotClient(Duration.ofSeconds(5)).recommend(QUERY);
         assertThat(response.getResults()).isEmpty();
         assertThat(response.getNotice()).isNull();
     }
@@ -61,7 +61,7 @@ class PickBotClientRecommendTest {
     void passesNoticeThrough() {
         respond(200, "{\"results\":[],\"notice\":\"REGION_NOT_FOUND\"}", 0);
 
-        PickBotResponse response = client(Duration.ofSeconds(5)).recommend(QUERY);
+        PickBotResponse response = pickBotClient(Duration.ofSeconds(5)).recommend(QUERY);
         assertThat(response.getResults()).isEmpty();
         assertThat(response.getNotice()).isEqualTo(PickBotResponse.NOTICE_REGION_NOT_FOUND);
     }
@@ -72,7 +72,7 @@ class PickBotClientRecommendTest {
         respond(200, "{\"results\":[{\"cafeId\":1,\"cafeName\":\"카페\",\"address\":\"서울\",\"snippet\":\"달달해요\",\"score\":0.9}],"
                 + "\"notice\":\"OUTSIDE_SEOUL\"}", 0);
 
-        PickBotResponse response = client(Duration.ofSeconds(5)).recommend(QUERY);
+        PickBotResponse response = pickBotClient(Duration.ofSeconds(5)).recommend(QUERY);
         assertThat(response.getResults()).hasSize(1);
         assertThat(response.getNotice()).isEqualTo(PickBotResponse.NOTICE_OUTSIDE_SEOUL);
     }
@@ -82,7 +82,7 @@ class PickBotClientRecommendTest {
     void returnsResults() {
         respond(200, "{\"results\":[{\"cafeId\":1,\"cafeName\":\"카페\",\"address\":\"서울\",\"snippet\":\"조용해요\",\"score\":0.9}],\"notice\":null}", 0);
 
-        assertThat(client(Duration.ofSeconds(5)).recommend(QUERY).getResults())
+        assertThat(pickBotClient(Duration.ofSeconds(5)).recommend(QUERY).getResults())
                 .singleElement()
                 .satisfies(r -> assertThat(r.getCafeId()).isEqualTo(1L));
     }
@@ -90,9 +90,9 @@ class PickBotClientRecommendTest {
     @Test
     @DisplayName("서버가 떠 있지 않으면 CONNECTION_FAILED")
     void connectionRefused() {
-        PickBotClient client = new PickBotClient(WebClient.create("http://localhost:19999"));
+        PickBotClient pickBotClient = new PickBotClient(WebClient.create("http://localhost:19999"));
 
-        assertReason(() -> client.recommend(QUERY), Reason.CONNECTION_FAILED);
+        assertReason(() -> pickBotClient.recommend(QUERY), Reason.CONNECTION_FAILED);
     }
 
     @Test
@@ -100,7 +100,7 @@ class PickBotClientRecommendTest {
     void timeout() {
         respond(200, "{\"results\":[]}", 2_000);
 
-        assertReason(() -> client(Duration.ofMillis(300)).recommend(QUERY), Reason.TIMEOUT);
+        assertReason(() -> pickBotClient(Duration.ofMillis(300)).recommend(QUERY), Reason.TIMEOUT);
     }
 
     @Test
@@ -108,7 +108,7 @@ class PickBotClientRecommendTest {
     void serverError() {
         respond(503, "{\"detail\":\"RAG 모듈이 초기화되지 않았습니다.\"}", 0);
 
-        assertReason(() -> client(Duration.ofSeconds(5)).recommend(QUERY), Reason.HTTP_ERROR);
+        assertReason(() -> pickBotClient(Duration.ofSeconds(5)).recommend(QUERY), Reason.HTTP_ERROR);
     }
 
     @Test
@@ -116,10 +116,10 @@ class PickBotClientRecommendTest {
     void invalidBody() {
         respond(200, "{\"results\":[{\"cafeId\":\"not-a-number\"}]}", 0);
 
-        assertReason(() -> client(Duration.ofSeconds(5)).recommend(QUERY), Reason.INVALID_RESPONSE);
+        assertReason(() -> pickBotClient(Duration.ofSeconds(5)).recommend(QUERY), Reason.INVALID_RESPONSE);
     }
 
-    private PickBotClient client(Duration responseTimeout) {
+    private PickBotClient pickBotClient(Duration responseTimeout) {
         HttpClient httpClient = HttpClient.create().responseTimeout(responseTimeout);
         return new PickBotClient(WebClient.builder()
                 .baseUrl("http://localhost:" + server.getAddress().getPort())

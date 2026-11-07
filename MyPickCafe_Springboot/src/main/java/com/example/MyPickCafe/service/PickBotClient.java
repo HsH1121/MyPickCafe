@@ -26,10 +26,10 @@ import java.util.Map;
 @Service
 public class PickBotClient {
 
-    private final WebClient webClient;
+    private final WebClient pickBotWebClient;
 
-    public PickBotClient(@Qualifier("pickBotWebClient") WebClient webClient) {
-        this.webClient = webClient;
+    public PickBotClient(@Qualifier("pickBotWebClient") WebClient pickBotWebClient) {
+        this.pickBotWebClient = pickBotWebClient;
     }
 
     /**
@@ -46,7 +46,7 @@ public class PickBotClient {
         long startedAt = System.currentTimeMillis();
         PickBotResponse res;
         try {
-            res = webClient.post()
+            res = pickBotWebClient.post()
                     .uri("/pickbot/recommend")
                     .bodyValue(Map.of("query", query))
                     .retrieve()
@@ -138,7 +138,7 @@ public class PickBotClient {
      * 요청을 띄울 수 있다.
      */
     public void indexOneAsync(PickBotIndexRequest req) {
-        webClient.post()
+        pickBotWebClient.post()
                 .uri("/pickbot/index-one")
                 .bodyValue(req)
                 .retrieve()
@@ -151,7 +151,7 @@ public class PickBotClient {
 
     /** 리뷰 1건을 ChromaDB에서 비동기 삭제 — 리뷰 삭제 시 호출. */
     public void deleteOneAsync(Long reviewId) {
-        webClient.post()
+        pickBotWebClient.post()
                 .uri("/pickbot/delete-one")
                 .bodyValue(Map.of("reviewId", reviewId))
                 .retrieve()

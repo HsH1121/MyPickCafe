@@ -25,30 +25,30 @@ public class CafeInfoService {
     }
 
     @Transactional(readOnly = true)
-    public CafeInfo findById(Long id) {
-        return cafeInfoRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("카페 영업정보를 찾을 수 없습니다: " + id));
+    public CafeInfo findById(Long cafeInfoId) {
+        return cafeInfoRepository.findById(cafeInfoId)
+                .orElseThrow(() -> new NotFoundException("카페 영업정보를 찾을 수 없습니다: " + cafeInfoId));
     }
 
     @Transactional
-    public CafeInfo create(CafeInfo entity) {
-        EntityIdUtil.setId(entity, null);
-        return cafeInfoRepository.save(entity);
+    public CafeInfo create(CafeInfo cafeInfo) {
+        EntityIdUtil.setId(cafeInfo, null);
+        return cafeInfoRepository.save(cafeInfo);
     }
 
     @Transactional
-    public CafeInfo update(Long id, CafeInfoRequest req) {
-        CafeInfo cur = findById(id);
+    public CafeInfo update(Long cafeInfoId, CafeInfoRequest req) {
+        CafeInfo cur = findById(cafeInfoId);
         apply(cur, req);
         return cur;
     }
 
     @Transactional
-    public void delete(Long id) {
-        if (!cafeInfoRepository.existsById(id)) {
-            throw new NotFoundException("카페 영업정보를 찾을 수 없습니다: " + id);
+    public void delete(Long cafeInfoId) {
+        if (!cafeInfoRepository.existsById(cafeInfoId)) {
+            throw new NotFoundException("카페 영업정보를 찾을 수 없습니다: " + cafeInfoId);
         }
-        cafeInfoRepository.deleteById(id);
+        cafeInfoRepository.deleteById(cafeInfoId);
     }
     @Transactional(readOnly = true)
     public Optional<CafeInfo> findByCafeId(Long cafeId) {

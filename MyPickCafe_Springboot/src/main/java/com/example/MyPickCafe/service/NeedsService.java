@@ -16,51 +16,51 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NeedsService {
 
-    private final NeedsRepository repository;
+    private final NeedsRepository needsRepository;
     private final MemberRepository memberRepository;
 
     @Transactional(readOnly = true)
     public List<UserNeeds> findAll() {
-        return repository.findAll();
+        return needsRepository.findAll();
     }
 
     @Transactional(readOnly = true)
-    public UserNeeds findById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + id));
+    public UserNeeds findById(Long userNeedsId) {
+        return needsRepository.findById(userNeedsId)
+                .orElseThrow(() -> new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + userNeedsId));
     }
 
     @Transactional
-    public UserNeeds create(UserNeeds entity) {
-        EntityIdUtil.setId(entity, null);
-        return repository.save(entity);
+    public UserNeeds create(UserNeeds userNeeds) {
+        EntityIdUtil.setId(userNeeds, null);
+        return needsRepository.save(userNeeds);
     }
 
     @Transactional
-    public UserNeeds update(Long id, UserNeeds entity) {
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + id);
+    public UserNeeds update(Long userNeedsId, UserNeeds userNeeds) {
+        if (!needsRepository.existsById(userNeedsId)) {
+            throw new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + userNeedsId);
         }
-        EntityIdUtil.setId(entity, id);
-        return repository.save(entity);
+        EntityIdUtil.setId(userNeeds, userNeedsId);
+        return needsRepository.save(userNeeds);
     }
 
     @Transactional
-    public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + id);
+    public void delete(Long userNeedsId) {
+        if (!needsRepository.existsById(userNeedsId)) {
+            throw new NotFoundException("사용자 니즈를 찾을 수 없습니다: " + userNeedsId);
         }
-        repository.deleteById(id);
+        needsRepository.deleteById(userNeedsId);
     }
 
     @Transactional(readOnly = true)
     public List<UserNeeds> findByMemberId(Long memberId) {
-        return repository.findByMember_Id(memberId);
+        return needsRepository.findByMember_Id(memberId);
     }
 
     @Transactional
     public void replaceAll(Long memberId, List<String> selectedCodes) {
-        repository.deleteByMember_Id(memberId);
+        needsRepository.deleteByMember_Id(memberId);
         if (selectedCodes == null) return;
         Member memberRef = memberRepository.getReferenceById(memberId);
         for (String code : selectedCodes) {
@@ -71,7 +71,7 @@ public class NeedsService {
             needs.setCategoryCode(parts[0]);
             needs.setCode(parts[1]);
             needs.setNecessary(false);
-            repository.save(needs);
+            needsRepository.save(needs);
         }
     }
 }

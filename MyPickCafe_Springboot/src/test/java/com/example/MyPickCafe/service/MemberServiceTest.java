@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("MemberService")
 class MemberServiceTest {
 
-    @Mock private MemberRepository repository;
+    @Mock private MemberRepository memberRepository;
     @Mock private PasswordEncoder passwordEncoder;
     // 정책은 순수 로직이라 실제 객체를 쓴다(@InjectMocks 가 생성자에 넣어 준다)
     @Spy private PasswordPolicy passwordPolicy = new PasswordPolicy();
@@ -45,15 +45,15 @@ class MemberServiceTest {
     @Test
     @DisplayName("회원 생성 시 비밀번호를 평문이 아닌 해시로 저장한다")
     void createMemberEncodesPassword() {
-        when(repository.findByEmail(anyString())).thenReturn(Optional.empty());
-        when(repository.existsByNickname(anyString())).thenReturn(false);
+        when(memberRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(memberRepository.existsByNickname(anyString())).thenReturn(false);
         when(passwordEncoder.encode(TestPasswords.RAW)).thenReturn("$2a$10$encoded");
-        when(repository.save(any(Member.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(memberRepository.save(any(Member.class))).thenAnswer(inv -> inv.getArgument(0));
 
         memberService.createMember(request("new@example.com", "newbie", null));
 
         ArgumentCaptor<Member> saved = ArgumentCaptor.forClass(Member.class);
-        verify(repository).save(saved.capture());
+        verify(memberRepository).save(saved.capture());
 
         assertThat(saved.getValue().getPassword())
                 .as("평문 비밀번호가 그대로 저장되면 안 된다")
@@ -64,41 +64,41 @@ class MemberServiceTest {
     @Test
     @DisplayName("역할을 지정하지 않으면 MEMBER로 생성된다")
     void createMemberDefaultsToMemberRole() {
-        when(repository.findByEmail(anyString())).thenReturn(Optional.empty());
-        when(repository.existsByNickname(anyString())).thenReturn(false);
+        when(memberRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(memberRepository.existsByNickname(anyString())).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$encoded");
-        when(repository.save(any(Member.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(memberRepository.save(any(Member.class))).thenAnswer(inv -> inv.getArgument(0));
 
         memberService.createMember(request("new@example.com", "newbie", null));
 
         ArgumentCaptor<Member> saved = ArgumentCaptor.forClass(Member.class);
-        verify(repository).save(saved.capture());
+        verify(memberRepository).save(saved.capture());
         assertThat(saved.getValue().getRoleKind()).isEqualTo(RoleKind.MEMBER);
     }
 
     @Test
     @DisplayName("중복 이메일이면 저장하지 않고 예외를 던진다")
     void createMemberRejectsDuplicateEmail() {
-        when(repository.findByEmail("dup@example.com")).thenReturn(Optional.of(new Member()));
+        when(memberRepository.findByEmail("dup@example.com")).thenReturn(Optional.of(new Member()));
 
         assertThatThrownBy(() -> memberService.createMember(request("dup@example.com", "someone", null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("이메일");
 
-        verify(repository, never()).save(any());
+        verify(memberRepository, never()).save(any());
     }
 
     @Test
     @DisplayName("알 수 없는 역할 문자열이면 예외를 던진다")
     void createMemberRejectsUnknownRole() {
-        when(repository.findByEmail(anyString())).thenReturn(Optional.empty());
-        when(repository.existsByNickname(anyString())).thenReturn(false);
+        when(memberRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(memberRepository.existsByNickname(anyString())).thenReturn(false);
 
         assertThatThrownBy(() -> memberService.createMember(request("new@example.com", "newbie", "SUPERUSER")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("권한");
 
-        verify(repository, never()).save(any());
+        verify(memberRepository, never()).save(any());
     }
 
     @Test
@@ -110,7 +110,7 @@ class MemberServiceTest {
         existing.setAge(20L);
         existing.setGender("M");
         existing.setPassword("$2a$10$original");
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(memberRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         // 나이만 변경, 나머지는 null
         memberService.updateMember(1L, new MemberUpdateRequest(null, 33L, null, null, null));

@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * ownerId/ownerNickname만 남긴다.
  *
  * <p>{@code bizDoc}(사업자 증빙 문서 경로)은 의도적으로 제외했다.
- * 해당 문서는 관리자 전용 {@code GET /admin/cafes/{id}/bizdoc}으로만 접근한다.
+ * 해당 문서는 관리자 전용 {@code GET /admin/cafes/{cafeId}/bizdoc}으로만 접근한다.
  */
 public record CafeResponse(
         Long id,

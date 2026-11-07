@@ -73,9 +73,9 @@ class PendingCafeVisibilityTest {
 
     @MockitoBean private PickBotClient pickBotClient;
 
-    private Long approvedId;
-    private Long pendingId;
-    private Long rejectedId;
+    private Long approvedCafeId;
+    private Long pendingCafeId;
+    private Long rejectedCafeId;
     private Long pendingMenuId;
 
     @BeforeEach
@@ -84,10 +84,10 @@ class PendingCafeVisibilityTest {
         member(STRANGER, "stranger", RoleKind.MEMBER);
         member(ADMIN, "reviewer", RoleKind.ADMIN);
 
-        approvedId = cafe(owner, "승인카페", CafeStatus.APPROVED).getId();
+        approvedCafeId = cafe(owner, "승인카페", CafeStatus.APPROVED).getId();
         Cafe pending = cafe(owner, "심사중카페", CafeStatus.PENDING);
-        pendingId = pending.getId();
-        rejectedId = cafe(owner, "반려카페", CafeStatus.REJECTED).getId();
+        pendingCafeId = pending.getId();
+        rejectedCafeId = cafe(owner, "반려카페", CafeStatus.REJECTED).getId();
 
         CafeInfo info = new CafeInfo();
         info.setCafe(pending);
@@ -100,7 +100,7 @@ class PendingCafeVisibilityTest {
         cafeInfoRepository.save(info);
 
         CafeInfo approvedInfo = new CafeInfo();
-        approvedInfo.setCafe(cafeRepository.findById(approvedId).orElseThrow());
+        approvedInfo.setCafe(cafeRepository.findById(approvedCafeId).orElseThrow());
         approvedInfo.setNotice("영업중");
         cafeInfoRepository.save(approvedInfo);
 
@@ -157,31 +157,31 @@ class PendingCafeVisibilityTest {
     }
 
     @Test
-    @DisplayName("GET /api/cafes/{id}: 비로그인·다른 회원은 PENDING·REJECTED 가 없는 카페와 같은 404")
+    @DisplayName("GET /api/cafes/{cafeId}: 비로그인·다른 회원은 PENDING·REJECTED 가 없는 카페와 같은 404")
     void singleIsHiddenFromOthers() throws Exception {
         long missing = 987654321L;
-        mvc.perform(get("/api/cafes/{id}", missing)).andExpect(status().isNotFound())
+        mvc.perform(get("/api/cafes/{cafeId}", missing)).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("카페를 찾을 수 없습니다: " + missing));
-        mvc.perform(get("/api/cafes/{id}", pendingId)).andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("카페를 찾을 수 없습니다: " + pendingId));
-        mvc.perform(get("/api/cafes/{id}", rejectedId).with(stranger())).andExpect(status().isNotFound());
-        mvc.perform(get("/api/cafes/{id}", approvedId)).andExpect(status().isOk());
+        mvc.perform(get("/api/cafes/{cafeId}", pendingCafeId)).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("카페를 찾을 수 없습니다: " + pendingCafeId));
+        mvc.perform(get("/api/cafes/{cafeId}", rejectedCafeId).with(stranger())).andExpect(status().isNotFound());
+        mvc.perform(get("/api/cafes/{cafeId}", approvedCafeId)).andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("GET /api/cafes/{id}: 점주와 관리자는 승인 전 카페를 볼 수 있다")
+    @DisplayName("GET /api/cafes/{cafeId}: 점주와 관리자는 승인 전 카페를 볼 수 있다")
     void ownerAndAdminCanSeePending() throws Exception {
-        mvc.perform(get("/api/cafes/{id}", pendingId).with(owner())).andExpect(status().isOk());
-        mvc.perform(get("/api/cafes/{id}", rejectedId).with(owner())).andExpect(status().isOk());
-        mvc.perform(get("/api/cafes/{id}", pendingId).with(admin())).andExpect(status().isOk());
+        mvc.perform(get("/api/cafes/{cafeId}", pendingCafeId).with(owner())).andExpect(status().isOk());
+        mvc.perform(get("/api/cafes/{cafeId}", rejectedCafeId).with(owner())).andExpect(status().isOk());
+        mvc.perform(get("/api/cafes/{cafeId}", pendingCafeId).with(admin())).andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("상세 페이지: 다른 사람은 PENDING 도 리다이렉트 안내 없이 404, 점주는 열람 가능")
     void detailPage() throws Exception {
-        mvc.perform(get("/cafes/{id}", pendingId)).andExpect(status().isNotFound());
-        mvc.perform(get("/cafes/{id}", pendingId).with(stranger())).andExpect(status().isNotFound());
-        mvc.perform(get("/cafes/{id}", pendingId).with(owner())).andExpect(status().isOk());
+        mvc.perform(get("/cafes/{cafeId}", pendingCafeId)).andExpect(status().isNotFound());
+        mvc.perform(get("/cafes/{cafeId}", pendingCafeId).with(stranger())).andExpect(status().isNotFound());
+        mvc.perform(get("/cafes/{cafeId}", pendingCafeId).with(owner())).andExpect(status().isOk());
     }
 
     // ── 연관 API ───────────────────────────────────────────────────────
@@ -189,21 +189,21 @@ class PendingCafeVisibilityTest {
     @Test
     @DisplayName("카페 상세정보·메뉴·사진 API 도 승인 전 카페는 점주·관리자만")
     void relatedApis() throws Exception {
-        mvc.perform(get("/api/cafe-infos/by-cafe/{id}", pendingId)).andExpect(status().isNotFound());
-        mvc.perform(get("/api/menus/by-cafe/{id}", pendingId)).andExpect(status().isNotFound());
-        mvc.perform(get("/api/menus/{id}", pendingMenuId)).andExpect(status().isNotFound());
-        mvc.perform(get("/api/cafes/{id}/photos", pendingId)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/cafe-infos/by-cafe/{cafeId}", pendingCafeId)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/menus/by-cafe/{cafeId}", pendingCafeId)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/menus/{menuId}", pendingMenuId)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/cafes/{cafeId}/photos", pendingCafeId)).andExpect(status().isNotFound());
 
-        mvc.perform(get("/api/cafe-infos/by-cafe/{id}", pendingId).with(owner())).andExpect(status().isOk());
-        mvc.perform(get("/api/menus/by-cafe/{id}", pendingId).with(owner())).andExpect(status().isOk());
-        mvc.perform(get("/api/menus/{id}", pendingMenuId).with(admin())).andExpect(status().isOk());
-        mvc.perform(get("/api/cafes/{id}/photos", pendingId).with(admin())).andExpect(status().isOk());
+        mvc.perform(get("/api/cafe-infos/by-cafe/{cafeId}", pendingCafeId).with(owner())).andExpect(status().isOk());
+        mvc.perform(get("/api/menus/by-cafe/{cafeId}", pendingCafeId).with(owner())).andExpect(status().isOk());
+        mvc.perform(get("/api/menus/{menuId}", pendingMenuId).with(admin())).andExpect(status().isOk());
+        mvc.perform(get("/api/cafes/{cafeId}/photos", pendingCafeId).with(admin())).andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("카페 상세정보 응답에 카페 엔티티(점주 이메일·승인 상태)가 딸려 나가지 않는다")
     void cafeInfoDoesNotEmbedCafe() throws Exception {
-        mvc.perform(get("/api/cafe-infos/by-cafe/{id}", approvedId))
+        mvc.perform(get("/api/cafe-infos/by-cafe/{cafeId}", approvedCafeId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.notice").value("영업중"))
                 .andExpect(jsonPath("$.cafe").doesNotExist())
@@ -213,18 +213,18 @@ class PendingCafeVisibilityTest {
     @Test
     @DisplayName("즐겨찾기: 승인 전 카페는 추가할 수 없고, 승인이 취소되면 목록에서 빠진다")
     void favorites() throws Exception {
-        mvc.perform(post("/api/favorites/{id}/favorite", pendingId).with(stranger()))
+        mvc.perform(post("/api/favorites/{cafeId}/favorite", pendingCafeId).with(stranger()))
                 .andExpect(status().isNotFound());
-        mvc.perform(get("/api/favorites/cafes/{id}/count", pendingId).with(stranger()))
+        mvc.perform(get("/api/favorites/cafes/{cafeId}/count", pendingCafeId).with(stranger()))
                 .andExpect(status().isNotFound());
 
-        mvc.perform(post("/api/favorites/{id}/favorite", approvedId).with(stranger()))
+        mvc.perform(post("/api/favorites/{cafeId}/favorite", approvedCafeId).with(stranger()))
                 .andExpect(jsonPath("$.favorited").value(true));
         mvc.perform(get("/api/favorites").with(stranger()))
                 .andExpect(jsonPath("$.content[0].name").value("승인카페"))
                 .andExpect(content().string(not(containsString(OWNER))));
 
-        Cafe c = cafeRepository.findById(approvedId).orElseThrow();
+        Cafe c = cafeRepository.findById(approvedCafeId).orElseThrow();
         c.setStatus(CafeStatus.REJECTED);
         cafeRepository.saveAndFlush(c);
 
@@ -233,7 +233,7 @@ class PendingCafeVisibilityTest {
         mvc.perform(get("/favorites").with(stranger()))
                 .andExpect(content().string(not(containsString("승인카페"))));
         // 해제는 상태와 관계없이 된다
-        mvc.perform(post("/api/favorites/{id}/favorite", approvedId).with(stranger()))
+        mvc.perform(post("/api/favorites/{cafeId}/favorite", approvedCafeId).with(stranger()))
                 .andExpect(jsonPath("$.favorited").value(false));
     }
 
@@ -242,11 +242,11 @@ class PendingCafeVisibilityTest {
     void reviewsOnPendingAreRejected() throws Exception {
         long before = reviewRepository.count();
         mvc.perform(post("/reviews/new").with(stranger())
-                        .param("cafeId", String.valueOf(pendingId))
+                        .param("cafeId", String.valueOf(pendingCafeId))
                         .param("content", "몰래 남기는 리뷰"))
                 .andExpect(status().isNotFound());
         assertThat(reviewRepository.count()).isEqualTo(before);
-        mvc.perform(get("/reviews/cafes/{id}/reviews", pendingId).with(stranger()))
+        mvc.perform(get("/reviews/cafes/{cafeId}/reviews", pendingCafeId).with(stranger()))
                 .andExpect(status().isNotFound());
     }
 
@@ -257,10 +257,10 @@ class PendingCafeVisibilityTest {
     void pickBotFiltersUnapprovedAtTheEnd() throws Exception {
         PickBotResponse fromAi = new PickBotResponse();
         List<PickBotResult> results = new ArrayList<>();
-        for (Long id : List.of(pendingId, approvedId, rejectedId)) {
+        for (Long cafeId : List.of(pendingCafeId, approvedCafeId, rejectedCafeId)) {
             PickBotResult r = new PickBotResult();
-            r.setCafeId(id);
-            r.setCafeName("cafe-" + id);
+            r.setCafeId(cafeId);
+            r.setCafeName("cafe-" + cafeId);
             results.add(r);
         }
         fromAi.setResults(results);
@@ -271,12 +271,12 @@ class PendingCafeVisibilityTest {
                         .content("{\"query\":\"조용한 카페\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.results.length()").value(1))
-                .andExpect(jsonPath("$.results[0].cafeId").value(approvedId));
+                .andExpect(jsonPath("$.results[0].cafeId").value(approvedCafeId));
     }
 
     @Test
     @DisplayName("기존 동작 유지: 점주는 승인 전 카페 관리 화면에 들어갈 수 있다")
     void ownerCanStillManagePending() throws Exception {
-        mvc.perform(get("/cafes/{id}/manage", pendingId).with(owner())).andExpect(status().isOk());
+        mvc.perform(get("/cafes/{cafeId}/manage", pendingCafeId).with(owner())).andExpect(status().isOk());
     }
 }

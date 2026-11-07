@@ -18,10 +18,10 @@ import java.util.UUID;
  * 카페 사업자 증빙 문서(사업자등록증 등).
  *
  * <p>공개 업로드 폴더가 아니라 {@link PrivateFileStorage} 에 두고, 관리자 엔드포인트
- * ({@code GET /admin/cafes/{id}/bizdoc})가 권한을 확인한 뒤에만 내려준다.
+ * ({@code GET /admin/cafes/{cafeId}/bizdoc})가 권한을 확인한 뒤에만 내려준다.
  * {@code cafe.biz_doc} 컬럼에는 비공개 저장소 키({@code bizdocs/{cafeId}/{uuid}.pdf})만 둔다.
  *
- * <p>예전에는 공개 폴더({@code /uploads/cafes/{id}/docs/})에 저장해 URL 만 알면 로그인 없이 받을 수 있었다.
+ * <p>예전에는 공개 폴더({@code /uploads/cafes/{cafeId}/docs/})에 저장해 URL 만 알면 로그인 없이 받을 수 있었다.
  * 그때 올라간 파일은 {@link #migrateLegacy()} 로 옮긴다.
  */
 @Service
@@ -72,7 +72,7 @@ public class BizDocService {
     }
 
     /**
-     * 예전에 공개 업로드 폴더(로컬 {@code /uploads/cafes/{id}/docs/}, S3 {@code cafes/{id}/docs/})에
+     * 예전에 공개 업로드 폴더(로컬 {@code /uploads/cafes/{cafeId}/docs/}, S3 {@code cafes/{cafeId}/docs/})에
      * 저장된 증빙을 비공개 저장소로 옮기고 공개 파일은 지운다. 여러 번 실행해도 된다.
      *
      * <p>자기 카페의 docs 폴더를 가리키는 값만 옮긴다. 수정 전 등록 폼으로 들어갔을 수 있는
