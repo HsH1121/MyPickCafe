@@ -13,9 +13,18 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Entity
-// 메인·검색 페이지가 최근 리뷰를 created_at 내림차순으로 6건만 읽는다.
-// 인덱스가 없으면 전 행을 top-N 정렬해야 해서 LIMIT 를 걸어도 느리다.
-@Table(name = "review", indexes = @Index(name = "idx_review_created_at", columnList = "created_at DESC"))
+// PostgreSQL 은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 리뷰는 수만 건이라 인덱스가 없으면 아래 조회가 모두 전체 스캔이다.
+// - created_at: 메인·검색 페이지가 최근 리뷰를 created_at 내림차순으로 6건만 읽는다.
+//   인덱스가 없으면 전 행을 top-N 정렬해야 해서 LIMIT 를 걸어도 느리다.
+// - (cafe_id, created_at): 카페 상세의 리뷰 목록(최신순)과 GOOD/BAD 집계, 리뷰 작성 시 태그 집계, 픽봇 대표 리뷰.
+//   상세 페이지 한 번에 세 번 돈다. cafe_id 만 거는 조회도 선두 컬럼이라 이 인덱스를 쓴다.
+// - (member_id, created_at): 마이페이지 "내 리뷰" 페이징(최신순)과 그 count 쿼리.
+// 두 FK 인덱스는 카페·회원 삭제 시 ON DELETE CASCADE 가 review 를 전체 스캔하는 것도 막는다.
+@Table(name = "review", indexes = {
+        @Index(name = "idx_review_created_at", columnList = "created_at DESC"),
+        @Index(name = "idx_review_cafe_id_created_at", columnList = "cafe_id, created_at DESC"),
+        @Index(name = "idx_review_member_id_created_at", columnList = "member_id, created_at DESC")
+})
 public class Review {
 
     @Id
