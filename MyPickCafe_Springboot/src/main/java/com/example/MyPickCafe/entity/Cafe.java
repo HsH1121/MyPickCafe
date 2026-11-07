@@ -17,6 +17,11 @@
     @Getter
     @Setter
     @AllArgsConstructor
+    // 메인 페이지와 카페 목록 기본 정렬이 승인 카페를 조회수 내림차순으로 몇 개만 읽는다(ORDER BY views DESC LIMIT n).
+    // review.created_at 인덱스와 같은 이유로, 인덱스가 없으면 LIMIT 를 걸어도 승인 카페 전부를 정렬한다.
+    // status 단독은 값이 세 종류뿐이라 인덱스로 거르는 효과가 없어 views 와 묶는다.
+    // 조회수를 올리는 코드가 생기면 그때마다 이 인덱스도 갱신되니 쓰기 비용을 다시 따져 볼 것.
+    @Table(name = "cafe", indexes = @Index(name = "idx_cafe_status_views", columnList = "status, views DESC"))
     public class Cafe {
 
         @Id
