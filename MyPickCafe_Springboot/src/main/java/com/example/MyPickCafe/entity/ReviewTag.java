@@ -6,15 +6,15 @@ import lombok.*;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-@NoArgsConstructor
 @Entity
+@Getter @Setter
+@NoArgsConstructor
 @Table(
         name = "review_tag",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_review_tag_review_category_code", columnNames = {"review_id", "category_code", "code"})
         }
 )
-@Getter @Setter
 public class ReviewTag {
 
     @Id

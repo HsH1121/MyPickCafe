@@ -7,9 +7,11 @@ import lombok.*;
 
 @Entity
 // 카드가 나오는 모든 화면이 카페별 대표 사진을, 카페 상세·관리가 사진 목록을 sort_index 순으로 읽는다.
-@Table(name = "cafe_photo", indexes = @Index(name = "idx_cafe_photo_cafe_id_sort_index", columnList = "cafe_id, sort_index"))
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
+@Table(
+        name = "cafe_photo",
+        indexes = @Index(name = "idx_cafe_photo_cafe_id_sort_index", columnList = "cafe_id, sort_index"))
 public class CafePhoto {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
