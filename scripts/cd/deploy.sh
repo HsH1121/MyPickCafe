@@ -254,5 +254,5 @@ printf 'sha=%s\nweb=%s\nai=%s\ndeployed_at=%s\n' "$deploy_sha" "$web_image" "$ai
     >"$STATE_DIR/current.tmp"
 mv -f "$STATE_DIR/current.tmp" "$STATE_DIR/current"
 printf '%s %s %s %s\n' "$(date -u +%FT%TZ)" "$deploy_sha" "$web_image" "$ai_image" >>"$STATE_DIR/history"
-phase=done
+phase=finished
 log "배포 완료: $deploy_sha (이전 성공 배포 ${last_good_sha:-없음})"
