@@ -8,12 +8,10 @@ import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-@NoArgsConstructor
 @Entity
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Table(name = "menu_category")
-@Getter
-@Setter
-@AllArgsConstructor
 public class MenuCategory {
 
     @Id

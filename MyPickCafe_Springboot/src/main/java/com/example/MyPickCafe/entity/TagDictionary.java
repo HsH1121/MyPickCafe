@@ -3,12 +3,10 @@ package com.example.MyPickCafe.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @Entity
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
+@Builder
 @Table(name = "tag_dictionary")
 public class TagDictionary {
 

@@ -12,12 +12,10 @@ import lombok.Setter;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-@NoArgsConstructor
 @Entity
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Table(name = "cafe_tag")
-@Getter
-@Setter
-@AllArgsConstructor
 public class CafeTag {
 
     @Id
