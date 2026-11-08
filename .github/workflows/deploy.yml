@@ -1,0 +1,212 @@
+name: Deploy
+
+# EC2 운영 서버에 web·ai 이미지를 배포합니다.
+#   - CI 워크플로가 main push 에서 테스트·이미지 게시가 끝나면 이 워크플로를 부릅니다(workflow_call).
+#   - 되돌리거나 같은 버전을 다시 배포할 때는 Actions → Deploy → Run workflow 에 main 의 커밋 SHA 를 넣습니다.
+#     그 SHA 의 이미지가 GHCR 에 있어야 합니다(CI 가 main 에서 게시한 커밋만 해당).
+#
+# 서버 접속은 SSH 가 아니라 AWS SSM 입니다. GitHub OIDC 로 배포용 IAM 역할을 잠깐 빌려 쓰며,
+# 장기 AWS 키와 SSH 키를 저장하지 않고 22번 포트도 열지 않습니다.
+# 설정 방법은 docs/CI_CD.md 의 "CD 최초 설정"을 참고하세요.
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: 배포할 main 커밋 SHA(40자)
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 배포할 main 커밋 SHA(40자). 되돌릴 때는 이전 성공 배포의 SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: Check deploy preconditions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Require main and a full commit SHA
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::main 에서만 배포합니다(현재 $GITHUB_REF)."
+            exit 1
+          fi
+          if ! [[ $SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha 는 40자 소문자 16진수 커밋 SHA 여야 합니다."
+            exit 1
+          fi
+      - name: Require approval on the production environment
+        # 승인자 없이 배포가 바로 실행되는 것을 막습니다. 승인 설정이 빠졌으면 여기서 멈춥니다.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! env_json=$(gh api "repos/$GITHUB_REPOSITORY/environments/production"); then
+            echo "::error::production Environment 가 없거나 읽지 못했습니다. docs/CI_CD.md 의 CD 최초 설정을 따라 만드세요."
+            exit 1
+          fi
+          reviewers=$(jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' <<<"$env_json")
+          branch_policy=$(jq -r '.deployment_branch_policy != null' <<<"$env_json")
+          if [ "$reviewers" -lt 1 ] || [ "$branch_policy" != true ]; then
+            echo "::error::production Environment 에 필수 승인자(Required reviewers)와 배포 브랜치 제한(main)이 모두 있어야 합니다."
+            exit 1
+          fi
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the commit to be on main
+        env:
+          SHA: ${{ inputs.sha }}
+        run: |
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "::error::$SHA 는 main 에 있는 커밋이 아닙니다."
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy to EC2
+    needs: guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    # 배포는 한 번에 하나만. 진행 중인 배포를 새 push 로 취소하지 않습니다.
+    # (대기 중인 배포는 더 새 배포가 들어오면 대체됩니다.)
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write   # AWS OIDC
+      packages: read    # GHCR 에서 이미지 digest 확인
+    env:
+      SHA: ${{ inputs.sha }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      EC2_APP_DIR: ${{ vars.EC2_APP_DIR }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - name: Check production settings
+        run: |
+          missing=""
+          for name in AWS_REGION AWS_DEPLOY_ROLE_ARN EC2_INSTANCE_ID EC2_APP_DIR; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::production Environment 변수가 비어 있습니다:$missing"
+            exit 1
+          fi
+          # 서버로 보내는 명령에 그대로 들어가는 값이라 형식을 제한합니다.
+          [[ $EC2_INSTANCE_ID =~ ^i-[0-9a-f]{8,17}$ ]] || { echo "::error::EC2_INSTANCE_ID 형식이 아닙니다."; exit 1; }
+          [[ $EC2_APP_DIR =~ ^/[A-Za-z0-9._/-]+$ ]] || { echo "::error::EC2_APP_DIR 는 공백 없는 절대 경로여야 합니다."; exit 1; }
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Resolve image digests for the commit
+        id: images
+        run: |
+          prefix="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/mypickcafe"
+          for svc in web ai; do
+            if ! digest=$(docker buildx imagetools inspect "$prefix-$svc:sha-$SHA" --format '{{json .Manifest}}' | jq -re .digest); then
+              echo "::error::$prefix-$svc:sha-$SHA 이미지가 없습니다. CI 가 main 에서 게시한 커밋인지 확인하세요."
+              exit 1
+            fi
+            echo "$svc=$prefix-$svc@$digest" >> "$GITHUB_OUTPUT"
+            echo "$svc: $prefix-$svc@$digest"
+          done
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: mypickcafe-deploy-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Run scripts/cd/deploy.sh on EC2 through SSM
+        env:
+          WEB_IMAGE: ${{ steps.images.outputs.web }}
+          AI_IMAGE: ${{ steps.images.outputs.ai }}
+        run: |
+          # 서버에서 실행할 명령. 값은 위에서 형식을 검사했고, 이미지 값은 deploy.sh 가 다시 검사합니다.
+          # 서버 저장소의 소유자로 origin/main 을 받아, main 에 있는 커밋일 때만 그 커밋의 deploy.sh 를 실행합니다.
+          remote_script=$(cat <<EOF
+          set -eu
+          app_dir='$EC2_APP_DIR'
+          sha='$SHA'
+          owner=\$(stat -c %U "\$app_dir")
+          as_owner() { if [ "\$owner" = root ]; then "\$@"; else runuser -u "\$owner" -- "\$@"; fi; }
+          as_owner git -C "\$app_dir" fetch --quiet origin main || { echo "서버 저장소에서 git fetch origin main 실패" >&2; exit 1; }
+          as_owner git -C "\$app_dir" merge-base --is-ancestor "\$sha" origin/main || { echo "\$sha 가 서버의 origin/main 에 없습니다" >&2; exit 1; }
+          script=\$(mktemp)
+          trap 'rm -f "\$script"' EXIT
+          as_owner git -C "\$app_dir" show "\$sha:scripts/cd/deploy.sh" > "\$script"
+          APP_DIR="\$app_dir" bash "\$script" "\$sha" '$WEB_IMAGE' '$AI_IMAGE'
+          EOF
+          )
+          jq -n --arg script "$remote_script" \
+            '{commands: [$script], executionTimeout: ["2400"]}' > ssm-params.json
+
+          command_id=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "MyPickCafe deploy ${SHA:0:12}" \
+            --timeout-seconds 300 \
+            --parameters file://ssm-params.json \
+            --query Command.CommandId --output text)
+          echo "SSM command $command_id"
+
+          # 실행이 끝날 때까지 기다립니다(최대 42분, executionTimeout 40분 + 여유).
+          status=Pending
+          for _ in $(seq 1 252); do
+            sleep 10
+            status=$(aws ssm get-command-invocation --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case $status in
+              Pending|InProgress|Delayed) continue ;;
+              *) break ;;
+            esac
+          done
+
+          # deploy.sh 는 비밀값과 앱 로그를 출력하지 않습니다(공개 저장소라 이 로그는 누구나 볼 수 있음).
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardOutputContent --output text || true
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardErrorContent --output text >&2 || true
+
+          if [ "$status" != Success ]; then
+            echo "::error::서버 배포가 끝나지 않았거나 실패했습니다(SSM 상태 $status). 위 로그와 서버의 /var/lib/mypickcafe-deploy/last-failure.log 를 확인하세요."
+            exit 1
+          fi
+
+      - name: Check the public HTTPS address
+        if: ${{ vars.PRODUCTION_URL != '' }}
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$PRODUCTION_URL/" || true)
+            if [[ $code =~ ^[23][0-9][0-9]$ ]]; then
+              echo "$PRODUCTION_URL/ → HTTP $code"
+              exit 0
+            fi
+            echo "시도 $attempt: HTTP ${code:-없음}"
+            sleep 10
+          done
+          echo "::error::$PRODUCTION_URL 이 정상 응답하지 않습니다."
+          exit 1

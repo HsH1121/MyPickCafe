@@ -1,13 +1,13 @@
-# MyPickCafe CI와 다음 단계의 CD
+# MyPickCafe CI/CD
 
-## 이번 작업의 범위
+## 작업 범위
 
-`ci/github-actions` 브랜치에서 **CI를 구현**했다. CD는 아래 설계에 따라 별도 브랜치/PR에서 진행한다.
-EC2 접속, 배포, 원격 GitHub 설정 변경, 이미지 게시, DB 초기화는 하지 않았다.
-기존 `docker-compose.yml`에 있던 `SERVER_FORWARD_HEADERS_STRATEGY: native` 변경도 그대로 유지했다.
+`ci/github-actions` 브랜치에서 **CI**를, `cd/ec2-deployment` 브랜치에서 **CD**(GHCR 게시 + SSM 으로 EC2 배포)를 구현했다.
+CD 는 저장소 변수 `CD_ENABLED=true` 를 넣기 전까지 꺼져 있다. AWS·GitHub 설정은 아래 "CD 최초 설정"에 따라 사용자가 직접 한다.
+작업 중 EC2 접속, 실제 배포, 원격 GitHub·AWS 설정 변경, DB 초기화는 하지 않았다.
 
 CI는 코드가 정상인지 자동 검사하는 과정이고, CD는 검사를 통과한 버전을 실제 서버에 반영하는 과정이다.
-이번에는 CI만 연결하므로 push/PR이 운영 서버를 재시작하지 않는다.
+CD 를 켜도 production 승인 전에는 운영 서버가 바뀌지 않는다.
 
 ## 현재 프로젝트 분석
 
@@ -140,56 +140,191 @@ GitHub에서 CI를 사용하려면 이 브랜치의 변경 파일을 커밋/push
 필수 검사 지정은 GitHub Rulesets/Branch protection의 별도 설정이며 이 YAML만으로 병합이 강제 차단되지는 않는다.
 일부 fork PR은 저장소 정책에 따라 Actions 실행 승인 자체가 필요할 수 있다.
 
-## 후속 CD 설계 — 아직 구현/활성화하지 않음
+## CD — EC2 배포
 
-CI를 병합하고 GitHub에서 통과한 뒤 `cd/ec2-deployment` 같은 **별도 브랜치와 PR**로 진행한다.
-아래는 구현 제안이며 서버에서 실행한 작업이 아니다. 무중단 배포는 범위에 포함하지 않으며 앱 교체 중 잠시 중단될 수 있다.
+`cd/ec2-deployment` 브랜치에서 구현했다. 무중단 배포는 범위에 없다. web·ai 컨테이너를 교체하는 동안 잠시 접속이 끊긴다.
+저장소 변수 `CD_ENABLED=true` 를 넣기 전까지는 배포 job 이 건너뛰어진다. 아래 "CD 최초 설정"을 끝낸 뒤에 켠다.
 
-1. 승인받은 EC2 점검으로 배포 경로, CPU 아키텍처, Compose 버전, 실제 컨테이너 마운트/볼륨 이름, 기존 `.env`, 인덱스 건수, 사용 중인 라이브러리 버전을 확인한다. 비밀값 전체를 출력하지 않는다.
-2. 승인받은 백업 계획으로 PostgreSQL과 Chroma의 일관된 백업/복구 방법을 확인한다. Chroma는 활성 SQLite 파일을 무작정 복사하지 않는다. 실행 중인 DB 파일 전체 복사도 PostgreSQL 백업 대체가 아니다.
-3. main의 **정확히 테스트한 commit SHA**로 web/AI 이미지를 만들고 GHCR에 게시한다. 태그는 SHA로 하고 배포 시 두 이미지의 digest를 확정한다. PR에서는 게시/배포하지 않는다.
-4. GitHub `production` Environment의 승인과 main 제한을 적용한다. 별도 workflow라면 CI 성공 여부, 이벤트가 main push인지, 저장소와 SHA가 일치하는지를 검증해야 한다. 임의 `workflow_run`/PR 산출물을 권한 있는 배포에 사용하지 않는다. 가능하면 CI의 성공 job을 `needs`로 연결하는 구조를 사용한다.
-5. 승인된 실행에서만 EC2로 전달한다. 배포 동시 실행은 `concurrency`로 하나만 허용하고 진행 중 배포를 새 push로 강제 취소하지 않는다. 서버 측 잠금도 둔다. 두 이미지를 모두 pull하고 설정/필수 기존 볼륨 검사가 끝나기 전에는 앱을 중지하지 않는다.
-6. 운영 전용 Compose override에서 이미지 digest를 지정하고 빌드를 금지한다. PostgreSQL/Ollama/Caddy는 유지하고 web/AI 컨테이너만 `--no-deps` 방식으로 교체한다. 기존 `.env`와 마운트/프로젝트 이름을 유지한다. 전체 `compose down`은 배포 절차에 넣지 않는다.
-7. 제한 시간 안에 두 컨테이너의 상태, HTTP 응답, HTTPS 접근과 예상 인덱스 상태를 확인한다. 실패 시 job을 실패로 끝내고 제한된 앱 로그/컨테이너 상태를 남긴다. 자동 재인덱싱, 스키마 변경, 데이터 초기화로 복구하지 않는다.
-8. 이전 성공 이미지 digest를 보관하고 장애 시 승인된 복구 절차로 되돌린다. 이미지 교체 실패 후에는 서비스가 중단 상태일 수 있다. 실패 반환만으로 원래 버전이 자동 복원되는 것은 아니다. 스키마/Chroma 파일 형식 변경은 별도 복구 계획이 필요하다.
+### 정한 방식
 
-### 볼륨 보존 기준
+| 항목 | 선택 | 이유 |
+| --- | --- | --- |
+| 서버 접속 | AWS SSM + GitHub OIDC | 22번 포트를 GitHub 실행기 대역에 열지 않는다. 장기 AWS 키·SSH 키를 GitHub 에 저장하지 않는다. |
+| 실행 시점 | main push → CI 통과 → 이미지 게시 → `production` 승인 후 배포 | 승인 없이는 서버가 바뀌지 않는다. 수동 실행(되돌리기)도 같은 승인을 거친다. |
+| 이미지 | Actions 에서 빌드해 GHCR 에 게시, EC2 는 digest 로 pull | CI 에서 테스트한 커밋 그대로 배포한다. t3.large 에서 Gradle 빌드를 하지 않는다. 되돌리기는 이전 커밋의 이미지로 다시 배포하면 된다. |
 
-| 내용 | 현재 Compose 기준 예상 이름 |
+### 파일
+
+| 파일 | 역할 |
 | --- | --- |
-| PostgreSQL | `mypickcafe_pgdata` |
-| 실제 AI Chroma 인덱스 | `mypickcafe_chroma-index` |
-| 업로드 사진 | `mypickcafe_web-uploads` |
-| AI 로그/지역 후보 | `mypickcafe_ai-logs` |
-| Ollama 모델 | `mypickcafe_ollama-models` |
-| TLS 인증서/설정 | `mypickcafe_caddy-data`, `mypickcafe_caddy-config` |
-| 선택적 Chroma 서버 | `mypickcafe_chroma-server-data` (현재 앱 인덱스와 다름) |
+| `.github/workflows/ci.yml` | `cd-script` job(배포 스크립트 ShellCheck·가짜 명령 테스트) 추가. main 에서만 `publish` job 이 `ghcr.io/hsh1121/mypickcafe-{web,ai}:sha-<커밋>` 을 게시하고, `CD_ENABLED=true` 면 `deploy` job 이 Deploy 워크플로를 부른다. main 실행은 새 push 가 와도 취소하지 않는다. |
+| `.github/workflows/deploy.yml` | 배포 워크플로. CI 가 부르거나(workflow_call) Actions 화면에서 SHA 를 넣어 직접 실행한다(workflow_dispatch). |
+| `scripts/cd/deploy.sh` | 서버에서 실행하는 배포 스크립트. 배포할 커밋의 파일을 `git show` 로 꺼내 실행하므로 서버에 따로 설치하지 않는다. |
+| `scripts/cd/test_deploy.sh` | 가짜 docker·git 으로 `deploy.sh` 의 순서와 실패 처리를 확인한다(13개 경우, 59개 검사). 실제 컨테이너를 건드리지 않는다. |
 
-위 이름은 파일로부터 추정한 것이며 **실제 EC2 이름을 확인한 결과가 아니다**.
-CD용 override에는 확인된 필수 볼륨을 `external: true`와 정확한 `name`으로 선언하는 방식을 권장한다.
-그러면 볼륨이 없을 때 새 빈 볼륨을 자동 생성하지 않고 실패하도록 할 수 있다.
-이 선언은 직접 볼륨 삭제 명령까지 막는 잠금은 아니다.
-`down -v`, 볼륨 삭제/prune, DB 초기화, `ddl-auto=create/update`, 자동 Chroma reset/reindex는 배포 스크립트에 넣지 않는다.
-포트 제한용 override에서는 Compose의 목록 병합 특성에 주의해 `!reset`/`!override` 지원 버전을 확인하고 실제 병합 결과를 검사해야 한다.
+### 배포 흐름
 
-### GitHub Secrets와 권한
+```mermaid
+flowchart TD
+    A[main push] --> B[CI: 테스트·이미지 빌드]
+    B --> C[publish: GHCR 에 sha 태그로 게시]
+    C --> D{CD_ENABLED?}
+    D -- 아니오 --> Z[종료]
+    D -- 예 --> E[guard: main·SHA 형식·main 포함 여부,<br>production 에 승인자·브랜치 제한이 있는지]
+    E --> F[production 승인 대기]
+    F --> G[GHCR 에서 두 이미지 digest 확인]
+    G --> H[OIDC 로 배포 역할 사용 → SSM send-command]
+    H --> I[서버: fetch, main 포함 확인 후 그 커밋의 deploy.sh 실행]
+    I --> J[공개 HTTPS 주소 응답 확인]
+```
 
-현재 CI에는 사용자 등록 Secrets가 **필요 없다**. 테스트용 가짜 값만 사용한다.
-후속 CD는 아래처럼 역할을 분리한다.
+서버의 `deploy.sh` 순서. 앞 단계가 끝나기 전에는 실행 중인 서비스를 건드리지 않는다.
 
-| 설정 | 보관/사용 계획 |
-| --- | --- |
-| 이미지 게시 인증 | main 게시 job에서만 `GITHUB_TOKEN`에 `packages: write` 부여. 장기 개인 토큰을 빌드에 전달하지 않는다. |
-| `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`, `EC2_KNOWN_HOSTS` | SSH 방식 채택 시 production Environment Secrets. 검증한 SSH host key로 고정하고 `StrictHostKeyChecking=no`는 사용하지 않는다. |
-| 비공개 GHCR 이미지 읽기 | EC2에 읽기 전용 인증 수단 필요. 필요하면 별도 최소 권한 `GHCR_READ_TOKEN`을 Secrets로 관리한다. CI 게시용 권한과 분리한다. |
-| DB 비밀번호, JWT, LLM/Kakao 키 | 최초 CD는 이미 서버에서 쓰는 `.env`를 유지한다. GitHub 관리로 이전하려면 같은 값을 production Environment Secrets에 등록하고 승인된 단계에서 권한 제한 파일/환경변수로 전달한다. 이미지에 넣지 않는다. |
+1. **사전 점검**: 서버 측 잠금(`flock`), 커밋이 `origin/main` 에 있는지, 서버 저장소에 수정된 추적 파일이 없는지, 필수 볼륨(`mypickcafe_pgdata`, `mypickcafe_chroma-index`, `mypickcafe_web-uploads`)이 있는지, 앱이 쓰는 볼륨의 소유자가 uid 10001 인지, postgres 가 healthy 인지 확인한다. 현재 AI 인덱스 건수도 기록한다.
+2. **pull**: 두 이미지를 `이름@sha256:digest` 로 받는다.
+3. **설정 검사**: 서버 저장소를 그 커밋으로 `checkout --detach` 하고, 이미지 override(`/var/lib/mypickcafe-deploy/images.override.yml.candidate`)를 붙여 `compose config --quiet` 를 실행한다. 실패하면 checkout 을 원래대로 돌려 놓는다.
+4. **교체**: `compose up -d --no-deps --no-build mypickcafe-ai mypickcafe-web`. postgres·ollama·caddy 는 그대로 둔다.
+5. **확인**: 두 컨테이너가 healthy 인지(ai 최대 15분, web 5분, 재시작 반복이면 바로 실패), 실행 중인 이미지가 배포한 digest 인지, `http://127.0.0.1:WEB_PORT/` 가 2xx/3xx 인지, AI 인덱스 건수가 배포 전보다 줄지 않았는지(배포 전에 확인할 수 없었으면 0건이 아닌지) 확인한다.
+6. **기록**: 성공하면 override 를 `images.override.yml` 로 확정하고 `/var/lib/mypickcafe-deploy/current`·`previous`·`history` 에 SHA 와 digest 를 남긴다.
 
-SSH를 위해 22번 포트를 전 세계에 여는 방식은 피한다. 기존 접근 경로를 확인하고, 필요하면 AWS SSM + OIDC를 별도 대안으로 검토한다.
-SSM/OIDC 방식에서는 SSH key 대신 제한된 IAM 역할과 대상 인스턴스 권한을 설정한다.
-실행 중 `set -x`, 비밀값 echo, `.env` artifact 업로드, 값 전체가 출력되는 Compose config/dump는 사용하지 않는다.
-GitHub의 자동 마스킹만으로 모든 앱 로그가 안전해지는 것은 아니므로 실패 로그에도 비밀값/개인정보가 포함되지 않도록 검토한다.
-Environment 필수 승인 기능의 사용 가능 여부는 저장소 공개 범위와 GitHub 요금제에서 확인한다. 승인 기능을 설정하지 못했다면 대체 승인 절차 없이 자동 배포를 활성화하지 않는다.
+스크립트에 넣지 않은 것: `compose down`, 볼륨 삭제·prune, DB 초기화·스키마 변경, Chroma 초기화·재인덱싱, 볼륨 `chown`, 실패 시 자동 되돌리기.
+
+공개 저장소라 Actions 로그는 누구나 볼 수 있다. `deploy.sh` 는 비밀값과 앱 로그를 출력하지 않는다.
+`.env` 내용이 담기는 `compose config` 는 `--quiet` 로만 쓴다. 실패했을 때의 컨테이너 상태와 최근 로그 200줄은 서버의 `/var/lib/mypickcafe-deploy/last-failure.log` 에만 남긴다(root 전용 폴더).
+
+### 실패와 되돌리기
+
+- 1~3단계에서 실패하면 서비스는 그대로다. 실패 이유가 Actions 로그에 남는다.
+- 4~5단계에서 실패하면 web·ai 가 중단됐거나 새 버전이 일부만 떠 있을 수 있다. **자동으로 되돌리지 않는다.**
+- 되돌리기: **Actions → Deploy → Run workflow** 를 main 에서 실행하고 `sha` 에 이전 성공 SHA 를 넣는다. 로그 끝에 이전 성공 SHA 가 찍히고, 서버의 `/var/lib/mypickcafe-deploy/current`·`history` 에도 있다. 이것도 production 승인을 거친다.
+- 스키마 변경(prod 는 `ddl-auto=validate`)이나 Chroma 파일 형식 변경이 들어간 배포는 이미지만 되돌려서는 복구되지 않을 수 있다. 그런 변경은 배포 전에 SQL·백업을 따로 준비한다.
+- CD 로 처음 배포하기 전에는 이전 성공 기록이 없다. 그때 실패하면 스크립트가 서버에서 직접 되돌리는 명령(원래 브랜치 checkout 뒤 기존 `mypickcafe-*:dev` 이미지로 `up --no-deps --no-build`)을 출력한다.
+
+### CD 최초 설정 (사용자가 직접)
+
+Claude 는 AWS·GitHub 원격 설정과 EC2 접속을 하지 않았다. 아래 순서대로 설정한 뒤 마지막에 `CD_ENABLED` 를 켠다.
+
+**1. EC2 에서 SSM 사용**
+
+- Ubuntu 24.04 AMI 에는 `amazon-ssm-agent` 가 snap 으로 들어 있다(`sudo snap services amazon-ssm-agent`).
+- 인스턴스 IAM 역할에 `AmazonSSMManagedInstanceCore` 정책을 붙인다. 인스턴스 역할은 하나만 붙으므로, S3 용 역할이 이미 있으면 그 역할에 정책을 추가한다.
+- AWS 콘솔 **Systems Manager → Fleet Manager** 에서 인스턴스가 Online 인지 확인한다(아웃바운드 443 필요, 이미 열려 있음).
+
+**2. GitHub OIDC 공급자** (계정에 한 번)
+
+IAM → Identity providers → Add provider → OpenID Connect
+
+- Provider URL: `https://token.actions.githubusercontent.com`
+- Audience: `sts.amazonaws.com`
+
+**3. 배포용 IAM 역할** (예: `mypickcafe-github-deploy`)
+
+신뢰 정책. `production` Environment 의 job 만 이 역할을 쓸 수 있다.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Federated": "arn:aws:iam::<계정ID>:oidc-provider/token.actions.githubusercontent.com" },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+        "token.actions.githubusercontent.com:sub": "repo:HsH1121/MyPickCafe:environment:production"
+      }
+    }
+  }]
+}
+```
+
+권한 정책. 이 인스턴스 하나에 `AWS-RunShellScript` 실행과 결과 조회만 허용한다.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ec2:ap-northeast-2:<계정ID>:instance/<인스턴스ID>",
+        "arn:aws:ssm:ap-northeast-2::document/AWS-RunShellScript"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations"],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+`AWS-RunShellScript` 는 임의 명령을 root 로 실행할 수 있는 문서다. 이 역할은 승인된 `production` job 만 쓸 수 있게 신뢰 정책으로 묶었다. 더 좁히려면 배포 명령만 받는 전용 SSM 문서를 만들어 바꾼다.
+
+**4. GitHub `production` Environment**
+
+Settings → Environments → New environment → `production`
+
+- **Required reviewers**: 본인. 혼자 쓰는 저장소이므로 "Prevent self-review" 는 끈다.
+- **Deployment branches and tags**: Selected branches and tags → `main`
+- **Environment variables**
+
+| 이름 | 예 | 비고 |
+| --- | --- | --- |
+| `AWS_REGION` | `ap-northeast-2` | |
+| `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::<계정ID>:role/mypickcafe-github-deploy` | |
+| `EC2_INSTANCE_ID` | `i-0123456789abcdef0` | |
+| `EC2_APP_DIR` | `/home/ubuntu/MyPickCafe` | 서버의 저장소 경로(`docker-compose.yml`·`.env` 가 있는 곳) |
+| `PRODUCTION_URL` | `https://<도메인>` | 비워 두면 공개 HTTPS 확인을 건너뛴다 |
+
+Deploy 워크플로의 `guard` job 은 Required reviewers 와 배포 브랜치 제한이 없으면 배포를 멈춘다. Secrets 는 필요 없다.
+
+**5. GHCR 이미지 읽기**
+
+첫 main push 에서 `publish` 가 `mypickcafe-web`·`mypickcafe-ai` 패키지를 만든다. 둘 중 하나를 고른다.
+
+- 패키지를 Public 으로 바꾼다(GitHub 프로필 → Packages → 패키지 → Package settings → Change visibility). 소스가 이미 공개이고, 이미지에는 `.env`·`secret.properties` 가 들어가지 않는다(각 `.dockerignore`).
+- Private 로 두려면 `read:packages` 권한만 있는 토큰을 만들어 서버에서 **root 로** 한 번 로그인한다(SSM 이 root 로 실행하므로). `sudo docker login ghcr.io -u HsH1121`
+
+**6. 서버 사전 조건**
+
+- `EC2_APP_DIR` 은 이 저장소의 git clone 이고 원격 이름이 `origin` 이어야 한다. 추적 파일을 서버에서 고친 상태면 배포를 멈춘다(`.env` 는 추적하지 않으므로 상관없다).
+- 배포 후 서버 저장소는 배포한 커밋에 detached HEAD 로 있다. 서버에서 `git pull` 을 하지 않는다.
+- docker compose v2 가 있어야 한다.
+- 볼륨 이름과 소유자를 확인한다. 소유자가 10001 이 아니면 배포가 멈추며, 확인한 뒤 직접 `chown` 한다.
+
+```bash
+sudo docker volume ls --filter name=mypickcafe_
+for v in chroma-index ai-logs web-uploads web-private; do
+  mp=$(sudo docker volume inspect -f '{{.Mountpoint}}' mypickcafe_$v 2>/dev/null) && sudo stat -c "%u $v" "$mp"
+done
+```
+
+- 서버에서 compose 를 직접 다룰 때는 배포된 이미지를 쓰도록 override 를 함께 넘긴다. 빼면 compose 가 예전 `mypickcafe-*:dev` 이미지나 서버 빌드로 돌아간다.
+
+```bash
+sudo docker compose -f docker-compose.yml -f /var/lib/mypickcafe-deploy/images.override.yml ps
+```
+
+**7. ChromaDB 버전 확인**
+
+`MyPickCafe_AI/requirements.txt` 는 `>=` 범위라, Actions 에서 새로 빌드한 이미지에는 서버에서 쓰던 것보다 새 chromadb 가 들어갈 수 있다.
+새 버전이 인덱스 파일 형식을 바꾸면 이전 이미지로 되돌려도 인덱스를 못 읽을 수 있다. 처음 켜기 전에 서버 버전을 확인하고, 다르면 그 버전으로 고정하는 커밋을 먼저 넣는다.
+
+```bash
+sudo docker exec mypickcafe-ai pip show chromadb | head -2
+```
+
+**8. 백업**
+
+배포 스크립트는 데이터를 지우지 않지만, 처음 켜기 전에 PostgreSQL 백업(`pg_dump`)을 한 번 받아 둔다. Chroma 는 실행 중인 SQLite 파일을 그대로 복사하지 않는다. AI 컨테이너를 멈춘 상태에서 볼륨을 복사하거나, DB 에서 다시 인덱싱할 수 있으니 PostgreSQL 백업을 우선한다.
+
+**9. 켜기**
+
+Settings → Secrets and variables → Actions → **Variables** 탭(저장소 변수) → `CD_ENABLED` = `true`.
+그다음 main push 부터 `publish` 뒤에 `Deploy` 가 승인을 기다린다. 이미 게시된 커밋은 Actions → Deploy → Run workflow 로 배포할 수 있다.
 
 ## 검증 결과와 남은 검증
 
@@ -201,6 +336,9 @@ Environment 필수 승인 기능의 사용 가능 여부는 저장소 공개 범
 - 실행기 실패 경로: 외부 연결 오류를 앱이 잡아도 CI 실패로 처리되는지, 테스트가 실패하면 최종 종료 코드와 JUnit에 실패가 남는지 임시 샘플로 확인했다.
 - 로컬 Docker 엔진이 실행 중이 아니어서 이미지 빌드는 수행하지 못했다. GitHub Ubuntu 실행기의 실제 Docker 빌드 성공을 확인해야 한다.
 - GitHub Actions 원격 실행, EC2 배포, 운영 연동 테스트는 수행하지 않았다.
+- CD(`cd/ec2-deployment`): `scripts/cd/test_deploy.sh` 59개 검사 통과(Git Bash). 테스트가 실제로 잡는지 보려고 스크립트를 6가지로 일부러 망가뜨려(checkout 복구 제거, pull 실패 무시, 볼륨 검사 제거, 앱 로그 출력, 인덱스 검사 무력화, 교체 전 성공 기록) 돌렸을 때 6개 모두 실패로 잡혔다.
+- CD: 두 워크플로 YAML 파싱, `bash -n`, SSM 으로 보내는 명령을 예시 값으로 만들어 `sh -n` 확인. 로컬에서 actionlint·ShellCheck 는 실행하지 못했다(ShellCheck 는 CI 의 `cd-script` job 에서 실행).
+- CD: GHCR 게시, OIDC 역할 사용, SSM 실행, 실제 서버 배포는 원격 설정이 필요해 확인하지 못했다. 첫 배포는 승인 화면에서 지켜보며 실행한다.
 
 ## 참고한 공식 문서
 
@@ -208,3 +346,6 @@ Environment 필수 승인 기능의 사용 가능 여부는 저장소 공개 범
 - [GitHub 배포 Environment](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
 - [Docker Compose 볼륨 이름과 external](https://docs.docker.com/reference/compose-file/volumes/)
 - [Docker Compose override 병합](https://docs.docker.com/reference/compose-file/merge/)
+- [GitHub Actions OIDC 로 AWS 역할 사용](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
+- [GHCR 에 이미지 게시](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+- [AWS SSM Run Command](https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command.html)
