@@ -30,7 +30,7 @@ flowchart LR
 | `monitoring/prometheus/alert-rules.yml` | 알림 규칙 5개 |
 | `monitoring/grafana/provisioning/` | 데이터 소스·대시보드 자동 등록 |
 | `monitoring/grafana/dashboards/` | `MyPickCafe 웹 서버`, `k6 부하 테스트` 대시보드 |
-| `k6/` | `smoke.js`, `load.js`, `stress.js`, 공통 흐름 `lib/mypickcafe.js` |
+| `monitoring/k6/` | `smoke.js`, `load.js`, `stress.js`, 공통 흐름 `lib/mypickcafe.js` |
 
 ### 지표를 밖에 내보내지 않는 방법
 

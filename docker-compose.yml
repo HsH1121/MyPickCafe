@@ -311,7 +311,7 @@ services:
       - grafana-data:/var/lib/grafana
 
   # ── 부하 테스트 (profiles: k6) ──────────────────────────────────────────────
-  # 상시 서비스가 아니라 테스트할 때만 실행하고 지우는 컨테이너입니다. 스크립트는 k6/ 에 있습니다.
+  # 상시 서비스가 아니라 테스트할 때만 실행하고 지우는 컨테이너입니다. 스크립트는 monitoring/k6/ 에 있습니다.
   #   docker compose run --rm k6 run /scripts/smoke.js
   #   docker compose run --rm k6 run -o experimental-prometheus-rw /scripts/load.js   (결과를 Grafana 로 보기)
   # 기본 대상은 같은 compose 의 mypickcafe-web:8080 입니다(배포와 같은 이미지·메모리 한도·prod 프로파일).
@@ -336,7 +336,7 @@ services:
       K6_FEATURES: native-histograms
     # 부하를 만드는 쪽이 병목이 되지 않도록 메모리 한도를 두지 않습니다.
     volumes:
-      - ./k6:/scripts:ro
+      - ./monitoring/k6:/scripts:ro
 
   # ChromaDB 서버 — 기본으로 뜨지 않습니다: docker compose --profile chroma-server up -d
   #
