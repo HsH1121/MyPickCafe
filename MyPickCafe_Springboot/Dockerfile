@@ -49,7 +49,7 @@ ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
 # (그래야 docker stop 의 SIGTERM 이 JVM 에 바로 전달돼 정상 종료됩니다.)
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
 
-# Actuator 가 없어 HTTP 상태 대신 포트 열림만 확인합니다.
+# 포트 열림만 확인합니다(Actuator 는 관리 포트 8081 에 있지만 여기서는 쓰지 않음).
 # JRE 이미지에 curl·wget 이 없어 bash 의 /dev/tcp 를 씁니다.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD bash -c "exec 3<>/dev/tcp/127.0.0.1/8080" || exit 1

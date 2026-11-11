@@ -16,6 +16,9 @@
 # 설정 및 비밀번호 파일 (필요시)
 **/.env
 
+# DB 덤프 (회원 이메일·비밀번호 해시가 들어 있음, docs/MONITORING.md 의 데이터 옮기기)
+*.dump
+
 # ChromaDB 벡터 데이터 및 로그
 **/chroma_db/
 **/logs/
@@ -27,3 +30,6 @@
 
 # CI/CD guide
 !/docs/CI_CD.md
+
+# 모니터링·부하 테스트 guide
+!/docs/MONITORING.md

@@ -33,6 +33,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	// WebClient (외부 AI 서버 호출용). starter-web이 함께 있으므로 앱은 서블릿 스택으로 기동된다.
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+	// 운영 지표. Prometheus 가 관리 포트(8081)의 /actuator/prometheus 를 가져간다(monitoring/ 참고).
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 	// 업로드 파일 저장소(file.storage=s3). BOM 으로 AWS SDK 모듈 버전을 맞춘다.
 	implementation platform('software.amazon.awssdk:bom:2.46.7')
 	implementation 'software.amazon.awssdk:s3'
