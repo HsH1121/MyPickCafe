@@ -12,9 +12,14 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
+
+    /** 리뷰와 작성자·카페를 함께 읽는다. 리뷰 수정은 OSIV 없이 트랜잭션 밖에서 작성자·카페 승인 여부를 확인한다. */
+    @EntityGraph(attributePaths = {"member", "cafe"})
+    Optional<Review> findWithMemberAndCafeById(Long reviewId);
 
     @EntityGraph(attributePaths = {"member", "cafe"})
     List<Review> findByCafe_IdOrderByCreatedAtDesc(Long cafeId);
