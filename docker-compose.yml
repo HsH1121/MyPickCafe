@@ -4,6 +4,7 @@
 #   선택(profiles, 기본 up 에서는 뜨지 않음):
 #           prometheus·grafana(monitoring), k6(k6, 부하 테스트), chromadb(chroma-server)
 #           모니터링·부하 테스트 사용법은 docs/MONITORING.md
+#   덧붙임(-f 로 함께 넘길 때만): monitoring/ai-stub/docker-compose.ai-stub.yml — 느린 AI 테스트용 가짜 AI 서버
 #
 # 값은 이 파일과 같은 위치의 .env 에서 읽습니다(.env.example 참고). .env 는 git 에 올라가지 않습니다.
 # 컨테이너끼리는 서비스 이름으로 통신합니다: postgres:5432, ollama:11434, mypickcafe-ai:8000

@@ -42,7 +42,7 @@ const TAG_FILTERS = [
   'PURPOSE:STUDY', 'PURPOSE:DATE', 'MOOD:MODERN', 'MENU:AMERICANO',
 ];
 
-const pick = (list) => list[Math.floor(Math.random() * list.length)];
+export const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 /**
  * GET 요청 하나와 상태 코드 검사(기본 200). 리다이렉트는 따라가지 않습니다.
@@ -71,6 +71,7 @@ function guestPage(path, name) {
 /**
  * 테스트 시작 전에 한 번(setup) 실행합니다. 승인된 카페 ID 를 받아 두고, 로그인 계정이 맞는지 확인합니다.
  * 데이터나 계정이 없으면 수백 명을 보내 봐야 의미가 없으니 바로 멈춥니다.
+ * 확인에 쓴 토큰도 돌려줍니다(slow-ai.js 의 리뷰 작성이 VU 마다 로그인하지 않고 씁니다).
  */
 export function prepare() {
   const res = http.get(`${BASE_URL}/api/cafes`, { tags: { name: 'setup' } });
@@ -82,12 +83,13 @@ export function prepare() {
     fail('승인된 카페가 0개입니다. DB 에 데이터를 먼저 넣으세요(docs/MONITORING.md 의 "데이터 준비").');
   }
 
-  if (HAS_MEMBER && !login('setup')) {
+  const token = HAS_MEMBER ? login('setup') : null;
+  if (HAS_MEMBER && !token) {
     // 틀린 비밀번호로 VU 마다 로그인하면 로그인 제한(LoginAttemptService)에 걸려 429 만 쌓입니다.
     fail(`K6_USER_EMAIL(${USER_EMAIL}) 로그인에 실패했습니다. .env 의 계정·비밀번호를 확인하세요.`);
   }
   console.log(`대상 ${BASE_URL}, 승인된 카페 ${cafeIds.length}개, 로그인 시나리오 ${HAS_MEMBER ? '켜짐' : '꺼짐(K6_USER_EMAIL 없음)'}`);
-  return { cafeIds };
+  return { cafeIds, token };
 }
 
 /**
