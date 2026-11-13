@@ -1,12 +1,13 @@
 # MyPickCafe 기술 설계
 
-> 프로젝트 개요는 README를 참고하세요. 이 문서는 주요 기능의 처리 흐름, 아키텍처, 인증·인가, 실행 방법과 테스트를 다룹니다.
+> 프로젝트 개요는 README를 참고하세요. 이 문서는 주요 기능의 처리 흐름, 아키텍처, 인증·인가, 실행 방법과 테스트, 모니터링·부하 테스트를 다룹니다.
 > 
 
 - **서비스 구성**: Spring Boot(회원·카페·리뷰·인증) + FastAPI(리뷰 분석·RAG 추천)
 - **데이터 저장**: PostgreSQL(서비스 데이터) + ChromaDB(리뷰 벡터 인덱스)
 - **AI 모델**: Ollama `bge-m3` 임베딩 + OpenAI 호환 API 기반 LLM
 - **배포 환경**: Docker Compose + AWS EC2(t3.large, Ubuntu 24.04)
+- **모니터링 · 부하 테스트**: Actuator·Micrometer + Prometheus·Grafana, k6
 - **배포 주소**: https://mypickcafe.xyz
 
 ## 목차
@@ -18,6 +19,7 @@
 - [인증 · 인가](#인증--인가)
 - [로컬 실행 방법](#로컬-실행-방법)
 - [테스트](#테스트)
+- [모니터링 · 부하 테스트](#모니터링--부하-테스트)
 - [프로젝트 기여](#프로젝트-기여)
 
 ---
@@ -37,6 +39,7 @@
 | DB | PostgreSQL 16 |
 | 뷰 | Mustache 서버 사이드 렌더링 + Vanilla JS |
 | 배포 | Docker 멀티스테이지 빌드, Docker Compose, AWS EC2 |
+| 모니터링 · 부하 테스트 | Spring Boot Actuator, Micrometer(Prometheus), Prometheus·Grafana, k6 |
 | 기타 | Lombok |
 | 테스트 | Spring Boot Test, Spring Security Test, H2 |
 
@@ -59,12 +62,12 @@ GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습�
 
 ### 1. 리뷰 작성 → AI 태그·감성 분석 → 카페 대표 태그 집계
 
-`ReviewService.saveWithTags()`가 `@Transactional` 범위에서 리뷰 저장과 태그 처리를 수행합니다.
+`ReviewService.saveWithTags()`는 AI 응답을 기다리는 동안 DB 커넥션을 점유하지 않도록 트랜잭션을 리뷰 저장과 태그 반영 두 단계로 나누고(`TransactionTemplate`), AI 호출은 그 사이 트랜잭션 밖에서 수행합니다. 리뷰 수정(`updateWithTags()`)도 같은 순서로 처리합니다.
 
-1. 리뷰를 저장하고 FastAPI `POST /review/analyze`를 동기 호출합니다.
+1. 리뷰를 저장·커밋한 뒤, 트랜잭션 밖에서 FastAPI `POST /review/analyze`를 동기 호출합니다.
 2. AI 서버는  허용 태그 목록을 few-shot 프롬프트로 받아 시설·메뉴·목적·분위기 태그와 감성을 추출합니다.
-3. 분석 태그를 `review_tag`에 저장하고, 카테고리별 집계에서 **최다 출현 태그 개수의 85% 이상인 태그**를 카페 대표 태그(`cafe_tag`)로 선정합니다.
-4. `POST /pickbot/index-one`으로 리뷰의 비동기 색인 요청을 보냅니다.
+3. 짧은 트랜잭션에서 분석 태그를 `review_tag`에 저장하고, 카테고리별 집계에서 **최다 출현 태그 개수의 85% 이상인 태그**를 카페 대표 태그(`cafe_tag`)로 선정합니다.
+4. 커밋된 리뷰를 `POST /pickbot/index-one`으로 비동기 색인 요청합니다.
 
 | 분류 | 값 |
 | --- | --- |
@@ -80,8 +83,8 @@ GPU가 없는 EC2 환경을 고려해 LLM 추론을 외부 API로 분리했습�
 
 | 호출 | 타임아웃 / 처리 방식 | 실패 처리 |
 | --- | --- | --- |
-| 리뷰 태그 분석 | 연결 2초·응답 10초, 동기 호출 | 호출 예외를 `Optional.empty()`로 변환하고 태그 처리를 건너뛰어 리뷰 저장 흐름을 이어감 |
-| 리뷰 색인 | 비동기 요청 | 실패를 로그로 기록 |
+| 리뷰 태그 분석 | 연결 2초·응답 10초, 트랜잭션 밖 동기 호출 | 호출 예외를 `Optional.empty()`로 변환하고 태그 처리를 건너뜀. 태그 반영 트랜잭션이 실패하면 그 트랜잭션만 롤백하고 저장된 리뷰는 유지 |
+| 리뷰 색인 | 리뷰 커밋 후 비동기 요청 | 실패를 로그로 기록 |
 | 픽봇 추천 | 응답 60초(`ai.pickbot.read-timeout-ms`), 동기 호출 | 연결·타임아웃·서버 응답·응답 형식 오류를 구분하고 `503` 반환 |
 
 추천 호출 실패는 정상적인 빈 검색 결과와 구분해 화면에 일시적인 오류로 안내합니다.
@@ -231,6 +234,7 @@ flowchart TD
     F -->|임베딩| O["Ollama · bge-m3"]
     F -->|LLM 호출| L["Fireworks AI · GLM 5.3 Flash"]
     F --> C[("ChromaDB 인덱스")]
+    M["Prometheus · Grafana"] -.->|지표 수집 :8081| S
 ```
 
 `MyPickCafe_AI/app.py`는 리뷰 태그·감성 분석(`Review_Tag_AI`)과 RAG 추천(`PickBot_AI`)을 하나의 FastAPI 서버로 제공합니다. 컨테이너 간 통신은 `postgres:5432`, `ollama:11434`, `mypickcafe-ai:8000`과 같은 서비스명을 사용합니다.
@@ -244,7 +248,11 @@ flowchart TD
 | `postgres` | `postgres:16-alpine` | 서비스 DB | 1GB |
 | `ollama` | `ollama/ollama` | 임베딩 모델 서빙 | 2.5GB |
 | `ollama-init` | `ollama/ollama` | 최초 모델 다운로드 후 종료 | 512MB |
+| `prometheus` | `prom/prometheus` | 지표 수집·알림 규칙 (`monitoring` 프로필) | 512MB |
+| `grafana` | `grafana/grafana` | 대시보드 (`monitoring` 프로필) | 512MB |
+| `k6` | `grafana/k6` | 부하 테스트 실행 후 종료 (`k6` 프로필) | - |
 - 상시 실행 컨테이너의 기본 메모리 한도 합계는 6.5GB이며, 환경변수로 조정할 수 있습니다.
+- 모니터링·부하 테스트 컨테이너는 Compose 프로필로 분리해 기본 실행과 배포에 포함하지 않고, 필요할 때만 실행합니다.
 - `pgdata`, `chroma-index`, `ollama-models`, `web-uploads` 볼륨에 데이터를 보관합니다. ChromaDB는 FastAPI의 `PersistentClient`로 인덱스 파일을 사용합니다.
 - PostgreSQL·Ollama 헬스체크와 임베딩 모델 다운로드가 완료된 후 애플리케이션을 기동합니다.
 - Spring Boot와 FastAPI 컨테이너는 비루트 사용자(uid 10001)로 실행합니다.
@@ -259,7 +267,7 @@ flowchart TD
 | `entity`, `domain` | JPA 엔티티, 역할·상태·태그 enum |
 | `dto` | 요청 DTO, record 기반 응답 DTO |
 | `security` | JWT 인증, 인가 규칙, 소유권 검증, 파라미터 정제 |
-| `config`, `support` | WebClient·OpenAPI·파일 경로 설정, 공통 예외·유틸 |
+| `config`, `support` | WebClient·OpenAPI·파일 경로·OSIV 적용 경로 설정, 공통 예외·유틸 |
 
 ### 주요 데이터 모델
 
@@ -478,6 +486,38 @@ cd MyPickCafe_Springboot
 | `MemberServiceTest` | 비밀번호 해시, 기본 역할, 중복·잘못된 역할 거부, null 입력 처리 |
 | `CafeManageRenderingTest` | 관리 화면 렌더링, 상세 정보 기본값, 기존 정보 유지 |
 | `SearchRenderingTest` | 검색 결과의 화면 모델 전달, 미승인 카페 제외 |
+| `DbConnectionDuringAiCallTest` | 픽봇·리뷰 작성·수정이 AI 응답을 기다리는 동안 DB 커넥션을 점유하지 않음, 태그 반영 실패 시 리뷰 유지 |
+| `OpenInViewConfigTest` | OSIV 제외가 AI 대기 경로(픽봇·리뷰 작성·수정)에만 적용됨 |
+| `ActuatorExposureTest` | Actuator가 관리 포트에서 `health`·`prometheus`만 노출 |
+
+---
+
+## 모니터링 · 부하 테스트
+
+Spring Boot 지표를 Prometheus로 수집해 Grafana 대시보드로 확인하고, k6로 운영과 같은 이미지·메모리 한도·`prod` 프로파일의 컨테이너에 부하를 줍니다. 실행 방법과 측정 기록은 [모니터링·부하 테스트 안내](docs/MONITORING.md)에 정리했습니다.
+
+| 구성 | 내용 |
+| --- | --- |
+| 지표 노출 | Actuator·Micrometer, 관리 포트 8081에서 `health`·`prometheus`만 노출. 외부 프록시·호스트 포트를 열지 않아 내부 네트워크의 Prometheus만 수집 |
+| 알림 규칙 | 앱 다운, 5xx 비율, 느린 응답, DB 커넥션 대기, 힙 사용량 |
+| 대시보드 | `MyPickCafe 웹 서버`(요청·에러·응답 시간·DB 커넥션 풀·Tomcat 스레드·JVM·AI 호출), `k6 부하 테스트` |
+
+| 시나리오 | 부하 | 기준 |
+| --- | --- | --- |
+| smoke | 1명, 비로그인·로그인 요청 20종 | 모든 응답이 기대한 상태 코드 |
+| load | 50명(비로그인 40 + 로그인 10) | 실패 1% 미만, p95 500ms·p99 1.5초 미만 |
+| stress | 20 → 100 → 200 → 300명 | DB 커넥션 풀(20)·Tomcat 스레드(200)에 맞춘 단계로 처리량 한계 확인 |
+| slow-ai | 열람 40명 + 느린 AI 요청 5 → 10 → 20 → 30건 | 구간별 열람 p95 500ms·실패 1% 미만 |
+
+느린 AI 시나리오는 정해 둔 시간(픽봇 5~15초, 태그 분석 2~4초)만큼 기다렸다가 응답하는 가짜 AI 서버(`monitoring/ai-stub`)를 붙여, LLM 비용 없이 AI 응답 지연이 다른 화면에 주는 영향을 측정합니다.
+
+### 부하 테스트 기반 개선
+
+느린 AI 시나리오에서 AI 응답을 기다리는 요청이 DB 커넥션을 반환하지 않아, 동시 요청이 커넥션 풀(20개)을 넘으면 AI와 무관한 열람 화면까지 커넥션 대기로 느려지는 것을 확인하고 개선했습니다. 같은 데이터(카페 225곳·리뷰 27,965건)와 `prod` 설정에서 수정 전·후 코드를 같은 시나리오로 실행해 비교한 결과는 다음과 같습니다.
+
+| 개선 사항 | 상세 수정 사항 | 개선 효과 |
+| --- | --- | --- |
+| 11-13 AI 대기 중 DB 커넥션 반환 (`89f7105`) | 리뷰 작성·수정은 저장 커밋 → 트랜잭션 밖 태그 분석 → 태그 반영 트랜잭션으로 분리(`TransactionTemplate`), 픽봇·리뷰 작성·수정 경로는 OSIV 적용에서 제외(`OpenInViewConfig`) | 픽봇 30건 구간 열람 p95: **5.71초 → 9.9ms**/열람 처리량: **738 → 2,374건/분 (3.2배)**/DB 커넥션 사용: **20/20 → 평균 0.6**, 리뷰 작성 30건 구간 열람 p95: **634ms → 10ms** |
 
 ---
 
@@ -503,3 +543,4 @@ cd MyPickCafe_Springboot
 | 테스트 | 인가·응답 노출·서비스 단위 테스트와 화면 렌더링 회귀 테스트 |
 | 데이터 | 수집 리뷰를 활용한 더미 회원·카페·리뷰 생성 스크립트 |
 | 인프라 | Dockerfile 2종, Docker Compose 구성, AWS EC2 배포 |
+| 모니터링 · 성능 | Prometheus·Grafana 모니터링, k6 부하 테스트와 느린 AI 재현용 가짜 AI 서버, AI 대기 중 DB 커넥션 점유 개선 |
