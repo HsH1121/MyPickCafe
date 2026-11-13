@@ -2,9 +2,9 @@
 //   docker compose run --rm k6 run -o experimental-prometheus-rw /scripts/load.js
 //   (사람 수만 바꿀 때) docker compose run --rm -e PEAK_VUS=100 k6 run -o experimental-prometheus-rw /scripts/load.js
 //
-// 상황: 동시 사용자 50명이 화면을 1~3초씩 읽으며 둘러봅니다. 초당 요청 약 30건입니다.
+// 상황: 동시 사용자 50명이 화면을 1~3초씩 읽으며 둘러봅니다. 초당 요청 약 55건입니다(화면이 부르는 API 포함, 계산값).
 //   - 개인이 운영하는 지역 카페 탐색 서비스(t3.large 한 대)의 피크를 넉넉히 잡은 값입니다.
-//   - 로그인 계정(K6_USER_EMAIL)이 있으면 20%는 로그인 사용자(추천·알림·찜 목록)로 돕니다.
+//   - 로그인 계정(K6_USER_EMAIL)이 있으면 20%는 로그인 사용자(추천·알림·마이페이지)로 돕니다.
 //
 // 목표(SLO)는 테스트 전에 정한 값입니다. 결과를 보고 고치지 않습니다.
 //   - 실패율 1% 미만, 응답 p95 500ms·p99 1.5초 미만, 로그인 p95 1초 미만(BCrypt 비용 포함)

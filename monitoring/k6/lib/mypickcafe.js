@@ -8,6 +8,10 @@
 //     응답이 수 초~수십 초라 앱이 아니라 LLM 의 응답 시간을 재게 됩니다.
 //   - 요청마다 name 태그를 붙입니다. /cafes/12, /cafes/13 처럼 주소가 달라도 같은 화면으로 묶어
 //     터미널 요약과 Grafana 에서 화면별로 봅니다.
+//   - 브라우저가 화면을 열 때 스크립트로 같이 부르는 API 도 보냅니다. 화면 HTML 만 보내면 요청 수가 실제보다 적게 잡힙니다.
+//     · 모든 화면: /api/auth/me (static/js/cafego.js, 비로그인이면 401)
+//     · 로그인 화면: /api/notifications/unread-count (layout/header.mustache)
+//     이미지·CSS·JS 같은 정적 파일은 보내지 않습니다(브라우저가 캐시하고, 여기서는 앱의 처리 비용을 봅니다).
 
 import http from 'k6/http';
 import { check, fail } from 'k6';
@@ -41,13 +45,27 @@ const TAG_FILTERS = [
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 /**
- * GET 요청 하나와 200 검사. 리다이렉트는 따라가지 않습니다.
+ * GET 요청 하나와 상태 코드 검사(기본 200). 리다이렉트는 따라가지 않습니다.
  * (로그인이 풀려 /login 으로 보내지면 302 로 남아 실패로 잡히게 하려는 것)
+ * 200 이 아닌 응답이 정상인 요청(비로그인의 /api/auth/me → 401)은 expectedStatus 로 알려 실패율에 넣지 않습니다.
  */
-function get(path, name, headers) {
-  const res = http.get(`${BASE_URL}${path}`, { headers, redirects: 0, tags: { name } });
-  check(res, { [`${name} 200`]: (r) => r.status === 200 });
+function get(path, name, headers, expectedStatus = 200) {
+  const params = { headers, redirects: 0, tags: { name } };
+  if (expectedStatus !== 200) params.responseCallback = http.expectedStatuses(expectedStatus);
+  const res = http.get(`${BASE_URL}${path}`, params);
+  check(res, { [`${name} ${expectedStatus}`]: (r) => r.status === expectedStatus });
   return res;
+}
+
+/** 비로그인 화면을 열면 cafego.js 가 로그인 여부를 묻습니다. 토큰이 없어 401 이 정상입니다. */
+function guestPageScripts() {
+  get('/api/auth/me', 'api-me(guest)', undefined, 401);
+}
+
+/** 비로그인 화면 하나: HTML + 화면이 부르는 API. */
+function guestPage(path, name) {
+  get(path, name);
+  guestPageScripts();
 }
 
 /**
@@ -89,66 +107,84 @@ export function login(name = 'login') {
 /**
  * 비로그인 사용자 한 명이 둘러보는 흐름.
  * 메인 → 카페 목록(정렬·태그 중 하나) → 카페 상세 1~3곳 → 가끔 검색.
+ * 화면마다 cafego.js 가 부르는 /api/auth/me(401)도 같이 보냅니다.
  * think() 는 화면을 읽는 시간입니다(load 는 1~3초, stress 는 0초).
  */
 export function browseAsGuest(data, think) {
-  get('/', 'main');
+  guestPage('/', 'main');
   think();
 
   const r = Math.random();
   if (r < 0.5) {
-    get('/cafes', 'cafe-list(likes)'); // 기본 정렬. 승인된 카페 전체와 리뷰 감성 집계를 읽는 가장 무거운 목록
+    guestPage('/cafes', 'cafe-list(likes)'); // 기본 정렬. 승인된 카페 전체와 리뷰 감성 집계를 읽는 가장 무거운 목록
   } else if (r < 0.75) {
-    get('/cafes?sort=newest', 'cafe-list(newest)');
+    guestPage('/cafes?sort=newest', 'cafe-list(newest)');
   } else {
-    get(`/cafes?sort=tags&tag=${encodeURIComponent(pick(TAG_FILTERS))}`, 'cafe-list(tag)');
+    guestPage(`/cafes?sort=tags&tag=${encodeURIComponent(pick(TAG_FILTERS))}`, 'cafe-list(tag)');
   }
   think();
 
   const details = 1 + Math.floor(Math.random() * 3);
   for (let i = 0; i < details; i++) {
-    get(`/cafes/${pick(data.cafeIds)}`, 'cafe-detail'); // 카페 정보·사진·메뉴·리뷰 전체
+    guestPage(`/cafes/${pick(data.cafeIds)}`, 'cafe-detail'); // 카페 정보·사진·메뉴·리뷰 전체
     think();
   }
 
   if (Math.random() < 0.3) {
-    get(`/search?q=${encodeURIComponent(pick(SEARCH_WORDS))}`, 'search');
+    guestPage(`/search?q=${encodeURIComponent(pick(SEARCH_WORDS))}`, 'search');
     think();
   }
 }
 
+// 마이페이지 왼쪽 메뉴에서 옮겨 가는 화면
+const MY_PAGES = [
+  ['/member/reviews', 'my-reviews'], // 내가 쓴 리뷰(10개씩 페이지)
+  ['/favorites', 'favorites'],       // 즐겨찾기한 카페와 대표 사진
+];
+
 /**
  * 로그인 사용자 한 명이 둘러보는 흐름.
+ * 메인 → 추천 목록 → 카페 상세 1~2곳 → 가끔 알림 열기 → 절반은 마이페이지와 그 하위 화면 하나.
  * 화면을 열 때마다 머리글 스크립트가 부르는 /api/auth/me 와 알림 개수도 같이 보냅니다(브라우저와 같게).
  */
 export function browseAsMember(data, token, think) {
   const auth = { Authorization: `Bearer ${token}` };
-  const header = () => {
+  const page = (path, name) => {
+    get(path, name, auth);
     get('/api/auth/me', 'api-me', auth);
     get('/api/notifications/unread-count', 'api-unread-count', auth);
   };
 
-  get('/', 'main(member)', auth); // 니즈 기반 자카르드 추천 포함
-  header();
+  page('/', 'main(member)'); // 니즈 기반 자카르드 추천 포함
   think();
 
-  get('/cafes?sort=recommend', 'cafe-list(recommend)', auth);
-  header();
+  page('/cafes?sort=recommend', 'cafe-list(recommend)');
   think();
 
   const details = 1 + Math.floor(Math.random() * 2);
   for (let i = 0; i < details; i++) {
-    get(`/cafes/${pick(data.cafeIds)}`, 'cafe-detail', auth);
-    header();
+    page(`/cafes/${pick(data.cafeIds)}`, 'cafe-detail');
     think();
   }
 
-  get('/api/favorites', 'api-favorites', auth);
-  think();
+  // 머리글의 알림 버튼을 누르면 알림 목록을 부릅니다(화면 이동 없음).
+  if (Math.random() < 0.3) {
+    get('/api/notifications', 'api-notifications', auth);
+    think();
+  }
+
+  // 머리글의 "마이페이지" → 왼쪽 메뉴의 내가 쓴 리뷰·즐겨찾기 중 하나
+  if (Math.random() < 0.5) {
+    page('/member/me', 'mypage'); // 회원 정보와 니즈 선택
+    think();
+    const [path, name] = pick(MY_PAGES);
+    page(path, name);
+    think();
+  }
 }
 
 /**
- * 스모크 테스트용: 위 두 흐름에 나오는 모든 화면을 무작위 없이 한 번씩 엽니다.
+ * 스모크 테스트용: 위 두 흐름에 나오는 화면과 API, 그 밖에 링크로 열리는 화면을 무작위 없이 한 번씩 엽니다.
  * token 이 없으면 로그인 사용자 화면은 건너뜁니다.
  */
 export function visitEveryPage(data, token, think) {
@@ -158,6 +194,10 @@ export function visitEveryPage(data, token, think) {
   get(`/cafes?sort=tags&tag=${encodeURIComponent(pick(TAG_FILTERS))}`, 'cafe-list(tag)');
   get(`/cafes/${pick(data.cafeIds)}`, 'cafe-detail');
   get(`/search?q=${encodeURIComponent(pick(SEARCH_WORDS))}`, 'search');
+  get('/index/map', 'map');       // 바닥글의 "지도 탐색"
+  get('/login', 'login-page');
+  get('/signup', 'signup-page');
+  guestPageScripts();             // api-me(guest) → 401
   think();
   if (!token) return;
 
@@ -165,9 +205,13 @@ export function visitEveryPage(data, token, think) {
   get('/', 'main(member)', auth);
   get('/cafes?sort=recommend', 'cafe-list(recommend)', auth);
   get(`/cafes/${pick(data.cafeIds)}`, 'cafe-detail', auth);
+  get('/member/me', 'mypage', auth);
+  get('/member/reviews', 'my-reviews', auth);
+  get('/favorites', 'favorites', auth);
   get('/api/auth/me', 'api-me', auth);
   get('/api/notifications/unread-count', 'api-unread-count', auth);
-  get('/api/favorites', 'api-favorites', auth);
+  get('/api/notifications', 'api-notifications', auth);
+  get('/api/favorites', 'api-favorites', auth); // 화면에서는 부르지 않는 API 지만 열려 있어 응답만 확인
   think();
 }
 
