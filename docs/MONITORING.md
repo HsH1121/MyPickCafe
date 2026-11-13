@@ -30,7 +30,8 @@ flowchart LR
 | `monitoring/prometheus/alert-rules.yml` | 알림 규칙 5개 |
 | `monitoring/grafana/provisioning/` | 데이터 소스·대시보드 자동 등록 |
 | `monitoring/grafana/dashboards/` | `MyPickCafe 웹 서버`, `k6 부하 테스트` 대시보드 |
-| `monitoring/k6/` | `smoke.js`, `load.js`, `stress.js`, 공통 흐름 `lib/mypickcafe.js` |
+| `monitoring/k6/` | `smoke.js`, `load.js`, `stress.js`, `slow-ai.js`, 공통 흐름 `lib/mypickcafe.js` |
+| `monitoring/ai-stub/` | 느린 AI 테스트용 가짜 AI 서버와 덧붙임 compose 설정(아래 "느린 AI 테스트") |
 
 ### 지표를 밖에 내보내지 않는 방법
 
@@ -145,13 +146,14 @@ echo $LASTEXITCODE   # 0 = 기준 통과, 99 = 기준(threshold) 위반
 | smoke | 1 | 1초 | 20초 | 모든 응답이 기대한 코드 (요청 20종을 한 번씩: 비로그인 10, 로그인 10) |
 | load | 50 = 비로그인 40 + 로그인 10 | 1~3초 | 4분 30초 | 실패 1% 미만, p95 500ms·p99 1.5초 미만, 로그인 p95 1초 미만 |
 | stress | 20 → 100 → 200 → 300, 단계마다 1분 유지 | 없음 | 7분 | p95 1초·실패 1% (어기는 단계가 한계) |
+| slow-ai | 열람 40 + 느린 AI 요청 5 → 10 → 20 → 30 | 열람 1~3초, 느린 요청 1초 | 7분 | 구간마다 열람 p95 500ms·실패 1% (아래 "느린 AI 테스트") |
 
 - **load 50명**: 개인이 운영하는 지역 카페 탐색 서비스(EC2 t3.large 한 대)의 피크를 넉넉히 잡은 가정이다. 화면을 1~3초씩 읽으며 둘러보는 50명은 초당 약 55건의 요청이다(화면이 부르는 API 포함, 흐름에서 계산한 값). 가정이 다르면 `PEAK_VUS` 로 바꾼다.
 - **화면이 부르는 API**: 브라우저는 화면 HTML 을 받은 뒤 스크립트로 API 를 더 부른다. 모든 화면에서 `cafego.js` 가 `/api/auth/me` 를 부르고(비로그인은 401 이 정상), 로그인 화면에서는 머리글이 알림 개수를 부른다. k6 도 화면마다 같이 보낸다. 이미지·CSS·JS 같은 정적 파일은 보내지 않는다(브라우저가 캐시하고, 여기서는 앱의 처리 비용을 본다).
 - **기준**: 원본 가이드의 데모 API 는 일부러 10% 실패했지만 이 앱은 실패하면 안 되므로 실패율 기준을 1% 로 잡았다. 기준은 테스트 전에 정한 값이며, 결과를 보고 고치지 않는다.
 - **stress 계단**: 이 앱의 대기열 두 개에 맞췄다. **20명** = prod 의 DB 커넥션 풀 크기(`DB_POOL_MAX=20`), **200명** = Tomcat 기본 스레드 수. 대기 없이 요청하므로 VU 수보다 훨씬 큰 부하다.
 - **로그인 사용자 20%**: 로그인(BCrypt), 니즈 기반 추천 목록, 요청마다 JWT 필터가 하는 회원 조회, 알림 목록(30%), 마이페이지와 그 하위 화면인 내가 쓴 리뷰·즐겨찾기(50%)가 비로그인과 다른 부하를 만든다. VU 마다 처음 한 번만 로그인한다.
-- **넣지 않은 것**: 리뷰 작성·찜·카페 등록 같은 쓰기 요청(데이터가 쌓이고 리뷰 작성은 AI 를 부름), 픽봇(요청마다 외부 LLM 비용이 들고 앱이 아니라 LLM 응답 시간을 재게 됨).
+- **넣지 않은 것**: smoke·load·stress 에는 리뷰 작성·찜·카페 등록 같은 쓰기 요청(데이터가 쌓이고 리뷰 작성은 AI 를 부름)과 픽봇(요청마다 외부 LLM 비용이 들고 앱이 아니라 LLM 응답 시간을 재게 됨)을 넣지 않았다. 픽봇·리뷰 작성은 가짜 AI 서버를 붙인 `slow-ai.js` 에서 따로 본다.
 
 ### 결과 읽기
 
@@ -185,6 +187,97 @@ echo $LASTEXITCODE   # 0 = 기준 통과, 99 = 기준(threshold) 위반
 읽는 법: 처리량은 20명에서 이미 최대이고 그 뒤로는 늘지 않는다. 100명부터 DB 커넥션 20개가 모두 쓰이고 대기가 쌓이므로, 이 조건의 첫 병목은 **DB 커넥션 풀**이다.
 300명에서는 Tomcat 스레드 200개도 다 차서, k6 p95(785ms)와 앱 p95(655ms)의 차이만큼 스레드 앞에서 줄을 섰다.
 JVM CPU 는 44% 정도로 여유가 있었다. 단, EC2(vCPU 2개)에서는 CPU 가 먼저 막힐 수 있으므로 실제 데이터와 아래 CPU 제한으로 다시 재야 한다.
+
+## 느린 AI 테스트
+
+AI 응답이 느릴 때(픽봇 추천·리뷰 작성), **AI 를 부르지 않는 열람 화면까지 느려지는지** 본다. 실제 AI 서버 대신 정해 둔 시간만큼 기다렸다가 답하는 **가짜 AI 서버**(`monitoring/ai-stub/ai_stub.py`)를 붙여서, LLM 비용 없이 잰다.
+
+### 무엇을 보나
+
+Spring 은 AI 응답을 Tomcat 스레드에서 기다린다(`WebClient ... .block()`). 기다리는 동안 DB 커넥션까지 잡고 있으면, 느린 요청이 커넥션 풀(prod 20개)을 다 차지해 다른 화면이 커넥션을 기다린다. 커넥션을 30초(`connection-timeout`) 안에 못 받으면 그 요청은 실패한다.
+
+| 요청 | 커넥션을 잡는 이유 | 확실한 정도 |
+| --- | --- | --- |
+| 리뷰 작성 (`POST /reviews/new`) | `ReviewService.saveWithTags` 가 `@Transactional` 이고, 그 안에서 태그 분석을 기다린다(최대 10초) | 코드상 확실 |
+| 픽봇 (`POST /api/pickbot/recommend`) | `spring.jpa.open-in-view` 설정이 없어 기본값(켜짐)이다. 승인된 카페 ID 를 조회할 때 받은 커넥션을 AI 응답(최대 60초)을 지나 요청이 끝날 때까지 쥐고 있을 것으로 본다 | 이 테스트로 확인 |
+
+| 파일 | 역할 |
+| --- | --- |
+| `monitoring/ai-stub/ai_stub.py` | 가짜 AI 서버. 픽봇 추천(기본 8초)·리뷰 태그 분석(기본 3초)을 기다렸다가 형식만 맞는 응답을 준다. 태그는 비워서 준다(카페 대표 태그가 바뀌지 않게). 표준 라이브러리만 쓴다 |
+| `monitoring/ai-stub/docker-compose.ai-stub.yml` | 덧붙임 설정. `ai-stub` 컨테이너를 띄우고 web 의 AI 주소(`PYTHON_API_BASE_URL`·`PICKBOT_API_BASE_URL`)를 가짜 AI 서버로 바꾼다. 배포는 이 파일을 쓰지 않는다 |
+| `monitoring/k6/slow-ai.js` | 열람 40명을 계속 돌리면서 느린 요청을 5 → 10 → 20 → 30건으로 늘린다. 열람 응답 시간을 구간별로 판정한다 |
+
+### 준비
+
+앱과 모니터링은 위 "실행"의 1·2번대로 띄운 상태에서, 저장소 루트에서 실행한다.
+
+```powershell
+# 가짜 AI 서버를 띄우고 web 을 가짜 AI 주소로 다시 만든다(실제 AI 서버는 쓰지 않으므로 꺼 둬도 된다)
+docker compose -f docker-compose.yml -f monitoring/ai-stub/docker-compose.ai-stub.yml up -d --no-deps ai-stub mypickcafe-web
+docker logs mypickcafe-ai-stub   # "가짜 AI 서버 :8000  픽봇 8000ms, 태그 3000ms, 흔들림 ±20%"
+docker compose run --rm k6 run /scripts/smoke.js   # web 을 다시 만들었으니 먼저 확인
+```
+
+- **지연 시간**: `.env` 의 `AI_STUB_PICKBOT_DELAY_MS`(기본 8000)·`AI_STUB_TAG_DELAY_MS`(기본 3000)를 실제로 잰 값에 맞춘다. 바꾼 뒤 위 `up` 명령을 다시 실행하면 `ai-stub` 만 다시 만들어진다.
+- **CPU 제한**(위 "주의")을 쓰면 web 을 다시 만든 **뒤에** 건다. 다시 만들면 제한이 풀린다.
+- **IDE 로 띄운 앱**: `python monitoring/ai-stub/ai_stub.py` 로 띄우고(`$env:PORT=18000` 처럼 로컬 AI 서버와 다른 포트), IDE 실행 설정에 `PYTHON_API_BASE_URL`·`PICKBOT_API_BASE_URL`=`http://localhost:18000` 을 넣는다. dev 프로파일은 커넥션 풀이 기본값 10개이고 SQL 로그가 느려 숫자가 prod 와 다르다.
+
+### 실행
+
+```powershell
+# 픽봇(기본)
+docker compose run --rm k6 run -o experimental-prometheus-rw /scripts/slow-ai.js
+# 리뷰 작성 — 로그인 계정(K6_USER_EMAIL) 필요, 리뷰가 실제로 쌓이므로 끝나고 아래 "정리"
+docker compose run --rm -e SLOW_TARGET=review k6 run -o experimental-prometheus-rw /scripts/slow-ai.js
+```
+
+- setup 에서 픽봇을 한 번 보내 **가짜 AI 서버가 붙어 있는지 확인**하고, 아니면 시작하지 않는다. 실제 AI 서버에 이 테스트를 돌리면 LLM 호출이 수백 번 나간다.
+- 단계를 바꾸려면 `-e SLOW_STEPS=10,15,20,25`, 열람 사용자 수는 `-e BROWSE_VUS=40`.
+- 약 7분 걸린다. 기준을 어기는(종료 코드 99) 것이 정상일 수 있다. 처음 어기는 단계를 찾는 테스트다.
+
+시간표(`step` 태그). 단계 사이 10초는 VU 가 늘어나는 중이라 판정에서 뺀다.
+
+| 구간 | 시간 | 동시 느린 요청 | 판정 |
+| --- | --- | --- | --- |
+| `warmup` | 0:00–0:30 | 0 (열람 40명까지 늘림) | 안 함 |
+| `baseline` | 0:30–1:30 | 0 | 열람 p95 500ms·실패 1% |
+| `slow05` | 1:40–2:40 | 5 | 〃 |
+| `slow10` | 2:50–3:50 | 10 | 〃 |
+| `slow20` | 4:00–5:00 | 20 (= prod 커넥션 풀) | 〃 |
+| `slow30` | 5:10–6:10 | 30 | 〃 |
+| `cooldown` | 6:20–7:00 | 0 (회복하는지) | 〃 |
+
+느린 요청 VU 하나는 요청을 하나 보내고, 응답을 받으면 1초 쉬고 다시 보낸다. 그래서 VU 수가 곧 동시에 걸려 있는 AI 호출 수(8초 지연이면 약 90%)다.
+
+### 결과 읽기
+
+- **터미널 요약**: `http_req_duration{scenario:browse,step:...}` 줄에서 **처음 ✗ 가 나오는 단계**가 "느린 AI 호출이 사이트 전체를 끌어내리는" 동시 호출 수다. `http_req_duration{scenario:slow,step:...}` 는 느린 요청 자체의 시간이며, AI 지연보다 길어진 만큼 Spring 안에서 줄을 선 것이다.
+- **k6 부하 테스트 대시보드**의 "줄이 생기는 곳": 단계마다 **DB 커넥션 사용 수가 느린 요청 수만큼 오르는지**를 본다. 오르면 AI 를 기다리는 동안 커넥션을 잡고 있는 것이다. 20을 다 쓰면 대기가 생긴다. "화면별 응답 시간"에서는 `pickbot`·`review-write` 가 수 초라 다른 화면이 바닥에 깔리므로, 범례에서 그 둘을 끄고 본다.
+- **MyPickCafe 웹 서버 대시보드**: "DB 커넥션 풀 (HikariCP)", "AI 서버 호출 수", "AI 서버 응답 시간 p95".
+- **가짜 AI 서버 로그**(`docker logs mypickcafe-ai-stub`): 10초마다 대기 중인 요청 수와 최대치를 찍는다. 최대치가 VU 수보다 작으면, 요청이 가짜 AI 서버에 닿기 전에 Spring 의 AI 연결 풀(Reactor Netty 기본값, CPU 수에 따라 16개 이상)에서 줄을 선 것이다.
+
+| 보이는 것 | 뜻 |
+| --- | --- |
+| 커넥션 사용이 느린 요청 수만큼 오르고, `slow20` 부터 열람 ✗ | AI 를 기다리는 동안 DB 커넥션을 잡고 있다. 픽봇이면 open-in-view, 리뷰면 트랜잭션 안의 AI 호출 때문이다 |
+| 커넥션 사용은 그대로이고 열람 ✓ | 커넥션은 잡지 않는다. 느린 요청이 쓰는 것은 Tomcat 스레드(200개 중 일부)뿐이다 |
+| `cooldown` 도 ✗ | 느린 요청을 뺀 뒤에도 쌓인 대기가 30초 안에 풀리지 않았다 |
+
+고칠 방향(이 테스트에서는 고치지 않는다): `spring.jpa.open-in-view=false`, 리뷰 저장과 태그 분석을 나눠 AI 호출을 트랜잭션 밖으로 빼기(또는 비동기). 고친 뒤 같은 테스트로 전후를 비교한다.
+
+### 정리와 되돌리기
+
+리뷰 작성 모드로 돌렸다면 테스트 리뷰를 지운다. 내용이 `[k6-slow-ai]` 로 시작하는 리뷰와 그 알림·태그다. 가짜 AI 서버가 태그를 비워 주므로 카페 대표 태그는 바뀌지 않았다. **실제 AI 서버로 되돌리기 전에 지운다.** 남겨 두면 픽봇 인덱스에 들어갈 수 있다.
+
+```powershell
+docker compose exec postgres psql -U mypickcafe -d mypickcafe -c "DELETE FROM notification WHERE review_id IN (SELECT review_id FROM review WHERE content LIKE '[k6-slow-ai]%'); DELETE FROM review_tag WHERE review_id IN (SELECT review_id FROM review WHERE content LIKE '[k6-slow-ai]%'); DELETE FROM review WHERE content LIKE '[k6-slow-ai]%';"
+```
+
+web 을 실제 AI 서버로 되돌리고 가짜 AI 서버를 지운다.
+
+```powershell
+docker compose up -d --no-deps --force-recreate mypickcafe-web
+docker rm -f mypickcafe-ai-stub
+```
 
 ## 주의
 

@@ -1,0 +1,35 @@
+# 느린 AI 테스트용 덧붙임(override) 설정 — 실제 AI 서버 대신 가짜 AI 서버(ai_stub.py)를 web 에 붙입니다.
+# 사용법은 docs/MONITORING.md 의 "느린 AI 테스트". 저장소 루트에서 기본 docker-compose.yml 과 함께 -f 로 넘깁니다.
+# (여러 -f 를 쓰면 경로는 첫 번째 파일 위치 기준입니다.)
+#
+#   켜기: 가짜 AI 서버를 띄우고, web 을 가짜 AI 주소로 다시 만듭니다
+#     docker compose -f docker-compose.yml -f monitoring/ai-stub/docker-compose.ai-stub.yml up -d --no-deps ai-stub mypickcafe-web
+#   지연 바꾸기: .env 의 AI_STUB_* 를 고치고 같은 명령으로 ai-stub 만 다시 만듭니다(web 은 그대로)
+#   되돌리기: web 을 원래 설정(실제 AI 서버)으로 다시 만들고 가짜 AI 서버를 지웁니다
+#     docker compose up -d --no-deps --force-recreate mypickcafe-web
+#     docker rm -f mypickcafe-ai-stub
+#
+# 배포(scripts/cd/deploy.sh)는 이 파일을 쓰지 않습니다. 운영 서버에서 쓰지 마세요(픽봇·리뷰 태그가 가짜가 됩니다).
+services:
+  ai-stub:
+    # AI 서버(MyPickCafe_AI/Dockerfile)와 같은 이미지 계열. 표준 라이브러리만 써서 설치할 것이 없습니다.
+    image: python:3.11-slim
+    container_name: mypickcafe-ai-stub
+    command: ["python", "-u", "/app/ai_stub.py"]
+    environment:
+      # 픽봇 한 번·리뷰 태그 분석 한 번에 걸리는 시간(ms). 실제 측정값에 맞춰 바꿉니다.
+      PICKBOT_DELAY_MS: ${AI_STUB_PICKBOT_DELAY_MS:-8000}
+      TAG_DELAY_MS: ${AI_STUB_TAG_DELAY_MS:-3000}
+      DELAY_JITTER: ${AI_STUB_DELAY_JITTER:-0.2}
+    volumes:
+      - ./monitoring/ai-stub/ai_stub.py:/app/ai_stub.py:ro
+    # web 이 부르는 길(backend)에만 붙습니다. 호스트 포트는 열지 않습니다.
+    networks:
+      - backend
+    mem_limit: 128m
+
+  mypickcafe-web:
+    environment:
+      # 리뷰 태그 분석·픽봇 추천을 가짜 AI 서버로 보냅니다. 나머지 설정은 docker-compose.yml 그대로입니다.
+      PYTHON_API_BASE_URL: http://ai-stub:8000
+      PICKBOT_API_BASE_URL: http://ai-stub:8000
