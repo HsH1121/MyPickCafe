@@ -1,0 +1,12 @@
+# Grafana 가 시작할 때 Prometheus 를 데이터 소스로 등록합니다(화면에서 클릭해 만들 필요 없음).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus            # 대시보드 JSON 이 이 uid 로 데이터 소스를 찾습니다
+    type: prometheus
+    access: proxy              # 브라우저가 아니라 Grafana 서버가 Prometheus 에 질의합니다
+    url: http://prometheus:9090  # 같은 compose 네트워크의 서비스 이름(localhost 가 아님)
+    isDefault: true
+    jsonData:
+      timeInterval: 15s        # Prometheus 의 수집 주기와 맞춥니다

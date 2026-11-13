@@ -1,0 +1,61 @@
+# 알림 규칙 — Prometheus 가 15초마다 검사합니다. 상태는 http://localhost:9090/alerts 에서 봅니다.
+# Prometheus 는 "지금 알림 상태인가"까지만 판단합니다. 메일·메신저로 보내려면 Alertmanager 가 따로 필요합니다(아직 없음).
+#
+# for: 조건이 그 시간 동안 계속돼야 Firing 이 됩니다(잠깐 튀는 값으로 울리지 않게).
+# 모든 비율에서 /actuator 요청(Prometheus 의 수집 요청)은 뺍니다.
+
+groups:
+  - name: mypickcafe-web
+    rules:
+      - alert: AppDown
+        expr: up{job="mypickcafe-web"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Spring 앱(mypickcafe-web)이 1분 넘게 지표 수집에 응답하지 않습니다"
+
+      # 요청이 거의 없을 때는 5xx 한 건만으로도 비율이 크게 튀므로, 초당 0.5건 이상 들어올 때만 봅니다.
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="mypickcafe-web", uri!~"/actuator.*", status=~"5.."}[2m]))
+              / sum(rate(http_server_requests_seconds_count{job="mypickcafe-web", uri!~"/actuator.*"}[2m]))
+          ) > 0.01
+          and sum(rate(http_server_requests_seconds_count{job="mypickcafe-web", uri!~"/actuator.*"}[2m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx 응답 비율이 1%를 넘었습니다"
+
+      - alert: SlowResponses
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_server_requests_seconds_bucket{job="mypickcafe-web", uri!~"/actuator.*"}[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "응답 시간 p95 가 5분 넘게 1초를 넘었습니다"
+
+      # prod 의 DB 커넥션 풀은 20개(DB_POOL_MAX)입니다. 다 쓰면 요청이 커넥션을 기다리고(최대 30초) 응답이 밀립니다.
+      - alert: DbConnectionWait
+        expr: max(hikaricp_connections_pending{job="mypickcafe-web"}) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB 커넥션을 기다리는 요청이 1분 넘게 있습니다(커넥션 풀 부족 또는 느린 쿼리)"
+
+      # 컨테이너 메모리 한도(WEB_MEM_LIMIT=1g)의 70%가 힙입니다. 힙이 차면 ExitOnOutOfMemoryError 로 컨테이너가 재시작됩니다.
+      - alert: HeapNearLimit
+        expr: |
+          sum(jvm_memory_used_bytes{job="mypickcafe-web", area="heap"})
+            / sum(jvm_memory_max_bytes{job="mypickcafe-web", area="heap"} > 0) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM 힙 사용량이 5분 넘게 90%를 넘었습니다"

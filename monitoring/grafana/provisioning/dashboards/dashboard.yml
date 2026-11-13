@@ -1,0 +1,12 @@
+# monitoring/grafana/dashboards/ 의 JSON 파일을 "MyPickCafe" 폴더의 대시보드로 올립니다.
+# 파일을 고친 뒤에는 Grafana 를 재시작해야 반영됩니다: docker compose restart grafana
+# 화면에서 고친 내용은 저장되지 않으니, 화면에서 고친 뒤 Export → JSON 으로 받아 파일을 덮어쓰세요.
+apiVersion: 1
+
+providers:
+  - name: mypickcafe
+    folder: MyPickCafe
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

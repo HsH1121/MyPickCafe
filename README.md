@@ -67,3 +67,7 @@ docker compose up -d --build
 ## CI/CD
 
 GitHub Actions CI 구성, 테스트 범위, 로컬 실행 방법과 EC2 배포(CD) 흐름·최초 설정은 [CI/CD 안내](docs/CI_CD.md)를 참고하세요.
+
+## 모니터링·부하 테스트
+
+Prometheus·Grafana 로 Spring Boot 지표를 보고 k6 로 부하 테스트를 합니다. 실행 방법과 부하 수치의 근거는 [모니터링·부하 테스트 안내](docs/MONITORING.md)를 참고하세요.

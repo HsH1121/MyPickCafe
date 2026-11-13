@@ -119,6 +119,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
 
+                        // Actuator 는 관리 포트(management.server.port=8081)에만 열린다.
+                        // 8081 은 Caddy 가 프록시하지 않고 compose 가 호스트에 열지 않아 compose 내부망(Prometheus)에서만 닿는다.
+                        // 메인 포트(8080)에는 이 경로가 없어 404 다. 그 밖의 엔드포인트(env, beans 등)는 노출하지 않는다.
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+
                         // 비로그인 접근 허용
                         .requestMatchers("/", "/index/**", "/search/**", "/signup", "/login").permitAll()
                         .requestMatchers("/cafes", "/cafes/{cafeId}").permitAll()
