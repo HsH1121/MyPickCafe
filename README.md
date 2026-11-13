@@ -17,6 +17,7 @@ MyPickCafe는 실 방문자 리뷰를 바탕으로 취향과 목적에 맞는 �
 - 임베딩: `bge-m3` (Ollama 셀프 호스팅)
 - LLM: GLM 5.3 Flash (Fireworks AI, OpenAI 호환 API, 로컬·배포 공통), 더미 데이터 생성만 `qwen2.5:14b` (Ollama)
 - Docker / Docker Compose, AWS EC2 (기존 배포 기록: t3.large, Ubuntu 24.04)
+- Spring Boot Actuator + Micrometer, Prometheus·Grafana, k6 (모니터링·부하 테스트)
 
 ## 아키텍처
 
@@ -31,6 +32,7 @@ flowchart LR
     F -->|/chat/completions| L[Fireworks AI<br/>GLM 5.3 Flash]
     F -->|인덱싱용 리뷰 조회| P
     F --> C[(ChromaDB 볼륨)]
+    M[Prometheus·Grafana] -.->|지표 수집 :8081| S
 ```
 
 ## 주요 기능 및 설계
@@ -41,13 +43,15 @@ flowchart LR
   
 - **니즈 태그 기반 자카르드 추천** — 사용자의 니즈와 카페 태그의 교집합 크기를 합집합 크기로 나눠 순위를 정하는 자카르드 유사도 알고리즘을 사용하여 추천합니다.(카페 탐색의 '맞춤 추천' 기능)
   
-- **AI 기능별 실패 처리 정책** — 리뷰 태그 분석은 `WebClient`에 연결 2초·응답 10초 타임아웃을 적용하고, 호출 실패 시 빈 결과를 반환합니다. 픽봇 추천은 장애와 ‘조건에 맞는 카페 없음’을 구분할 수 있도록 실패 원인을 분류해 로그로 남기고 503을 반환합니다.
+- **AI 기능별 실패 처리 정책** — 리뷰 태그 분석은 `WebClient`에 연결 2초·응답 10초 타임아웃을 적용하고, 호출 실패 시 빈 결과를 반환하며, 태그 분석·반영이 실패해도 작성한 리뷰는 저장된 상태로 유지합니다. 픽봇 추천은 장애와 ‘조건에 맞는 카페 없음’을 구분할 수 있도록 실패 원인을 분류해 로그로 남기고 503을 반환합니다.
+  
+- **AI 응답 대기 중 DB 커넥션 점유 개선** — 느린 AI 응답을 재현하는 가짜 AI 서버와 k6 시나리오로 측정해, AI 응답을 기다리는 요청이 DB 커넥션을 계속 점유하면서 동시 요청이 커넥션 풀(20개)을 넘으면 AI와 무관한 화면까지 느려지는 것을 확인했습니다. 리뷰 작성은 저장 커밋 → 트랜잭션 밖 AI 분석 → 태그 반영 트랜잭션으로 나누고, AI를 기다리는 경로는 Open Session In View 적용에서 제외해 동시 AI 요청 30건 구간의 열람 응답 p95를 5.71초에서 9.9ms로 개선했습니다.
   
 - **LLM 추론과 임베딩의 분리 배치** — 개발 단계에서는 로컬 Ollama로 LLM과 임베딩을 모두 처리했으나, GPU가 없는 EC2 배포 환경의 메모리와 운영 자원 제약을 고려해 LLM 모델은 14B 모델을 직접 서빙하는 대신 외부 API를 선택했습니다. 무거운 LLM 추론은 외부 API로 분리하고, 가벼운 임베딩 모델은 서버 내 Ollama에 유지해 기존 벡터 인덱스와의 일관성을 확보했습니다.
 
 ## 담당 기능
 
-이 프로젝트는 팀 프로젝트 GoCafe를 기반으로 개인적으로 이어서 개발한 후속 프로젝트입니다. Spring Boot 도메인 뼈대와 회원·카페·리뷰 등 기본 기능, Spring Security + JWT 로그인과 `tokenVersion` 기반 토큰 무효화, Mustache 화면 기본 구성, 리뷰 데이터 등을 팀 원본에서 가져왔습니다. 이후 태그 체계 재정리와 니즈 기반 자카르드 추천, CAFEOWNER 역할 도입, 회원 API 인가 제한·응답 DTO 전환·소유권 검증 등의 보안 보완과 테스트, 리뷰 태그 분석과 픽봇 RAG 추천을 통합한 FastAPI AI 서버, 더미 데이터 생성 스크립트, Docker Compose 기반 EC2 배포를 재작업했습니다.
+이 프로젝트는 팀 프로젝트 GoCafe를 기반으로 개인적으로 이어서 개발한 후속 프로젝트입니다. Spring Boot 도메인 뼈대와 회원·카페·리뷰 등 기본 기능, Spring Security + JWT 로그인과 `tokenVersion` 기반 토큰 무효화, Mustache 화면 기본 구성, 리뷰 데이터 등을 팀 원본에서 가져왔습니다. 이후 태그 체계 재정리와 니즈 기반 자카르드 추천, CAFEOWNER 역할 도입, 회원 API 인가 제한·응답 DTO 전환·소유권 검증 등의 보안 보완과 테스트, 리뷰 태그 분석과 픽봇 RAG 추천을 통합한 FastAPI AI 서버, 더미 데이터 생성 스크립트, Docker Compose 기반 EC2 배포를 재작업했고, Prometheus·Grafana 모니터링과 k6 부하 테스트 환경을 구성해 AI 응답 대기 중 DB 커넥션 점유를 측정·개선했습니다.
 
 ## 실행 방법
 
@@ -70,4 +74,4 @@ GitHub Actions CI 구성, 테스트 범위, 로컬 실행 방법과 EC2 배포(C
 
 ## 모니터링·부하 테스트
 
-Prometheus·Grafana 로 Spring Boot 지표를 보고 k6 로 부하 테스트를 합니다. 실행 방법과 부하 수치의 근거는 [모니터링·부하 테스트 안내](docs/MONITORING.md)를 참고하세요.
+Prometheus·Grafana로 Spring Boot 지표(응답 시간·DB 커넥션 풀·Tomcat 스레드·AI 호출)를 확인하고, k6로 스모크·부하·스트레스·느린 AI 시나리오를 실행합니다. 실행 방법, 부하 수치의 근거, 수정 전후 측정 기록은 [모니터링·부하 테스트 안내](docs/MONITORING.md)를 참고하세요.
