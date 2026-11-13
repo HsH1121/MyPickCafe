@@ -7,9 +7,9 @@
 // 왜 보는가
 //   Spring 은 AI 응답을 Tomcat 스레드에서 기다립니다(WebClient ... .block()). 그동안 DB 커넥션까지 잡고 있으면
 //   커넥션 풀(prod 20개)이 느린 요청에 묶여, AI 를 부르지 않는 화면도 커넥션을 기다리게 됩니다.
-//   - 리뷰 작성: ReviewService.saveWithTags 가 @Transactional 이라 태그 분석을 기다리는 동안 커넥션을 잡습니다.
-//   - 픽봇: spring.jpa.open-in-view 설정이 없어 기본값(켜짐)입니다. 승인된 카페 ID 를 조회한 뒤
-//           AI 응답이 올 때까지 커넥션을 잡고 있습니다(2026-11-13 측정, docs/MONITORING.md 의 검증 기록).
+//   2026-11-13 이 테스트로 리뷰 작성(트랜잭션 안의 태그 분석)과 픽봇(open-in-view)이 커넥션을 쥐고 있는 것을
+//   확인하고 고쳤습니다(OpenInViewConfig, ReviewService). 전후 숫자는 docs/MONITORING.md 의 검증 기록.
+//   지금은 같은 문제가 다시 생기지 않았는지 확인하는 데 씁니다.
 //
 // 구성
 //   browse : 비로그인 BROWSE_VUS(기본 40)명이 load.js 와 같은 흐름으로 처음부터 끝까지 둘러봅니다. 판정 대상입니다.
