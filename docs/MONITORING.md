@@ -203,7 +203,7 @@ Spring 은 AI 응답을 Tomcat 스레드에서 기다린다(`WebClient ... .bloc
 
 | 파일 | 역할 |
 | --- | --- |
-| `monitoring/ai-stub/ai_stub.py` | 가짜 AI 서버. 픽봇 추천(기본 8초)·리뷰 태그 분석(기본 3초)을 기다렸다가 형식만 맞는 응답을 준다. 태그는 비워서 준다(카페 대표 태그가 바뀌지 않게). 표준 라이브러리만 쓴다 |
+| `monitoring/ai-stub/ai_stub.py` | 가짜 AI 서버. 픽봇 추천은 5~15초, 리뷰 태그 분석은 2~4초 중 요청마다 랜덤(균등 분포)으로 기다렸다가 형식만 맞는 응답을 준다. 태그는 비워서 준다(카페 대표 태그가 바뀌지 않게). 표준 라이브러리만 쓴다 |
 | `monitoring/ai-stub/docker-compose.ai-stub.yml` | 덧붙임 설정. `ai-stub` 컨테이너를 띄우고 web 의 AI 주소(`PYTHON_API_BASE_URL`·`PICKBOT_API_BASE_URL`)를 가짜 AI 서버로 바꾼다. 배포는 이 파일을 쓰지 않는다 |
 | `monitoring/k6/slow-ai.js` | 열람 40명을 계속 돌리면서 느린 요청을 5 → 10 → 20 → 30건으로 늘린다. 열람 응답 시간을 구간별로 판정한다 |
 
@@ -214,11 +214,11 @@ Spring 은 AI 응답을 Tomcat 스레드에서 기다린다(`WebClient ... .bloc
 ```powershell
 # 가짜 AI 서버를 띄우고 web 을 가짜 AI 주소로 다시 만든다(실제 AI 서버는 쓰지 않으므로 꺼 둬도 된다)
 docker compose -f docker-compose.yml -f monitoring/ai-stub/docker-compose.ai-stub.yml up -d --no-deps ai-stub mypickcafe-web
-docker logs mypickcafe-ai-stub   # "가짜 AI 서버 :8000  픽봇 8000ms, 태그 3000ms, 흔들림 ±20%"
+docker logs mypickcafe-ai-stub   # "가짜 AI 서버 :8000  픽봇 5000~15000ms, 태그 2000~4000ms"
 docker compose run --rm k6 run /scripts/smoke.js   # web 을 다시 만들었으니 먼저 확인
 ```
 
-- **지연 시간**: `.env` 의 `AI_STUB_PICKBOT_DELAY_MS`(기본 8000)·`AI_STUB_TAG_DELAY_MS`(기본 3000)를 실제로 잰 값에 맞춘다. 바꾼 뒤 위 `up` 명령을 다시 실행하면 `ai-stub` 만 다시 만들어진다.
+- **지연 시간**: 요청마다 최소~최대 사이에서 고르게 뽑는다. `.env` 의 `AI_STUB_PICKBOT_DELAY_MIN_MS`·`_MAX_MS`(기본 5000·15000), `AI_STUB_TAG_DELAY_MIN_MS`·`_MAX_MS`(기본 2000·4000)로 바꾼다. 태그 분석은 Spring 대기 한도(10초), 픽봇은 60초보다 짧아야 실패 없이 잰다. 바꾼 뒤 위 `up` 명령을 다시 실행하면 `ai-stub` 만 다시 만들어진다.
 - **CPU 제한**(위 "주의")을 쓰면 web 을 다시 만든 **뒤에** 건다. 다시 만들면 제한이 풀린다.
 - **IDE 로 띄운 앱**: `python monitoring/ai-stub/ai_stub.py` 로 띄우고(`$env:PORT=18000` 처럼 로컬 AI 서버와 다른 포트), IDE 실행 설정에 `PYTHON_API_BASE_URL`·`PICKBOT_API_BASE_URL`=`http://localhost:18000` 을 넣는다. dev 프로파일은 커넥션 풀이 기본값 10개이고 SQL 로그가 느려 숫자가 prod 와 다르다.
 
@@ -247,7 +247,7 @@ docker compose run --rm -e SLOW_TARGET=review k6 run -o experimental-prometheus-
 | `slow30` | 5:10–6:10 | 30 | 〃 |
 | `cooldown` | 6:20–7:00 | 0 (회복하는지) | 〃 |
 
-느린 요청 VU 하나는 요청을 하나 보내고, 응답을 받으면 1초 쉬고 다시 보낸다. 그래서 VU 수가 곧 동시에 걸려 있는 AI 호출 수(8초 지연이면 약 90%)다.
+느린 요청 VU 하나는 요청을 하나 보내고, 응답을 받으면 1초 쉬고 다시 보낸다. 그래서 VU 수가 곧 동시에 걸려 있는 AI 호출 수다(픽봇 평균 10초 대기 + 1초 쉼이라 약 90%, 리뷰는 평균 3초 + 1초라 약 75%).
 
 ### 결과 읽기
 

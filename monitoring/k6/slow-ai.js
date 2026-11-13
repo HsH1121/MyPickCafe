@@ -124,7 +124,7 @@ export const options = {
   thresholds,
   systemTags: SYSTEM_TAGS,
   summaryTrendStats: SUMMARY_TREND_STATS,
-  // setup 의 가짜 AI 확인이 픽봇 한 번(기본 8초, 최대 60초)을 기다립니다.
+  // setup 의 가짜 AI 확인이 픽봇 한 번(가짜 AI 기본 5~15초, Spring 한도 60초)을 기다립니다.
   setupTimeout: '120s',
 };
 

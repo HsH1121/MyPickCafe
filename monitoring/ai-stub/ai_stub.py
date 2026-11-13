@@ -4,19 +4,21 @@ LLM·임베딩을 부르지 않고, 정해 둔 시간만큼 기다렸다가 형�
 AI 응답을 기다리는 동안 Spring 이 스레드·DB 커넥션을 어떻게 쓰는지를 LLM 비용 없이 재려는 것입니다.
 
 흉내 내는 엔드포인트 (Spring 의 PickBotClient·PythonTagClient 가 부르는 것)
-  POST /pickbot/recommend    PICKBOT_DELAY_MS 만큼 기다린 뒤, 요청의 approvedCafeIds 앞쪽 3곳을 추천 결과로 줍니다.
+  POST /pickbot/recommend    5~15초 기다린 뒤, 요청의 approvedCafeIds 앞쪽 3곳을 추천 결과로 줍니다.
                              (결과가 있어야 Spring 이 응답 뒤에 대표 사진 조회까지 실제와 같게 합니다.)
-  POST /review/analyze       TAG_DELAY_MS 만큼 기다린 뒤 빈 태그·감성 없음을 줍니다.
+  POST /review/analyze       2~4초 기다린 뒤 빈 태그·감성 없음을 줍니다.
                              (태그를 주면 테스트 리뷰가 카페 대표 태그를 바꿉니다.)
   POST /pickbot/index-one    바로 200. 리뷰 저장 뒤 Spring 이 결과를 기다리지 않고 부릅니다.
   POST /pickbot/delete-one   바로 200.
   GET  /health               바로 200.
 
 환경 변수
-  PORT              기본 8000
-  PICKBOT_DELAY_MS  기본 8000. 픽봇 한 번(질문 분해 + 검색 + 판정 LLM)에 걸리는 시간
-  TAG_DELAY_MS      기본 3000. 리뷰 태그 분석(LLM 한 번)에 걸리는 시간
-  DELAY_JITTER      기본 0.2. 지연을 ±20% 안에서 고르게 흔들어, 같이 들어온 요청이 같은 순간에 끝나지 않게 합니다.
+  PORT                  기본 8000
+  PICKBOT_DELAY_MIN_MS  기본 5000   픽봇 한 번(질문 분해 + 검색 + 판정 LLM)에 걸리는 시간.
+  PICKBOT_DELAY_MAX_MS  기본 15000  요청마다 최소~최대 사이에서 고르게(균등 분포) 뽑습니다.
+  TAG_DELAY_MIN_MS      기본 2000   리뷰 태그 분석(LLM 한 번)에 걸리는 시간. 뽑는 방법은 위와 같습니다.
+  TAG_DELAY_MAX_MS      기본 4000
+  최소와 최대를 같게 주면 매번 같은 시간을 기다립니다.
 
 10초마다 지금 기다리는 요청 수(in-flight)를 출력합니다. k6 의 VU 수가 실제로 몇 건의 동시 AI 호출이 됐는지 확인합니다.
 
@@ -33,9 +35,19 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(os.environ.get("PORT", "8000"))
-PICKBOT_DELAY_MS = int(os.environ.get("PICKBOT_DELAY_MS", "8000"))
-TAG_DELAY_MS = int(os.environ.get("TAG_DELAY_MS", "3000"))
-JITTER = float(os.environ.get("DELAY_JITTER", "0.2"))
+
+
+def delay_range(name, default_min, default_max):
+    """환경 변수 {name}_MIN_MS·{name}_MAX_MS 를 읽어 (최소, 최대) ms 를 돌려줍니다."""
+    low = int(os.environ.get(f"{name}_MIN_MS", default_min))
+    high = int(os.environ.get(f"{name}_MAX_MS", default_max))
+    if low < 0 or high < low:
+        raise SystemExit(f"{name}_MIN_MS({low}) 는 0 이상이고 {name}_MAX_MS({high}) 이하여야 합니다.")
+    return low, high
+
+
+PICKBOT_DELAY = delay_range("PICKBOT_DELAY", 5000, 15000)
+TAG_DELAY = delay_range("TAG_DELAY", 2000, 4000)
 
 EMPTY_TAGS = {"sentiment": None, "FACILITY": [], "MENU": [], "PURPOSE": [], "MOOD": []}
 
@@ -71,12 +83,11 @@ class Stats:
 stats = Stats()
 
 
-def wait(key, delay_ms):
-    """delay_ms ± JITTER 만큼 기다립니다. 그동안 key 의 대기 수에 잡힙니다."""
+def wait(key, delay_range_ms):
+    """(최소, 최대) ms 사이에서 고르게 뽑은 시간만큼 기다립니다. 그동안 key 의 대기 수에 잡힙니다."""
     stats.enter(key)
     try:
-        if delay_ms > 0:
-            time.sleep(delay_ms * random.uniform(1 - JITTER, 1 + JITTER) / 1000)
+        time.sleep(random.uniform(*delay_range_ms) / 1000)
     finally:
         stats.leave(key)
 
@@ -94,7 +105,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         body = self._read_json()
         if self.path == "/pickbot/recommend":
-            wait("pickbot", PICKBOT_DELAY_MS)
+            wait("pickbot", PICKBOT_DELAY)
             cafe_ids = body.get("approvedCafeIds") or []
             results = [
                 {
@@ -108,7 +119,7 @@ class Handler(BaseHTTPRequestHandler):
             ]
             self._send(200, {"results": results, "notice": None})
         elif self.path == "/review/analyze":
-            wait("tag", TAG_DELAY_MS)
+            wait("tag", TAG_DELAY)
             self._send(200, EMPTY_TAGS)
         elif self.path in ("/pickbot/index-one", "/pickbot/delete-one"):
             self._send(200, {"status": "ok"})
@@ -159,7 +170,7 @@ if __name__ == "__main__":
     threading.Thread(target=report, daemon=True).start()
     server = Server(("0.0.0.0", PORT), Handler)
     print(
-        f"가짜 AI 서버 :{PORT}  픽봇 {PICKBOT_DELAY_MS}ms, 태그 {TAG_DELAY_MS}ms, 흔들림 ±{int(JITTER * 100)}%",
+        f"가짜 AI 서버 :{PORT}  픽봇 {PICKBOT_DELAY[0]}~{PICKBOT_DELAY[1]}ms, 태그 {TAG_DELAY[0]}~{TAG_DELAY[1]}ms",
         flush=True,
     )
     server.serve_forever()

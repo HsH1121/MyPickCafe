@@ -17,10 +17,11 @@ services:
     container_name: mypickcafe-ai-stub
     command: ["python", "-u", "/app/ai_stub.py"]
     environment:
-      # 픽봇 한 번·리뷰 태그 분석 한 번에 걸리는 시간(ms). 실제 측정값에 맞춰 바꿉니다.
-      PICKBOT_DELAY_MS: ${AI_STUB_PICKBOT_DELAY_MS:-8000}
-      TAG_DELAY_MS: ${AI_STUB_TAG_DELAY_MS:-3000}
-      DELAY_JITTER: ${AI_STUB_DELAY_JITTER:-0.2}
+      # 픽봇 한 번·리뷰 태그 분석 한 번에 걸리는 시간(ms). 요청마다 최소~최대 사이에서 고르게 뽑습니다.
+      PICKBOT_DELAY_MIN_MS: ${AI_STUB_PICKBOT_DELAY_MIN_MS:-5000}
+      PICKBOT_DELAY_MAX_MS: ${AI_STUB_PICKBOT_DELAY_MAX_MS:-15000}
+      TAG_DELAY_MIN_MS: ${AI_STUB_TAG_DELAY_MIN_MS:-2000}
+      TAG_DELAY_MAX_MS: ${AI_STUB_TAG_DELAY_MAX_MS:-4000}
     volumes:
       - ./monitoring/ai-stub/ai_stub.py:/app/ai_stub.py:ro
     # web 이 부르는 길(backend)에만 붙습니다. 호스트 포트는 열지 않습니다.
