@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReviewService {
@@ -164,18 +166,29 @@ public class ReviewService {
         return saved;
     }
 
-    /** 트랜잭션 밖에서 태그 분석을 기다린 뒤, 결과가 있으면 짧은 트랜잭션으로 반영한다. */
+    /**
+     * 트랜잭션 밖에서 태그 분석을 기다린 뒤, 결과가 있으면 짧은 트랜잭션으로 반영한다.
+     *
+     * <p>반영이 실패하면(예: AI 가 같은 태그를 두 번 줘 review_tag 유니크 위반) 그 트랜잭션만 롤백하고
+     * 리뷰는 태그 없이 둔다. 리뷰는 이미 커밋됐으므로 예외를 넘기면 사용자는 저장된 리뷰를 두고 오류 화면을 보고,
+     * 다시 제출하면 리뷰가 두 번 쌓인다. 태그 분석 자체가 실패했을 때와 같은 결과로 맞춘다.
+     */
     private void analyzeAndApplyTags(Review saved) {
         Long reviewId = saved.getId();
         Long cafeId = saved.getCafe().getId();
-        pythonTagClient.analyze(new PythonTagRequest(reviewId, saved.getContent()))
-                .ifPresent(res -> transactionTemplate.executeWithoutResult(status ->
+        pythonTagClient.analyze(new PythonTagRequest(reviewId, saved.getContent())).ifPresent(res -> {
+            try {
+                transactionTemplate.executeWithoutResult(status ->
                         // 분석을 기다리는 사이 리뷰가 지워졌으면 반영할 곳이 없다
                         reviewRepository.findById(reviewId).ifPresent(review -> {
                             saveEnumTags(review, res);
                             syncCafeTopTags(cafeId);
                             applySentiment(review, res.getSentiment());
-                        })));
+                        }));
+            } catch (RuntimeException e) {
+                log.warn("리뷰 태그 반영 실패 (리뷰는 태그 없이 둔다) reviewId={}: {}", reviewId, e.getMessage());
+            }
+        });
     }
 
     /** GOOD·BAD 만 반영한다. 리뷰는 이 트랜잭션에서 읽은 엔티티라 커밋할 때 함께 저장된다. */

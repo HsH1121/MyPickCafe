@@ -152,6 +152,30 @@ class DbConnectionDuringAiCallTest {
         assertTagsApplied(saved);
     }
 
+    @Test
+    @DisplayName("리뷰 작성: 태그 반영이 실패해도(중복 태그로 유니크 위반) 저장된 리뷰로 정상 응답한다")
+    void reviewCreateSurvivesTagApplyFailure() throws Exception {
+        when(pythonTagClient.analyze(any())).thenAnswer(inv -> {
+            PythonTagResponse res = new PythonTagResponse();
+            res.setSentiment("GOOD");
+            res.setFacilityTags(List.of("WIFI", "WIFI")); // review_tag (review_id, category_code, code) 유니크 위반
+            return Optional.of(res);
+        });
+
+        mvc.perform(post("/reviews/new").with(writer())
+                        .param("cafeId", String.valueOf(cafeId))
+                        .param("reviewContent", "와이파이 와이파이"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/cafes/" + cafeId));
+
+        // 리뷰는 남고, 태그 반영 트랜잭션만 통째로 롤백된다(AI 분석이 실패했을 때와 같은 상태)
+        Review saved = reviewRepository.findByCafe_IdOrderByCreatedAtDesc(cafeId).get(0);
+        assertThat(saved.getContent()).isEqualTo("와이파이 와이파이");
+        assertThat(saved.getSentiment()).isNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review_tag WHERE review_id = ?", Integer.class, saved.getId()))
+                .isZero();
+    }
+
     private void assertTagsApplied(Review review) {
         assertThat(review.getSentiment()).isEqualTo("GOOD");
         assertThat(review.getGood()).isEqualTo(1);
